@@ -5,7 +5,7 @@ describe("consumo del agente activo", () => {
   it("reconoce el agente por id, comando o proceso", () => {
     expect(providerFor("claude")).toBe("claude");
     expect(providerFor(undefined, "codex resume --last")).toBe("codex");
-    expect(providerFor(undefined, "C:\Users\yo\AppData\Local\agy\bin\agy.exe -p hola")).toBe("agy");
+    expect(providerFor(undefined, "C:\\Users\\yo\\AppData\\Local\\agy\\bin\\agy.exe -p hola")).toBe("agy");
     expect(providerFor(undefined, undefined, "claude.exe")).toBe("claude");
     expect(providerFor("opencode", "npm run dev", "node")).toBeNull();
   });
