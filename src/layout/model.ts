@@ -36,11 +36,24 @@ export interface Tab {
   root: PaneNode;
   activePane: string;
   manualTitle?: string;
+  /** Color del título (hex). */
+  color?: string;
+  /** Carpeta de pestañas a la que pertenece. */
+  groupId?: string;
+}
+
+/** Carpeta de pestañas: agrupa varias bajo un nombre y se puede plegar. */
+export interface Group {
+  id: string;
+  name: string;
+  color?: string;
+  collapsed: boolean;
 }
 
 export interface Layout {
   tabs: Tab[];
   activeTab: string;
+  groups?: Group[];
 }
 
 let seq = 0;
@@ -74,8 +87,10 @@ function mapTab(l: Layout, tabId: string, f: (t: Tab) => Tab): Layout {
 export function addTab(l: Layout, tab: Tab): Layout {
   const i = l.tabs.findIndex((t) => t.id === l.activeTab);
   const tabs = [...l.tabs];
-  tabs.splice(i < 0 ? tabs.length : i + 1, 0, tab);
-  return { tabs, activeTab: tab.id };
+  // Una pestaña nueva queda en la misma carpeta que la activa.
+  const group = l.tabs[i]?.groupId;
+  tabs.splice(i < 0 ? tabs.length : i + 1, 0, group && !tab.groupId ? { ...tab, groupId: group } : tab);
+  return { ...l, tabs, activeTab: tab.id };
 }
 
 /** Cierra una pestaña; queda activa la de la derecha (o la de la izquierda si era la última). */
@@ -85,7 +100,76 @@ export function closeTab(l: Layout, tabId: string): Layout {
   const tabs = l.tabs.filter((t) => t.id !== tabId);
   let active = l.activeTab;
   if (active === tabId) active = tabs[Math.min(i, tabs.length - 1)]?.id ?? "";
-  return { tabs, activeTab: active };
+  return pruneGroups({ ...l, tabs, activeTab: active });
+}
+
+// --- Colores y carpetas de pestañas ----------------------------------------------------------------
+
+export function setTabColor(l: Layout, tabId: string, color: string | undefined): Layout {
+  return mapTab(l, tabId, (t) => ({ ...t, color }));
+}
+
+/** Saca las carpetas que quedaron vacías. */
+export function pruneGroups(l: Layout): Layout {
+  if (!l.groups?.length) return l;
+  const used = new Set(l.tabs.map((t) => t.groupId).filter(Boolean));
+  const groups = l.groups.filter((g) => used.has(g.id));
+  return groups.length === l.groups.length ? l : { ...l, groups };
+}
+
+/** Las pestañas de una carpeta quedan juntas (en el lugar de la primera). */
+function compact(l: Layout): Layout {
+  const out: Tab[] = [];
+  const placed = new Set<string>();
+  for (const t of l.tabs) {
+    if (!t.groupId) {
+      out.push(t);
+      continue;
+    }
+    if (placed.has(t.groupId)) continue;
+    placed.add(t.groupId);
+    out.push(...l.tabs.filter((x) => x.groupId === t.groupId));
+  }
+  return { ...l, tabs: out };
+}
+
+/** Crea una carpeta con estas pestañas. */
+export function createGroup(l: Layout, name: string, tabIds: string[], color?: string): Layout {
+  const g: Group = { id: newId("g"), name: name.trim() || "Carpeta", color, collapsed: false };
+  const tabs = l.tabs.map((t) => (tabIds.includes(t.id) ? { ...t, groupId: g.id } : t));
+  return pruneGroups(compact({ ...l, tabs, groups: [...(l.groups ?? []), g] }));
+}
+
+/** Mueve una pestaña a una carpeta (o la saca con `null`). */
+export function moveToGroup(l: Layout, tabId: string, groupId: string | null): Layout {
+  if (groupId && !l.groups?.some((g) => g.id === groupId)) return l;
+  const tab = l.tabs.find((t) => t.id === tabId);
+  if (!tab) return l;
+  let tabs = l.tabs.filter((t) => t.id !== tabId);
+  const moved = { ...tab, groupId: groupId ?? undefined };
+  if (groupId) {
+    const last = tabs.map((t) => t.groupId).lastIndexOf(groupId);
+    tabs.splice(last + 1, 0, moved);
+  } else {
+    // Fuera de la carpeta: justo después de ella.
+    const last = tabs.map((t) => t.groupId).lastIndexOf(tab.groupId);
+    tabs.splice(last < 0 ? l.tabs.findIndex((t) => t.id === tabId) : last + 1, 0, moved);
+  }
+  tabs = tabs.filter(Boolean);
+  return pruneGroups(compact({ ...l, tabs }));
+}
+
+export function updateGroup(l: Layout, groupId: string, patch: Partial<Omit<Group, "id">>): Layout {
+  return { ...l, groups: (l.groups ?? []).map((g) => (g.id === groupId ? { ...g, ...patch } : g)) };
+}
+
+/** Desarma la carpeta: las pestañas quedan sueltas, en el mismo lugar. */
+export function ungroup(l: Layout, groupId: string): Layout {
+  return {
+    ...l,
+    tabs: l.tabs.map((t) => (t.groupId === groupId ? { ...t, groupId: undefined } : t)),
+    groups: (l.groups ?? []).filter((g) => g.id !== groupId),
+  };
 }
 
 export function selectTab(l: Layout, tabId: string): Layout {

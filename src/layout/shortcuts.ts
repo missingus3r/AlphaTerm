@@ -18,6 +18,7 @@ export type Action =
   | { type: "jumpPrompt"; delta: 1 | -1 }
   | { type: "copyLastOutput" }
   | { type: "openSettings" }
+  | { type: "renameWindow" }
   | { type: "togglePanel"; panel: "agents" | "servers" | "projects" | "git" };
 
 export interface Command {
@@ -42,6 +43,7 @@ export const COMMANDS: Command[] = [
   { id: "nextTab", label: "Pestaña siguiente", action: { type: "cycleTab", delta: 1 }, defaults: ["Ctrl+Tab"] },
   { id: "prevTab", label: "Pestaña anterior", action: { type: "cycleTab", delta: -1 }, defaults: ["Ctrl+Shift+Tab"] },
   { id: "rename", label: "Renombrar pestaña", action: { type: "rename" }, defaults: ["Ctrl+Shift+R"] },
+  { id: "renameWindow", label: "Cambiar el título de la ventana", action: { type: "renameWindow" }, defaults: ["Ctrl+Shift+F2"] },
   { id: "toggleTabBar", label: "Barra de pestañas arriba / a la izquierda", action: { type: "toggleTabBar" }, defaults: ["Ctrl+Shift+B"] },
   { id: "prevPrompt", label: "Ir al comando anterior", action: { type: "jumpPrompt", delta: -1 }, defaults: ["Ctrl+Shift+Up"] },
   { id: "nextPrompt", label: "Ir al comando siguiente", action: { type: "jumpPrompt", delta: 1 }, defaults: ["Ctrl+Shift+Down"] },

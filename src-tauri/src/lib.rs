@@ -5,6 +5,7 @@ pub mod ports;
 pub mod procinfo;
 pub mod projects;
 pub mod pty;
+pub mod session;
 pub mod settings;
 pub mod sysmon;
 pub mod usage;
@@ -22,6 +23,7 @@ pub fn run() {
         .manage(procinfo::ProcState::default())
         .manage(sysmon::SysState::default())
         .manage(projects::WatchState::default())
+        .manage(session::SessionState::default())
         .manage({
             settings::migrate_from_novaterm();
             settings::SettingsState::new(settings::data_dir().join("settings.json"))
@@ -42,6 +44,9 @@ pub fn run() {
                     .into_keys()
                     .filter(|l| l != "settings" && l != window.label())
                     .count();
+                if window.label() != "settings" {
+                    app.state::<session::SessionState>().window_closed(window.label(), terminals == 0);
+                }
                 if terminals == 0 {
                     if let Some(w) = app.get_webview_window("settings") {
                         let _ = w.close();
@@ -80,6 +85,9 @@ pub fn run() {
             projects::fs_open,
             projects::fs_stat,
             projects::fs_head,
+            session::session_put,
+            session::session_restore,
+            session::session_claim,
             git::git_root,
             git::git_status,
             git::git_count,

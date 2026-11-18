@@ -35,7 +35,7 @@ export interface Foreground {
 export const foreground = (ids: number[]) =>
   invoke<Record<string, Foreground | null>>("pty_foreground", { ids });
 export const gitBranch = (cwd: string) => invoke<string | null>("git_branch", { cwd });
-export const newWindow = () => invoke<string>("window_new");
+export const newWindow = (restore?: unknown) => invoke<string>("window_new", { restore: restore ?? null });
 
 export interface SpawnOptions {
   profileId: string;

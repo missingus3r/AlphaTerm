@@ -108,6 +108,8 @@ export interface Settings {
   recipes: Recipe[];
   /** Proyectos agregados a mano y ocultos de la lista. */
   projects: { manual: string[]; hidden: string[] };
+  /** Al abrir, volver a como estaban las ventanas. */
+  session: { restore: boolean; relaunchAgents: boolean };
 }
 
 export const DEFAULT_FONT = "Cascadia Mono";
@@ -139,6 +141,7 @@ export const DEFAULTS: Settings = {
   sysmon: { enabled: true, everyMs: 1000 },
   recipes: [],
   projects: { manual: [], hidden: [] },
+  session: { restore: true, relaunchAgents: false },
 };
 
 export const LIMITS = {
@@ -319,6 +322,10 @@ export function normalize(raw: unknown, baseColors: ThemeColors): Settings {
       };
     })(),
     recipes: normalizeRecipes(r.recipes),
+    session: {
+      restore: bool(obj(r.session).restore, DEFAULTS.session.restore),
+      relaunchAgents: bool(obj(r.session).relaunchAgents, DEFAULTS.session.relaunchAgents),
+    },
     projects: {
       manual: strList(obj(r.projects).manual),
       hidden: strList(obj(r.projects).hidden),

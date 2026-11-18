@@ -18,6 +18,7 @@ import { SysWidget, type TabProcs } from "../widgets/SysWidget";
 import { UsageFooter } from "../widgets/UsageFooter";
 import { candidate, mergeRecipe, type PaneRef, type Server } from "../panels/servers";
 import type { Recipe } from "../settings/schema";
+import { restore as restoreSession, serialize, type SavedWindow } from "./session";
 
 const AgentsPanel = lazy(() => import("../panels/AgentsPanel"));
 const ServersPanel = lazy(() => import("../panels/ServersPanel"));
@@ -40,7 +41,7 @@ interface PaneState extends PaneInfo {
 
 const pct = (n: number) => `${(n * 100).toFixed(4)}%`;
 
-export function Workspace(props: { info: TermInfo; store: SettingsStore; look: TermLook }) {
+export function Workspace(props: { info: TermInfo; store: SettingsStore; look: TermLook; initial?: unknown }) {
   const settings = props.store.settings;
   const profileName = (id: string) => props.info.profiles.find((p) => p.id === id)?.name ?? id;
   // Shell por defecto: la de la configuración si está instalada; si no, la que detectó el backend.
@@ -54,7 +55,18 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   const toggleBar = () => props.store.update((d) => void (d.tabBar.position = vertical() ? "top" : "left"));
   const keymap = createMemo(() => buildKeymap(settings().shortcuts));
   const match = (e: KeyboardEvent) => matchShortcut(e, keymap());
+  // Estado guardado de la sesión anterior (si hay y se pidió restaurar).
+  const restored: SavedWindow | null = props.initial
+    ? restoreSession(props.initial, {
+        relaunch: settings().session.relaunchAgents,
+        agents: settings().agents,
+        profileOk: (id) => props.info.profiles.some((p) => p.id === id && p.available),
+        fallbackProfile: defaultProfile(),
+      })
+    : null;
+  const [windowTitle, setWindowTitle] = createSignal<string | undefined>(restored?.windowTitle);
   const [layout, setLayout] = createSignal<M.Layout>((() => {
+    if (restored) return restored.layout;
     const t = M.newTab(defaultProfile());
     return { tabs: [t], activeTab: t.id };
   })());
@@ -129,14 +141,14 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
         .filter(Boolean)
         .join("\n");
       const changes = p?.cwd ? gitCounts()[p.cwd] : undefined;
-      return { id: t.id, title: titleOf(t), status: statusOf(t), tooltip: tip, panes: M.leaves(t.root).length, changes: changes ?? undefined };
+      return { id: t.id, title: titleOf(t), status: statusOf(t), tooltip: tip, panes: M.leaves(t.root).length, changes: changes ?? undefined, color: t.color, groupId: t.groupId };
     }),
   );
 
   // Título de la ventana = título de la pestaña activa.
   createEffect(() => {
     const t = active();
-    const title = t ? `${titleOf(t)} — AlphaTerm` : "AlphaTerm";
+    const title = windowTitle() ? windowTitle()! : t ? `${titleOf(t)} — AlphaTerm` : "AlphaTerm";
     document.title = title;
     void getCurrentWindow().setTitle(title).catch(() => {});
   });
@@ -214,7 +226,9 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
       return null;
     }
   };
-  const [panel, setPanelRaw] = createSignal<PanelId | null>(readPanel());
+  const [panel, setPanelRaw] = createSignal<PanelId | null>(
+    restored && restored.panel !== undefined ? ((restored.panel as PanelId | null) ?? null) : readPanel(),
+  );
   const setPanel = (p: PanelId | null) => {
     setPanelRaw(p);
     try {
@@ -285,6 +299,19 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   // PATH completo (proceso + registro + carpetas de agentes): un agente instalado después de
   // abrir AlphaTerm igual se encuentra.
   const [pathEnv] = createResource(() => invoke<string>("agents_path_env").catch(() => ""));
+
+  // --- Sesión: se guarda un rato después de cada cambio (layout, carpetas, título, panel) ----------
+  let saveTimer: ReturnType<typeof setTimeout> | undefined;
+  createEffect(() => {
+    const snapshot = serialize(layout(), (id) => (panes[id] ? { cwd: panes[id].cwd, agentId: panes[id].agentId } : undefined), {
+      windowTitle: windowTitle(),
+      panel: panel(),
+    });
+    const json = JSON.stringify(snapshot);
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => void invoke("session_put", { value: JSON.parse(json) }).catch(() => {}), 800);
+  });
+  onCleanup(() => clearTimeout(saveTimer));
 
   // --- Servidores ------------------------------------------------------------------------------
   // Se consultan cada 3 s con el panel abierto; con el panel cerrado, cada 10 s y solo si alguna
@@ -403,6 +430,11 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
       case "toggleTabBar":
         toggleBar();
         break;
+      case "renameWindow": {
+        const v = prompt("Título de esta ventana (vacío = el de la pestaña activa):", windowTitle() ?? "");
+        if (v !== null) setWindowTitle(v.trim() || undefined);
+        break;
+      }
       case "openSettings":
         void openSettings();
         break;
@@ -488,6 +520,22 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
           if (pid) setTimeout(() => handles.get(pid)?.focus(), 0);
         }}
         onMove={(id, to) => update((x) => M.moveTab(x, id, to))}
+        groups={layout().groups ?? []}
+        onColor={(id, c) => update((x) => M.setTabColor(x, id, c))}
+        onGroupNew={(id) => {
+          const name = prompt("Nombre de la carpeta de pestañas:", "Carpeta");
+          if (name !== null) update((x) => M.createGroup(x, name, [id]));
+        }}
+        onGroupMove={(id, g) => update((x) => M.moveToGroup(x, id, g))}
+        onGroupUpdate={(g, patch) => update((x) => M.updateGroup(x, g, patch))}
+        onGroupUngroup={(g) => update((x) => M.ungroup(x, g))}
+        onGroupClose={(g) => {
+          const n = layout().tabs.filter((t) => t.groupId === g).length;
+          if (confirm(`¿Cerrar las ${n} pestañas de la carpeta? Se cierran sus shells y lo que esté corriendo en ellas.`)) {
+            update((x) => x.tabs.filter((t) => t.groupId === g).reduce((acc, t) => M.closeTab(acc, t.id), x));
+          }
+        }}
+        onRenameWindow={() => run({ type: "renameWindow" })}
         onToggleBar={toggleBar}
         onNewWindow={() => void newWindow()}
         onSettings={() => void openSettings()}

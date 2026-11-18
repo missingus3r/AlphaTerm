@@ -8,8 +8,13 @@ static NEXT: AtomicU32 = AtomicU32::new(1);
 /// Abre una ventana nueva. Es async porque en Windows crear ventanas desde un comando
 /// sincrónico puede trabar el hilo de eventos.
 #[tauri::command]
-pub async fn window_new(app: AppHandle) -> Result<String, String> {
+pub async fn window_new(app: AppHandle, restore: Option<serde_json::Value>) -> Result<String, String> {
+    use tauri::Manager;
     let label = format!("win-{}", NEXT.fetch_add(1, Ordering::SeqCst));
+    // Al restaurar una sesión, la ventana nueva pide su estado apenas carga.
+    if let Some(v) = restore {
+        app.state::<crate::session::SessionState>().set_pending(&label, v);
+    }
     WebviewWindowBuilder::new(&app, &label, WebviewUrl::App("index.html".into()))
         .title("AlphaTerm")
         .inner_size(1100.0, 700.0)

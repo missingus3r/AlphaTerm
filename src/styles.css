@@ -388,3 +388,28 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .pp-head small { color: var(--muted); }
 .pp-body img { max-width: 400px; max-height: 280px; display: block; border-radius: 5px; background: repeating-conic-gradient(#8882 0 25%, transparent 0 50%) 0 0 / 16px 16px; }
 .pp-text, .pp-list { white-space: pre; font: 11.5px/1.4 "Cascadia Mono", Consolas, monospace; color: var(--text); overflow: hidden; }
+
+/* --- Colores y carpetas de pestañas --- */
+.tab::before { content: ""; position: absolute; left: 3px; top: 8px; bottom: 8px; width: 3px; border-radius: 2px; background: var(--tcolor, transparent); }
+.tabbar.vertical .tab.grouped { margin-left: 12px; width: calc(100% - 12px); }
+.tab-group {
+  display: flex; align-items: center; gap: 6px; flex: none; padding: 0 8px; margin-top: 5px; border-radius: 7px 7px 0 0;
+  color: var(--gcolor); font-size: 12px; font-weight: 600; cursor: pointer; border-bottom: 2px solid var(--gcolor); user-select: none;
+}
+.tab-group:hover { background: var(--tab-hover); }
+.tab-group.collapsed.has-active { background: var(--tab-hover); }
+.tabbar.vertical .tab-group { height: 26px; margin: 4px 0 0; border-radius: 6px; border-bottom: 0; border-left: 2px solid var(--gcolor); }
+.group-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctx-menu {
+  position: fixed; z-index: 200; min-width: 220px; display: flex; flex-direction: column; padding: 5px;
+  background: var(--bg-solid); border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 12px 32px #0009; font-size: 12.5px;
+}
+.ctx-menu > button { background: none; border: 0; color: var(--text); font: inherit; text-align: left; padding: 6px 9px; border-radius: 5px; cursor: pointer; }
+.ctx-menu > button:hover { background: var(--tab-hover); }
+.ctx-menu > button.danger { color: var(--err); }
+.ctx-label { color: var(--muted); font-size: 11px; padding: 6px 9px 2px; }
+.ctx-sep { height: 1px; background: var(--line); margin: 4px 2px; }
+.ctx-colors { display: flex; gap: 5px; padding: 4px 9px 6px; flex-wrap: wrap; }
+.swatch-btn { width: 18px; height: 18px; border-radius: 50%; border: 1px solid #0003; cursor: pointer; padding: 0; color: var(--muted); font-size: 11px; line-height: 1; }
+.swatch-btn.none { background: transparent; border-color: var(--line); }
+.swatch-btn:hover { transform: scale(1.15); }

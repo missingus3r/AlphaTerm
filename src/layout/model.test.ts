@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as M from "./model";
 import {
   addTab,
   closePane,
@@ -119,5 +120,60 @@ describe("paneles", () => {
     expect(neighbor(root, D.id, "up")).toBe(B.id);
     expect(neighbor(root, A, "left")).toBeUndefined();
     expect(neighbor(root, A, "up")).toBeUndefined();
+  });
+});
+
+describe("colores y carpetas de pestañas", () => {
+  const base = () => {
+    const ts = [M.newTab("pwsh"), M.newTab("pwsh"), M.newTab("pwsh"), M.newTab("pwsh")];
+    return { l: { tabs: ts, activeTab: ts[0].id } as M.Layout, ids: ts.map((t) => t.id) };
+  };
+
+  it("color del título", () => {
+    const { l, ids } = base();
+    const c = M.setTabColor(l, ids[1], "#ff0000");
+    expect(c.tabs[1].color).toBe("#ff0000");
+    expect(M.setTabColor(c, ids[1], undefined).tabs[1].color).toBeUndefined();
+  });
+
+  it("crear una carpeta junta sus pestañas", () => {
+    const { l, ids } = base();
+    const g = M.createGroup(l, "Front", [ids[0], ids[2]]);
+    expect(g.groups).toHaveLength(1);
+    expect(g.tabs.map((t) => t.id)).toEqual([ids[0], ids[2], ids[1], ids[3]]);
+    expect(g.tabs[0].groupId).toBe(g.groups![0].id);
+  });
+
+  it("mover a y sacar de una carpeta; la vacía desaparece", () => {
+    const { l, ids } = base();
+    let g = M.createGroup(l, "A", [ids[0]]);
+    const gid = g.groups![0].id;
+    g = M.moveToGroup(g, ids[3], gid);
+    expect(g.tabs.map((t) => t.id)).toEqual([ids[0], ids[3], ids[1], ids[2]]);
+    g = M.moveToGroup(g, ids[0], null);
+    expect(g.tabs.find((t) => t.id === ids[0])!.groupId).toBeUndefined();
+    g = M.moveToGroup(g, ids[3], null);
+    expect(g.groups).toEqual([]);
+  });
+
+  it("cerrar la última pestaña de una carpeta la borra; addTab hereda la carpeta", () => {
+    const { l, ids } = base();
+    let g = M.createGroup(l, "A", [ids[0]]);
+    const added = M.addTab(g, M.newTab("pwsh"));
+    expect(added.tabs[1].groupId).toBe(g.groups![0].id);
+    expect(added.groups).toEqual(g.groups);
+    g = M.closeTab(g, ids[0]);
+    expect(g.groups).toEqual([]);
+  });
+
+  it("plegar, renombrar y desarmar", () => {
+    const { l, ids } = base();
+    let g = M.createGroup(l, "A", [ids[0], ids[1]]);
+    const gid = g.groups![0].id;
+    g = M.updateGroup(g, gid, { collapsed: true, name: "B" });
+    expect(g.groups![0]).toMatchObject({ collapsed: true, name: "B" });
+    g = M.ungroup(g, gid);
+    expect(g.groups).toEqual([]);
+    expect(g.tabs.every((t) => !t.groupId)).toBe(true);
   });
 });
