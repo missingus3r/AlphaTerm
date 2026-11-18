@@ -1,0 +1,31 @@
+:root {
+  --bg: #0d1017;
+  --bar: #121722;
+  --line: #1f2737;
+  --text: #d6deeb;
+  --muted: #7d8aa3;
+  --accent: #60a5fa;
+  color-scheme: dark;
+  font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+}
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; background: var(--bg); color: var(--text); overflow: hidden; }
+.app { display: flex; flex-direction: column; height: 100%; }
+.topbar {
+  display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px;
+  background: var(--bar); border-bottom: 1px solid var(--line); flex: none; user-select: none;
+}
+.brand { font-weight: 600; color: var(--accent); letter-spacing: .02em; }
+.profile, .btn {
+  background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+  height: 24px; padding: 0 8px; font: inherit;
+}
+.btn { cursor: pointer; }
+.btn:hover, .profile:hover { border-color: var(--accent); }
+.title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--muted); }
+.meta { color: var(--muted); font-variant-numeric: tabular-nums; }
+.term-area { flex: 1; min-height: 0; position: relative; }
+.term-host { position: absolute; inset: 0; padding: 6px 4px 4px 10px; }
+.term-host .xterm { height: 100%; }
+.error { padding: 16px; color: #ef6b73; }

@@ -1,0 +1,29 @@
+# NovaTerm — contexto para Claude Code
+
+Terminal propia estilo Warp, más liviana y rápida, orientada a trabajar con agentes de IA.
+El plan completo está en `Plan_Terminal_NovaTerm.txt` (en esta misma carpeta): es la fuente de verdad.
+
+## Estado al 17/11/2026
+- Plan aprobado por Bruno ("vamos a implementarlo").
+- F0 hecha en la PC de casa: entorno verificado, adenda al plan, PDFs en `Documentacion\` (se regeneran con `python Documentacion\generar_pdfs.py`) e Informe iniciado.
+- F1 terminada (17/11/2026): una pestaña ConPTY + xterm WebGL, perfiles, resize, copiar/pegar. Throughput a la par de Windows Terminal. Próximo paso: F2 (layout: pestañas, splits, multi-ventana, OSC 133/7).
+- Correr la app: `npx tauri dev`, o `npx tauri build --no-bundle` y abrir `src-tauri\target\release\novaterm.exe`. Tests: `cargo test` en `src-tauri` y `npx vitest run`.
+- `src-tauri\conpty\` tiene la ConPTY de Microsoft (sideload); `build.rs` la copia al lado del exe.
+- Versiones fijadas: SolidJS 1.9 (no 2.0), xterm.js 6 (fallback DOM, no canvas), reqwest 0.13 con `native-tls`. Ver adenda del plan.
+
+## Decisiones ya tomadas (no re-discutir sin motivo)
+- Stack: Tauri 2 + Rust en el backend; Vite + TypeScript + SolidJS en el frontend; xterm.js 6 con el addon WebGL (fallback al renderer DOM).
+- Resumen de pestaña híbrido, en este orden: título manual > título OSC 0/2 del agente > heurística > LLM opcional.
+- Salida del PTY agrupada (~4 ms / 64 KB) por `tauri::ipc::Channel` binario, sin JSON por chunk, con contrapresión.
+- Git vía git CLI (porcelain v2), no libgit2.
+- Fallback si cargo/crates.io no funciona: Electron 41.3.0 (cacheado en la PC del trabajo).
+
+## Ojo con el entorno
+- El plan se armó en la PC del trabajo (`C:\Users\usuario`): ahí hay inspección SSL (Node necesitó `--use-system-ca`), PowerShell bloquea `.ps1` (usar `.cmd`), `objects.githubusercontent.com` está bloqueado y Rust no estaba instalado.
+- Esta carpeta se creó en otra máquina (`C:\Users\Br1`), donde ya existen `.rustup` y `.cargo`. Hay que verificar el entorno real de donde se esté corriendo antes de asumir lo del plan: `rustc -V`, `cargo -V`, `node -v` y la conexión con crates.io.
+- En casa (`C:\Users\Br1`): Rust 1.99.1 fuera del PATH (anteponer `~/.cargo/bin`), Node 22, red limpia, sin pwsh (PowerShell 5.1 alcanza). Gemini CLI ahora es Antigravity CLI (`agy`); su cuota sale exacta de `agy -p /quota --output-format json`, pero nunca desde Git Bash (MSYS convierte `/quota` en ruta y agy lo corre como prompt, gastando cuota). fpdf2 está en Python 3.11 (`python`), no en 3.14.
+
+## Forma de trabajo
+- Cada fase cierra verificada: compila, arranca, pasa un smoke test y queda registrada en `Documentacion/Informe_Proceso_y_Stats.md`.
+- Honestidad: lo que no esté verificado (por ejemplo, la cuota de Gemini o el endpoint de uso de Claude) se marca como tal en la UI y en el Informe.
+- Bruno prefiere respuestas en español, directas, en párrafos y con pushback honesto.

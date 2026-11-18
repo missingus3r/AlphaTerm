@@ -1,0 +1,25 @@
+import type { ITheme } from "@xterm/xterm";
+
+export const novaDark: ITheme = {
+  background: "#0d1017",
+  foreground: "#d6deeb",
+  cursor: "#60a5fa",
+  cursorAccent: "#0d1017",
+  selectionBackground: "#2563eb66",
+  black: "#1b2230",
+  red: "#ef6b73",
+  green: "#8bd49c",
+  yellow: "#e5c07b",
+  blue: "#60a5fa",
+  magenta: "#c792ea",
+  cyan: "#5fd7d7",
+  white: "#d6deeb",
+  brightBlack: "#5c6a82",
+  brightRed: "#ff8a91",
+  brightGreen: "#a8e6b5",
+  brightYellow: "#f2d59b",
+  brightBlue: "#93c5fd",
+  brightMagenta: "#ddb6f2",
+  brightCyan: "#8ff0f0",
+  brightWhite: "#ffffff",
+};
