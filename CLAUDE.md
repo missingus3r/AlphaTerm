@@ -7,7 +7,9 @@ El plan completo está en `Plan_Terminal_NovaTerm.txt` (en esta misma carpeta): 
 - Plan aprobado por Bruno ("vamos a implementarlo").
 - F0 hecha en la PC de casa: entorno verificado, adenda al plan, PDFs en `Documentacion\` (se regeneran con `python Documentacion\generar_pdfs.py`) e Informe iniciado.
 - F1 terminada (17/11/2026): una pestaña ConPTY + xterm WebGL, perfiles, resize, copiar/pegar. Throughput a la par de Windows Terminal.
-- F2 terminada (18/11/2026): pestañas, splits, multi-ventana, barra H/V, marquee, shell integration (PowerShell, Git Bash, cmd) y título-resumen. Próximo paso: F3 (Settings y temas).
+- F2 terminada (18/11/2026): pestañas, splits, multi-ventana, barra H/V, marquee, shell integration (PowerShell, Git Bash, cmd) y título-resumen.
+- F3 terminada (18/11/2026): settings.json en `%APPDATA%\NovaTerm` (vigilado, escritura atómica), ventana de configuración (Ctrl+,), temas + importar, Mica/Acrylic/opacidad/imagen, fuentes y ligaduras, atajos configurables. Próximo paso: F4 (Agentes).
+- Gotchas de F3: el esquema vive en `src/settings/schema.ts` (el backend guarda JSON opaco; las claves de fases nuevas se agregan ahí y `normalize` conserva las desconocidas); las ventanas son transparentes y el fondo lo pinta el body (xterm con `allowTransparency` y viewport transparente por CSS); las ligaduras leen la fuente vía `font_file` (reemplazo de `queryLocalFonts`). Para inspeccionar el WebView: `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333` antes de `npx tauri dev`, y CDP por WebSocket.
 - Gotchas de F2: los paneles se iteran por id y se posicionan por rectángulos (anidarlos re-monta las terminales y mata la shell); las escrituras a la PTY van por `WriteQueue` (si no, se invierten teclas); nunca atajos con Ctrl+Alt (AltGr en teclado español); los scripts de `src-tauri\shell\` se editan con Edit, no con heredoc (se comen los `\\`).
 - Correr la app: `npx tauri dev`, o `npx tauri build --no-bundle` y abrir `src-tauri\target\release\novaterm.exe`. Tests: `cargo test` en `src-tauri` y `npx vitest run`.
 - `src-tauri\conpty\` tiene la ConPTY de Microsoft (sideload); `build.rs` la copia al lado del exe.

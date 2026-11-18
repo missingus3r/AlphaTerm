@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
+import type { LigaturesAddon } from "@xterm/addon-ligatures";
 import { readText, writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import "@xterm/xterm/css/xterm.css";
@@ -11,9 +12,9 @@ import { AckBatcher } from "./ack";
 import { parse133, parse633, parseOsc7, parseOsc9 } from "./integration";
 import { decideKey } from "./keys";
 import { PtySession } from "./pty";
-import { novaDark } from "./theme";
 import { cmdRunningCommand, isShellTitle } from "../layout/title";
-import { matchShortcut, type Action } from "../layout/shortcuts";
+import type { Action } from "../layout/shortcuts";
+import type { TermLook } from "../settings/apply";
 
 export type Renderer = "webgl" | "dom";
 
@@ -42,6 +43,9 @@ interface Props {
   profileId: string;
   cwd?: string;
   windowsBuild: number;
+  look: TermLook;
+  /** Atajo de la app para esta tecla (o null si va a la shell). */
+  match: (e: KeyboardEvent) => Action | null;
   visible: boolean;
   focused: boolean;
   onFocus: () => void;
@@ -63,14 +67,19 @@ export function TerminalView(props: Props) {
   let host!: HTMLDivElement;
 
   onMount(() => {
+    const look0 = props.look;
     const term = new Terminal({
       allowProposedApi: true,
-      fontFamily: '"Cascadia Mono", "Cascadia Code", Consolas, monospace',
-      fontSize: 14,
-      lineHeight: 1.15,
-      cursorBlink: true,
-      scrollback: 10_000,
-      theme: novaDark,
+      fontFamily: look0.fontFamily,
+      fontSize: look0.fontSize,
+      lineHeight: look0.lineHeight,
+      letterSpacing: look0.letterSpacing,
+      fontWeight: look0.fontWeight,
+      cursorStyle: look0.cursorStyle,
+      cursorBlink: look0.cursorBlink,
+      scrollback: look0.scrollback,
+      allowTransparency: look0.transparent,
+      theme: look0.theme,
       windowsPty: { backend: "conpty", buildNumber: props.windowsBuild },
       overviewRuler: { width: 8 },
     });
@@ -274,7 +283,7 @@ export function TerminalView(props: Props) {
       if (text) term.paste(text);
     };
     term.attachCustomKeyEventHandler((e) => {
-      const action = matchShortcut(e);
+      const action = props.match(e);
       if (action) {
         e.preventDefault();
         props.onAction(action);
@@ -324,6 +333,64 @@ export function TerminalView(props: Props) {
       if (props.visible && props.focused) term.focus();
     });
 
+    // --- Configuración en vivo ---------------------------------------------------------------
+    // El addon trae un lector de fuentes (~300 KB): se carga solo si se activan las ligaduras.
+    let ligatures: LigaturesAddon | null = null;
+    let wantLigatures = false;
+    const setLigatures = (on: boolean) => {
+      wantLigatures = on;
+      if (on && !ligatures) {
+        void import("@xterm/addon-ligatures")
+          .then(({ LigaturesAddon }) => {
+            if (disposed || !wantLigatures || ligatures) return;
+            ligatures = new LigaturesAddon();
+            term.loadAddon(ligatures);
+          })
+          .catch((err) => console.warn("No se pudieron activar las ligaduras", err));
+      } else if (!on && ligatures) {
+        ligatures.dispose();
+        ligatures = null;
+      }
+    };
+    setLigatures(look0.ligatures);
+    let lastLook = JSON.stringify(look0);
+    createEffect(
+      on(
+        () => props.look,
+        (look) => {
+          const key = JSON.stringify(look);
+          if (key === lastLook) return; // cambió otra parte de la configuración
+          const before = JSON.parse(lastLook) as TermLook;
+          lastLook = key;
+          term.options.fontFamily = look.fontFamily;
+          term.options.fontSize = look.fontSize;
+          term.options.lineHeight = look.lineHeight;
+          term.options.letterSpacing = look.letterSpacing;
+          term.options.fontWeight = look.fontWeight;
+          term.options.cursorStyle = look.cursorStyle;
+          term.options.cursorBlink = look.cursorBlink;
+          term.options.scrollback = look.scrollback;
+          term.options.theme = look.theme;
+          if (before.transparent !== look.transparent) {
+            term.options.allowTransparency = look.transparent;
+            // WebGL arma su textura según la transparencia: se vuelve a crear.
+            if (gl) {
+              detachGl();
+              attachGl();
+            }
+          }
+          // El addon de ligaduras lee la fuente al activarse: si cambió la fuente, se reinicia.
+          if (before.fontFamily !== look.fontFamily && ligatures) setLigatures(false);
+          setLigatures(look.ligatures);
+          requestAnimationFrame(() => {
+            safeFit();
+            term.refresh(0, term.rows - 1);
+          });
+        },
+        { defer: true },
+      ),
+    );
+
     props.ref?.({ jumpPrompt, copyLastOutput, focus: () => term.focus() });
     void start();
 
@@ -334,6 +401,7 @@ export function TerminalView(props: Props) {
       host.removeEventListener("contextmenu", onContext);
       host.removeEventListener("focusin", onFocusIn);
       oscs.forEach((d) => d.dispose());
+      ligatures?.dispose();
       ack?.dispose();
       void session?.kill();
       detachGl();

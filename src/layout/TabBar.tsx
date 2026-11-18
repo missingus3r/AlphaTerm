@@ -1,7 +1,6 @@
 import { createSignal, For, Show } from "solid-js";
 import { Marquee } from "./Marquee";
 import type { Profile } from "../terminal/pty";
-import { SHORTCUT_HELP } from "./shortcuts";
 
 export type TabStatus = "idle" | "running" | "error" | "exited";
 
@@ -17,6 +16,8 @@ interface Props {
   tabs: TabItem[];
   activeId: string;
   vertical: boolean;
+  /** Atajos para el tooltip del botón "?". */
+  help: [string, string][];
   editingId: string | null;
   profiles: Profile[];
   newTabProfile: string;
@@ -29,6 +30,7 @@ interface Props {
   onMove: (id: string, toIndex: number) => void;
   onToggleBar: () => void;
   onNewWindow: () => void;
+  onSettings: () => void;
 }
 
 const STATUS_LABEL: Record<TabStatus, string> = {
@@ -40,7 +42,7 @@ const STATUS_LABEL: Record<TabStatus, string> = {
 
 export function TabBar(props: Props) {
   const [dragId, setDragId] = createSignal<string | null>(null);
-  const help = SHORTCUT_HELP.map(([k, v]) => `${k}: ${v}`).join("\n");
+  const help = () => props.help.map(([k, v]) => `${k}: ${v}`).join("\n");
 
   return (
     <nav class="tabbar" classList={{ vertical: props.vertical }} aria-label="Pestañas">
@@ -142,7 +144,10 @@ export function TabBar(props: Props) {
         >
           {props.vertical ? "⬒" : "◧"}
         </button>
-        <span class="btn help" title={help}>
+        <button class="btn" title="Configuración (Ctrl+,)" onClick={props.onSettings}>
+          ⚙
+        </button>
+        <span class="btn help" title={help()}>
           ?
         </span>
       </div>

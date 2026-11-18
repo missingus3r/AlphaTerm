@@ -2,12 +2,13 @@ import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount } f
 import { createStore, produce } from "solid-js/store";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import * as M from "./model";
-import type { Action } from "./shortcuts";
-import { matchShortcut } from "./shortcuts";
+import { buildKeymap, matchShortcut, shortcutHelp, type Action } from "./shortcuts";
 import { TabBar, type TabItem, type TabStatus } from "./TabBar";
 import { tabTitle, type PaneInfo } from "./title";
 import { TerminalView, type TermHandle, type TermPatch } from "../terminal/TerminalView";
 import { foreground, gitBranch, newWindow, type TermInfo } from "../terminal/pty";
+import type { TermLook } from "../settings/apply";
+import { openSettings, type SettingsStore } from "../settings/store";
 
 /** Estado vivo de cada panel (clave: id del panel). */
 interface PaneState extends PaneInfo {
@@ -17,14 +18,24 @@ interface PaneState extends PaneInfo {
   exited?: boolean;
 }
 
-const FG_POLL_MS = 2000;
 const pct = (n: number) => `${(n * 100).toFixed(4)}%`;
 
-export function Workspace(props: { info: TermInfo; vertical: boolean; onToggleBar: () => void }) {
+export function Workspace(props: { info: TermInfo; store: SettingsStore; look: TermLook }) {
+  const settings = props.store.settings;
   const profileName = (id: string) => props.info.profiles.find((p) => p.id === id)?.name ?? id;
-  const [newTabProfile, setNewTabProfile] = createSignal(props.info.defaultProfile);
+  // Shell por defecto: la de la configuración si está instalada; si no, la que detectó el backend.
+  const defaultProfile = () => {
+    const id = settings().terminal.defaultProfile;
+    return props.info.profiles.some((p) => p.id === id && p.available) ? id : props.info.defaultProfile;
+  };
+  const [newTabProfile, setNewTabProfile] = createSignal(defaultProfile());
+  createEffect(on(defaultProfile, (id) => setNewTabProfile(id), { defer: true }));
+  const vertical = () => settings().tabBar.position === "left";
+  const toggleBar = () => props.store.update((d) => void (d.tabBar.position = vertical() ? "top" : "left"));
+  const keymap = createMemo(() => buildKeymap(settings().shortcuts));
+  const match = (e: KeyboardEvent) => matchShortcut(e, keymap());
   const [layout, setLayout] = createSignal<M.Layout>((() => {
-    const t = M.newTab(props.info.defaultProfile);
+    const t = M.newTab(defaultProfile());
     return { tabs: [t], activeTab: t.id };
   })());
   const [panes, setPanes] = createStore<Record<string, PaneState>>({});
@@ -106,7 +117,8 @@ export function Workspace(props: { info: TermInfo; vertical: boolean; onToggleBa
   });
 
   // Proceso en primer plano de todas las sesiones (una sola foto de procesos por consulta).
-  onMount(() => {
+  createEffect(() => {
+    const ms = settings().behavior.foregroundPollMs;
     const poll = async () => {
       if (document.hidden) return;
       const byId = new Map<number, string>();
@@ -127,7 +139,7 @@ export function Workspace(props: { info: TermInfo; vertical: boolean; onToggleBa
         /* la próxima vuelta reintenta */
       }
     };
-    const timer = setInterval(poll, FG_POLL_MS);
+    const timer = setInterval(poll, ms);
     onCleanup(() => clearInterval(timer));
   });
 
@@ -186,7 +198,10 @@ export function Workspace(props: { info: TermInfo; vertical: boolean; onToggleBa
         if (t) setEditingId(t.id);
         break;
       case "toggleTabBar":
-        props.onToggleBar();
+        toggleBar();
+        break;
+      case "openSettings":
+        void openSettings();
         break;
       case "jumpPrompt": {
         const id = activePaneId();
@@ -205,7 +220,7 @@ export function Workspace(props: { info: TermInfo; vertical: boolean; onToggleBa
   onMount(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest?.(".xterm, input, select, textarea")) return;
-      const a = matchShortcut(e);
+      const a = match(e);
       if (a) {
         e.preventDefault();
         run(a);
@@ -242,11 +257,12 @@ export function Workspace(props: { info: TermInfo; vertical: boolean; onToggleBa
   };
 
   return (
-    <div class="workspace" classList={{ vertical: props.vertical }}>
+    <div class="workspace" classList={{ vertical: vertical() }}>
       <TabBar
         tabs={tabItems()}
         activeId={layout().activeTab}
-        vertical={props.vertical}
+        vertical={vertical()}
+        help={shortcutHelp(settings().shortcuts)}
         editingId={editingId()}
         profiles={props.info.profiles}
         newTabProfile={newTabProfile()}
@@ -265,8 +281,9 @@ export function Workspace(props: { info: TermInfo; vertical: boolean; onToggleBa
           if (pid) setTimeout(() => handles.get(pid)?.focus(), 0);
         }}
         onMove={(id, to) => update((x) => M.moveTab(x, id, to))}
-        onToggleBar={props.onToggleBar}
+        onToggleBar={toggleBar}
         onNewWindow={() => void newWindow()}
+        onSettings={() => void openSettings()}
       />
       <main class="tab-area">
         {/* Se itera por id (texto) para que Solid no vuelva a crear terminales cuando cambia el árbol. */}
@@ -295,6 +312,8 @@ export function Workspace(props: { info: TermInfo; vertical: boolean; onToggleBa
                           profileId={leafAt.profileId}
                           cwd={leafAt.cwd}
                           windowsBuild={props.info.windowsBuild}
+                          look={props.look}
+                          match={match}
                           visible={visible()}
                           focused={focused()}
                           onFocus={() => {

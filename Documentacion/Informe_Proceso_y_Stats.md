@@ -10,7 +10,7 @@ Regla de honestidad: lo que no esté verificado con datos reales de la máquina 
 | F0 — Preparación | Terminada | 17/11/2026 | Toolchain probado, PDFs generados, gate aprobado |
 | F1 — Núcleo terminal | Terminada | 17/11/2026 | Probada en la app; throughput a la par de Windows Terminal |
 | F2 — Layout | Terminada | 18/11/2026 | Probada en la app: pestañas, splits, multi-ventana, integración y títulos |
-| F3 — Settings y temas | Pendiente | | |
+| F3 — Settings y temas | Terminada | 18/11/2026 | Probada en la app: temas, Mica/Acrylic, fuentes, ligaduras, atajos, edición a mano del archivo |
 | F4 — Agentes | Pendiente | | |
 | F5 — Widgets | Pendiente | | |
 | F6 — Servidores/Puertos | Pendiente | | |
@@ -289,3 +289,91 @@ Aprobado por Bruno el 17/11/2026 ("Sí, arrancá F1").
 ### Stats
 - Archivos nuevos: 13 (6 de lógica con tests, 4 componentes, 2 scripts de shell, 1 módulo Rust).
 - Tests: Rust 17 (+2 ignorados), Vitest 32. Todos en verde.
+
+---
+
+## F3 — Settings y temas (18/11/2026)
+
+### Hecho
+- **Persistencia** en `%APPDATA%\NovaTerm\settings.json`. El backend (`settings.rs`) no conoce el
+  esquema: guarda el objeto de forma atómica (archivo temporal + rename), avisa a todas las ventanas
+  con el evento `settings-changed` (con la ventana de origen, para que no se pise lo que se está
+  editando) y vigila el archivo cada 1 s para aplicar ediciones hechas a mano. Si el archivo está
+  roto no lo pisa sin antes copiarlo a `settings.json.bak`.
+- **Esquema y normalización** en el frontend (`settings/schema.ts`): cualquier archivo (viejo, editado
+  a mano o con basura) da una configuración completa; recorta números fuera de rango, descarta
+  opciones inválidas y conserva las claves que no conoce (para las fases siguientes).
+- **Ventana de configuración** propia (Ctrl+, o el botón ⚙), cargada bajo demanda (21 KB):
+  tema y colores, fuente y cursor, fondo, terminal e interfaz, atajos y "próximas fases".
+- **Temas**: 11 de fábrica (Nova oscuro/claro, Campbell, One Half Dark/Light, Solarized Dark/Light,
+  Dracula, Tokyo Night, Gruvbox Dark, Nord), modo oscuro / claro / según Windows con un tema para
+  cada modo, duplicar y editar los 21 colores, borrar, e **importar** esquemas de Windows Terminal
+  (o su settings.json entero, con comentarios), `.itermcolors` de iTerm2 y temas de xterm.js.
+  La barra de pestañas y la de título toman los colores del tema.
+- **Fondo**: Mica, Mica alternativo, Acrylic y desenfoque (API de efectos de Tauri 2, sin crate
+  extra), opacidad, e imagen con opacidad y ajuste. La imagen se copia a `%APPDATA%\NovaTerm\fondos`
+  y el backend solo lee de esa carpeta. Las ventanas pasaron a ser transparentes.
+- **Fuentes**: lista de monoespaciadas instaladas (registro de Windows + medición en canvas; se
+  excluyen las de símbolos), o un nombre a mano; tamaño, interlineado, espaciado, grosor, cursor
+  (bloque/barra/subrayado) y parpadeo. **Ligaduras** con `@xterm/addon-ligatures` 0.10: el addon
+  pide la fuente con la API de fuentes locales (que en el WebView pediría permiso); la reemplazamos
+  por una que lee el archivo desde el backend. Se carga solo al activarlas (191 KB aparte).
+- **Atajos configurables**: 18 comandos con sus combinaciones (se agregan grabándolas, se quitan,
+  vuelven "de fábrica"), conflictos marcados en rojo, Ctrl+Alt rechazado (AltGr), aviso para
+  Ctrl+letra sin Shift. Ctrl+1…9 quedan fijos. Atajo nuevo: Ctrl+, abre la configuración.
+- **Terminal e interfaz**: posición de la barra, shell por defecto, líneas de historial y cada
+  cuánto se detecta el programa en uso.
+- La preferencia de barra vertical de F2 (localStorage) se migra sola al archivo la primera vez.
+
+### Tests
+- Rust: 24 (+2 benchmarks). Nuevos: guardar y releer, archivo inexistente, archivo roto (aviso con
+  línea y copia .bak antes de pisarlo), BOM, nombres de imagen seguros y decodificación, parseo de
+  nombres de fuente del registro y lectura real del registro (Consolas → consola.ttf).
+- Vitest: 51. Nuevos: normalización (basura, rangos, claves desconocidas, temas propios), temas de
+  fábrica válidos, claro/oscuro, paleta con opacidad, importación (Windows Terminal, su settings.json
+  con comentarios, formato propio, iTerm2, errores), ids de temas, atajos configurables (combinación
+  desde el evento, forma canónica, rechazos, reemplazo, conflictos, ayuda).
+
+### Prueba en la app (computer use + depuración remota del WebView2)
+| Prueba | Resultado |
+|---|---|
+| Cambiar de tema en la ventana de configuración: se aplica al instante en la terminal y en la barra | OK |
+| Ctrl+, abre (o trae al frente) la configuración | OK |
+| Opacidad 75 % sin efecto: se ve el escritorio | OK (después del arreglo) |
+| Mica (tinte del fondo de pantalla) y Acrylic (desenfocado) | OK |
+| Cascadia Code con ligaduras en la vista previa y en la terminal (WebGL), sin pedido de permiso | OK |
+| Grabar Ctrl+Shift+Y para "Pestaña nueva" y usarlo; Ctrl+Alt+T rechazado con explicación | OK |
+| Editar settings.json a mano (tamaño 18, modo claro): se aplica solo, barra de título clara | OK |
+| Archivo roto: aviso con línea y columna; las terminales siguen con lo último que andaba | OK |
+| Modo "según Windows" con Windows en oscuro → tema oscuro | OK |
+| Ctrl+Shift+B cambia la barra en todas las ventanas; ventana nueva con la configuración actual | OK |
+| Imagen de fondo (copia en `fondos`, nombre con ñ) visible detrás del texto | OK (imagen inyectada en el selector) |
+| Importar un esquema de Windows Terminal y editar su fondo: cambia en las dos ventanas | OK (archivo inyectado en el selector) |
+| La terminal sigue en WebGL con transparencia y ligaduras | OK |
+| Release: la barra vertical guardada en F2 pasó sola a settings.json | OK |
+
+### Bugs encontrados y corregidos
+- **Fondo negro con transparencia**: xterm pinta su viewport opaco aunque el tema sea transparente;
+  se vio leyendo los estilos con la depuración remota del WebView2. Se fuerza transparente por CSS
+  (el color lo pone el body).
+- Wingdings 2 aparecía como monoespaciada (pasa la prueba de ancho): se excluyen las de símbolos.
+- El aviso de archivo roto decía "se usan los valores por defecto" también cuando la app sigue con
+  la última configuración válida: ahora el mensaje depende del caso.
+- El addon de ligaduras sumaba 190 KB al arranque: pasó a cargarse solo al activarlas.
+
+### Pendiente / no verificado
+- **El selector de archivos nativo** no se pudo manejar con computer use (la captura lo tapa): la
+  imagen y el tema se probaron inyectando el archivo en el mismo `<input>`, que corre el mismo
+  código. Al intentarlo, la ruta se escribió en la terminal y PowerShell abrió la imagen en Fotos.
+- **Cambio en vivo de Windows claro ↔ oscuro** con el modo automático: no se probó cambiando el tema
+  del sistema (es una configuración de Windows); sí se verificó que toma el modo actual.
+- **RAM**: 195 MB privados con una pestaña (release, medido con un script que suma NovaTerm y sus
+  procesos de WebView2). En F1 se midieron 181 MB; parte puede ser la ventana transparente y parte el
+  método. La meta de 120 MB sigue sin cumplirse: queda para F9.
+- Las opciones de agentes, consumo, CPU/RAM y resumen por LLM llegan con F4, F5 y F9 (la sección
+  "Próximas fases" lo dice).
+
+### Stats
+- Archivos nuevos: 10 (2 módulos Rust, 5 de lógica/estado, 1 componente, 1 hoja de estilos, 1 de tests).
+- Bundle principal: 557 KB (533 KB en F2); configuración 21 KB y ligaduras 191 KB aparte, bajo demanda.
+- Tests: Rust 24 (+2 ignorados), Vitest 51. Todos en verde.

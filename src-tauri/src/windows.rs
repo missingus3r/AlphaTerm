@@ -1,7 +1,6 @@
 //! Ventanas: cada ventana es independiente (sus pestañas y sus sesiones).
 
 use std::sync::atomic::{AtomicU32, Ordering};
-use tauri::webview::Color;
 use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder};
 
 static NEXT: AtomicU32 = AtomicU32::new(1);
@@ -15,7 +14,8 @@ pub async fn window_new(app: AppHandle) -> Result<String, String> {
         .title("NovaTerm")
         .inner_size(1100.0, 700.0)
         .min_inner_size(480.0, 300.0)
-        .background_color(Color(13, 16, 23, 255))
+        // Transparente para que el fondo (Mica, Acrylic, opacidad) lo pinte el frontend.
+        .transparent(true)
         .build()
         .map_err(|e| e.to_string())?;
     Ok(label)

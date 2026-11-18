@@ -1,48 +1,51 @@
-import { createSignal, onMount, Show } from "solid-js";
-import { killOwned, termInfo, type TermInfo } from "./terminal/pty";
+import { createMemo, createResource, lazy, Show, Suspense } from "solid-js";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { killOwned, termInfo } from "./terminal/pty";
 import { Workspace } from "./layout/Workspace";
+import { loadSettings, type SettingsStore } from "./settings/store";
+import { termLook, useAppearance } from "./settings/apply";
 
-// Preferencia provisoria hasta F3 (Settings en %APPDATA%\NovaTerm\settings.json).
-const PREF_VERTICAL = "novaterm.tabbar.vertical";
-const readPref = () => {
-  try {
-    return localStorage.getItem(PREF_VERTICAL) === "1";
-  } catch {
-    return false;
-  }
-};
+// La ventana de configuración se carga solo cuando se abre.
+const SettingsView = lazy(() => import("./settings/SettingsView"));
+
+const IS_SETTINGS = getCurrentWindow().label === "settings";
+
+function Themed(props: { store: SettingsStore }) {
+  const { theme } = useAppearance(props.store.settings, !IS_SETTINGS);
+  const [info] = createResource(async () => {
+    // Si la vista se recargó, no dejar shells huérfanas de la carga anterior de esta ventana.
+    if (!IS_SETTINGS) await killOwned();
+    return termInfo();
+  });
+  const look = createMemo(() => termLook(props.store.settings(), theme()));
+  return (
+    <>
+      <Show when={info.error}>
+        <div class="error">No se pudo hablar con el backend: {String(info.error)}</div>
+      </Show>
+      <Show when={info()}>
+        {(ti) =>
+          IS_SETTINGS ? (
+            <Suspense>
+              <SettingsView info={ti()} store={props.store} />
+            </Suspense>
+          ) : (
+            <Workspace info={ti()} store={props.store} look={look()} />
+          )
+        }
+      </Show>
+    </>
+  );
+}
 
 export function App() {
-  const [info, setInfo] = createSignal<TermInfo | null>(null);
-  const [error, setError] = createSignal<string | null>(null);
-  const [vertical, setVertical] = createSignal(readPref());
-
-  const toggleBar = () => {
-    const v = !vertical();
-    setVertical(v);
-    try {
-      localStorage.setItem(PREF_VERTICAL, v ? "1" : "0");
-    } catch {
-      /* sin almacenamiento: queda solo por esta vez */
-    }
-  };
-
-  onMount(async () => {
-    try {
-      // Si la vista se recargó, no dejar shells huérfanas de la carga anterior de esta ventana.
-      await killOwned();
-      setInfo(await termInfo());
-    } catch (err) {
-      setError(String(err));
-    }
-  });
-
+  const [store] = createResource(loadSettings);
   return (
-    <div class="app">
-      <Show when={error()}>
-        <div class="error">No se pudo hablar con el backend: {error()}</div>
+    <div class="app" classList={{ "settings-window": IS_SETTINGS }}>
+      <Show when={store.error}>
+        <div class="error">No se pudo leer la configuración: {String(store.error)}</div>
       </Show>
-      <Show when={info()}>{(ti) => <Workspace info={ti()} vertical={vertical()} onToggleBar={toggleBar} />}</Show>
+      <Show when={store()}>{(s) => <Themed store={s()} />}</Show>
     </div>
   );
 }

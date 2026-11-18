@@ -1,0 +1,190 @@
+/**
+ * Esquema de `%APPDATA%\NovaTerm\settings.json`.
+ * `normalize` acepta cualquier cosa (un archivo editado a mano, de una versión vieja o roto)
+ * y devuelve una configuración completa y válida, sin perder claves que no conoce.
+ */
+import type { ThemeColors } from "./themes";
+
+export type ThemeMode = "dark" | "light" | "auto";
+export type Effect = "none" | "mica" | "acrylic" | "tabbed" | "blur";
+export type ImageFit = "cover" | "contain" | "tile";
+export type CursorStyle = "block" | "bar" | "underline";
+
+export interface CustomTheme {
+  id: string;
+  name: string;
+  colors: ThemeColors;
+}
+
+export interface Settings {
+  version: 1;
+  appearance: {
+    /** Tema cuando el modo es oscuro (o fijo). */
+    theme: string;
+    /** Tema cuando el modo es claro. */
+    themeLight: string;
+    mode: ThemeMode;
+    fontFamily: string;
+    fontSize: number;
+    lineHeight: number;
+    letterSpacing: number;
+    fontWeight: "normal" | "bold" | "300" | "500" | "600";
+    ligatures: boolean;
+    cursorStyle: CursorStyle;
+    cursorBlink: boolean;
+  };
+  background: {
+    effect: Effect;
+    /** Opacidad del color de fondo (1 = opaco). Con efecto, deja ver el Mica/Acrylic. */
+    opacity: number;
+    /** Ruta de la copia en %APPDATA%\NovaTerm\fondos, o "" sin imagen. */
+    image: string;
+    imageOpacity: number;
+    imageFit: ImageFit;
+  };
+  customThemes: CustomTheme[];
+  tabBar: { position: "top" | "left" };
+  terminal: {
+    /** "" = el que detecta el backend (PowerShell 5.1 en esta PC). */
+    defaultProfile: string;
+    scrollback: number;
+  };
+  behavior: {
+    /** Cada cuánto se mira qué programa corre en cada pestaña (para el título). */
+    foregroundPollMs: number;
+  };
+  /** Atajos cambiados (id de acción → combinaciones). Lo que no está usa el de fábrica. */
+  shortcuts: Record<string, string[]>;
+}
+
+export const DEFAULT_FONT = "Cascadia Mono";
+
+export const DEFAULTS: Settings = {
+  version: 1,
+  appearance: {
+    theme: "nova-dark",
+    themeLight: "nova-light",
+    mode: "dark",
+    fontFamily: DEFAULT_FONT,
+    fontSize: 14,
+    lineHeight: 1.15,
+    letterSpacing: 0,
+    fontWeight: "normal",
+    ligatures: false,
+    cursorStyle: "block",
+    cursorBlink: true,
+  },
+  background: { effect: "none", opacity: 1, image: "", imageOpacity: 0.25, imageFit: "cover" },
+  customThemes: [],
+  tabBar: { position: "top" },
+  terminal: { defaultProfile: "", scrollback: 10_000 },
+  behavior: { foregroundPollMs: 2000 },
+  shortcuts: {},
+};
+
+export const LIMITS = {
+  fontSize: [8, 32],
+  lineHeight: [1, 2],
+  letterSpacing: [-2, 6],
+  opacity: [0.3, 1],
+  imageOpacity: [0.05, 1],
+  scrollback: [500, 200_000],
+  foregroundPollMs: [500, 10_000],
+} as const satisfies Record<string, readonly [number, number]>;
+
+type Obj = Record<string, unknown>;
+const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
+const obj = (v: unknown): Obj => (isObj(v) ? v : {});
+
+const num = (v: unknown, def: number, [lo, hi]: readonly [number, number]) =>
+  typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : def;
+const str = (v: unknown, def: string) => (typeof v === "string" && v.trim() ? v.trim() : def);
+const bool = (v: unknown, def: boolean) => (typeof v === "boolean" ? v : def);
+const oneOf = <T extends string>(v: unknown, opts: readonly T[], def: T): T =>
+  typeof v === "string" && (opts as readonly string[]).includes(v) ? (v as T) : def;
+
+export const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+
+const COLOR_KEYS = [
+  "background", "foreground", "cursor", "cursorAccent", "selectionBackground",
+  "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
+  "brightBlack", "brightRed", "brightGreen", "brightYellow", "brightBlue", "brightMagenta", "brightCyan", "brightWhite",
+] as const;
+export type ColorKey = (typeof COLOR_KEYS)[number];
+export { COLOR_KEYS };
+
+function normalizeColors(v: unknown, base: ThemeColors): ThemeColors {
+  const o = obj(v);
+  const out = { ...base };
+  for (const k of COLOR_KEYS) {
+    const c = o[k];
+    if (typeof c === "string" && HEX.test(c.trim())) out[k] = c.trim();
+  }
+  return out;
+}
+
+function normalizeThemes(v: unknown, base: ThemeColors): CustomTheme[] {
+  if (!Array.isArray(v)) return [];
+  const seen = new Set<string>();
+  const out: CustomTheme[] = [];
+  for (const t of v) {
+    if (!isObj(t)) continue;
+    const id = str(t.id, "");
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push({ id, name: str(t.name, id), colors: normalizeColors(t.colors, base) });
+  }
+  return out;
+}
+
+function normalizeShortcuts(v: unknown): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const [k, combos] of Object.entries(obj(v))) {
+    if (Array.isArray(combos)) out[k] = combos.filter((c): c is string => typeof c === "string" && c.length > 0);
+  }
+  return out;
+}
+
+export function normalize(raw: unknown, baseColors: ThemeColors): Settings {
+  const r = obj(raw);
+  const a = obj(r.appearance);
+  const b = obj(r.background);
+  const D = DEFAULTS;
+  return {
+    ...r, // claves de otras fases o versiones: se conservan tal cual
+    version: 1,
+    appearance: {
+      theme: str(a.theme, D.appearance.theme),
+      themeLight: str(a.themeLight, D.appearance.themeLight),
+      mode: oneOf(a.mode, ["dark", "light", "auto"], D.appearance.mode),
+      fontFamily: str(a.fontFamily, D.appearance.fontFamily),
+      fontSize: num(a.fontSize, D.appearance.fontSize, LIMITS.fontSize),
+      lineHeight: num(a.lineHeight, D.appearance.lineHeight, LIMITS.lineHeight),
+      letterSpacing: num(a.letterSpacing, D.appearance.letterSpacing, LIMITS.letterSpacing),
+      fontWeight: oneOf(a.fontWeight, ["normal", "bold", "300", "500", "600"], D.appearance.fontWeight),
+      ligatures: bool(a.ligatures, D.appearance.ligatures),
+      cursorStyle: oneOf(a.cursorStyle, ["block", "bar", "underline"], D.appearance.cursorStyle),
+      cursorBlink: bool(a.cursorBlink, D.appearance.cursorBlink),
+    },
+    background: {
+      effect: oneOf(b.effect, ["none", "mica", "acrylic", "tabbed", "blur"], D.background.effect),
+      opacity: num(b.opacity, D.background.opacity, LIMITS.opacity),
+      image: typeof b.image === "string" ? b.image : "",
+      imageOpacity: num(b.imageOpacity, D.background.imageOpacity, LIMITS.imageOpacity),
+      imageFit: oneOf(b.imageFit, ["cover", "contain", "tile"], D.background.imageFit),
+    },
+    customThemes: normalizeThemes(r.customThemes, baseColors),
+    tabBar: { position: oneOf(obj(r.tabBar).position, ["top", "left"], D.tabBar.position) },
+    terminal: {
+      defaultProfile: typeof obj(r.terminal).defaultProfile === "string" ? (obj(r.terminal).defaultProfile as string) : "",
+      scrollback: Math.round(num(obj(r.terminal).scrollback, D.terminal.scrollback, LIMITS.scrollback)),
+    },
+    behavior: {
+      foregroundPollMs: Math.round(num(obj(r.behavior).foregroundPollMs, D.behavior.foregroundPollMs, LIMITS.foregroundPollMs)),
+    },
+    shortcuts: normalizeShortcuts(r.shortcuts),
+  };
+}
+
+/** Copia profunda (las settings son JSON puro). */
+export const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
