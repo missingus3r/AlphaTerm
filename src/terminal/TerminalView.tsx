@@ -16,6 +16,7 @@ import { cmdRunningCommand, isShellTitle } from "../layout/title";
 import type { Action } from "../layout/shortcuts";
 import type { TermLook } from "../settings/apply";
 import type { Startup } from "../layout/model";
+import { registerPathLinks } from "./pathLinks";
 
 export type Renderer = "webgl" | "dom";
 
@@ -100,6 +101,9 @@ export function TerminalView(props: Props) {
     term.loadAddon(new Unicode11Addon());
     term.unicode.activeVersion = "11";
     term.open(host);
+    // Rutas en la salida: links que abren la carpeta o el archivo, con vista previa al pasar el mouse.
+    let cwdNow = props.cwd;
+    const pathLinks = registerPathLinks(term, () => cwdNow);
 
     let disposed = false;
     const patch = (p: TermPatch) => {
@@ -188,12 +192,16 @@ export function TerminalView(props: Props) {
       }),
       term.parser.registerOscHandler(7, (data) => {
         const cwd = parseOsc7(data);
-        if (cwd) patch({ cwd });
+        if (cwd) {
+          cwdNow = cwd;
+          patch({ cwd });
+        }
         return true;
       }),
       term.parser.registerOscHandler(9, (data) => {
         const cwd = parseOsc9(data);
         if (!cwd) return false;
+        cwdNow = cwd;
         patch({ cwd });
         return true;
       }),
@@ -469,6 +477,7 @@ export function TerminalView(props: Props) {
       host.removeEventListener("focusin", onFocusIn);
       oscs.forEach((d) => d.dispose());
       ligatures?.dispose();
+      pathLinks.dispose();
       ack?.dispose();
       void session?.kill();
       detachGl();

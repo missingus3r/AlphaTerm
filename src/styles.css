@@ -377,3 +377,14 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .diff td.code.d-empty { background: color-mix(in srgb, var(--line) 35%, transparent); }
 .diff tr.d-hunk td { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .diff tr.d-meta td { color: var(--muted); }
+
+/* --- Vista previa de rutas --- */
+.path-preview {
+  position: fixed; z-index: 100; display: none; max-width: 420px; max-height: 360px; overflow: hidden;
+  background: var(--bg-solid); border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 12px 32px #0009;
+  padding: 8px 10px; font-size: 12px; pointer-events: none;
+}
+.pp-head { display: flex; flex-direction: column; margin-bottom: 6px; }
+.pp-head small { color: var(--muted); }
+.pp-body img { max-width: 400px; max-height: 280px; display: block; border-radius: 5px; background: repeating-conic-gradient(#8882 0 25%, transparent 0 50%) 0 0 / 16px 16px; }
+.pp-text, .pp-list { white-space: pre; font: 11.5px/1.4 "Cascadia Mono", Consolas, monospace; color: var(--text); overflow: hidden; }

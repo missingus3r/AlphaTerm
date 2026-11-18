@@ -78,6 +78,8 @@ pub fn run() {
             projects::fs_list,
             projects::fs_watch,
             projects::fs_open,
+            projects::fs_stat,
+            projects::fs_head,
             git::git_root,
             git::git_status,
             git::git_count,

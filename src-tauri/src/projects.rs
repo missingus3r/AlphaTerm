@@ -246,6 +246,48 @@ pub fn unwatch_window(state: &WatchState, label: &str) {
     state.watchers.lock().unwrap().remove(label);
 }
 
+// --- Links de la terminal: existencia y vista previa -----------------------------------------------
+
+#[derive(Serialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Stat {
+    pub dir: bool,
+    pub size: u64,
+}
+
+/// Qué rutas existen (para no subrayar texto que solo parece una ruta).
+#[tauri::command]
+pub fn fs_stat(paths: Vec<String>) -> Vec<Option<Stat>> {
+    paths
+        .iter()
+        .take(200)
+        .map(|p| std::fs::metadata(p).ok().map(|m| Stat { dir: m.is_dir(), size: if m.is_file() { m.len() } else { 0 } }))
+        .collect()
+}
+
+const PREVIEW_IMAGE_MAX: u64 = 15 * 1024 * 1024;
+
+/// Primeros bytes de un archivo (texto: hasta `max`; imagen entera si pesa menos de 15 MB).
+#[tauri::command]
+pub fn fs_head(path: String, max: u64, whole_if_under: Option<bool>) -> Result<tauri::ipc::Response, String> {
+    use std::io::Read;
+    let md = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+    if !md.is_file() {
+        return Err("No es un archivo".into());
+    }
+    let limit = if whole_if_under.unwrap_or(false) {
+        if md.len() > PREVIEW_IMAGE_MAX {
+            return Err("La imagen es muy grande para la vista previa".into());
+        }
+        md.len()
+    } else {
+        max.min(256 * 1024)
+    };
+    let mut buf = Vec::with_capacity(limit as usize);
+    std::fs::File::open(&path).map_err(|e| e.to_string())?.take(limit).read_to_end(&mut buf).map_err(|e| e.to_string())?;
+    Ok(tauri::ipc::Response::new(buf))
+}
+
 // --- Abrir afuera ------------------------------------------------------------------------------------
 
 /// Abre una carpeta o archivo en el Explorador, en VS Code o con el programa asociado.
