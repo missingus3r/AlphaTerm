@@ -270,3 +270,36 @@ Ajustes de versiones respecto del plan (verificados en npm el 17/11/2026):
  - reqwest 0.13 renombró los features: se usa native-tls + system-proxy.
 
 El fallback a Electron queda descartado mientras cargo funcione (ver Informe).
+
+====================================================================
+ADENDA 18/11/2026 — ALPHATERM Y FUNCIONES PEDIDAS DURANTE LA IMPLEMENTACIÓN
+====================================================================
+
+Cambio de nombre: la app pasa a llamarse AlphaTerm (binario alphaterm.exe, identificador
+uy.alphaterm.app, datos en %APPDATA%\AlphaTerm; la primera vez se copia la carpeta de NovaTerm).
+Este txt conserva su nombre original como registro del plan.
+
+Funciones agregadas al pedido de Bruno (además de F3 a F9):
+ - Historial de todos los comandos (todas las pestañas y ventanas), buscable, reutilizable.
+ - Widget con la ubicación actual (tramos clicables, rama git).
+ - El consumo del agente abierto queda siempre visible y resaltado en el footer, con detalle.
+ - Al abrir se recupera el último estado (ventanas, pestañas, paneles, carpetas, colores, título).
+ - Rutas en la salida (de agentes o de lo que sea) se vuelven links: abren la carpeta o el archivo;
+   al pasar el mouse muestran una vista previa (imagen, texto o contenido de la carpeta).
+ - Carpetas de pestañas (plegables, con color) y color por pestaña.
+ - Título de ventana fijado a mano.
+ - API de control para agentes (HTTP local con token + servidor MCP + CLI): ver pestañas, abrir
+   pestañas, paneles y sub ventanas, correr comandos y leer su salida.
+ - Panel de Docker: iniciar contenedores configurados con un clic (plantillas), manejar los
+   existentes, logs y shell; también desde la API para los agentes.
+ - Guardián: pregunta antes de que un agente borre o modifique archivos (se apaga en
+   Configuración). Frena a Claude Code (hooks) y a Codex (su modo de aprobación) lanzados desde
+   AlphaTerm, y a lo que pase por la API. Límite honesto: no puede frenar a cualquier programa
+   (Windows no lo permite sin un driver de sistema de archivos).
+
+Desvíos respecto del plan original:
+ - Consumo de Claude: no se usa el endpoint OAuth con el token de .credentials.json (decisión ya
+   tomada en el Claude Control Panel: no tocar credenciales). El dato exacto sale de la statusline
+   de Claude Code; sin ella se estima con los transcripts (sin porcentaje).
+ - Codex guarda sus sesiones comprimidas (.jsonl.zst): se leen con ruzstd.
+ - Gemini CLI → Antigravity (agy) con /quota oficial (ver adenda anterior).

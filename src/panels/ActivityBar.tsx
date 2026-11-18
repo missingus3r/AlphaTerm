@@ -81,16 +81,16 @@ export const PANELS: { id: PanelId; label: string; command: string; icon: () => 
   },
 ];
 
-export function ActivityBar(props: { active: PanelId | null; onToggle: (p: PanelId) => void; help: [string, string][] }) {
+export function ActivityBar(props: { isOpen: (p: PanelId) => boolean; onToggle: (p: PanelId) => void; help: [string, string][] }) {
   const keyOf = (label: string) => props.help.find(([, l]) => l === label)?.[0];
   return (
     <nav class="activity-bar" aria-label="Paneles">
       <For each={PANELS}>
         {(p) => (
           <button
-            classList={{ on: props.active === p.id }}
+            classList={{ on: props.isOpen(p.id) }}
             title={`${p.label}${keyOf(`Panel de ${p.label.toLowerCase()}`) ? ` (${keyOf(`Panel de ${p.label.toLowerCase()}`)})` : ""}`}
-            aria-pressed={props.active === p.id}
+            aria-pressed={props.isOpen(p.id)}
             onClick={() => props.onToggle(p.id)}
           >
             {p.icon()}

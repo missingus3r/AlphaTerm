@@ -9,7 +9,10 @@ export interface SavedWindow {
   version: 1;
   layout: M.Layout;
   windowTitle?: string;
+  /** Sesiones viejas: un solo panel lateral. */
   panel?: string | null;
+  /** Paneles en mosaico (ver panels/dock.ts). */
+  dock?: unknown;
 }
 
 /** Cómo retomar la última conversación de cada agente de fábrica (si se elige relanzarlos). */
@@ -22,7 +25,7 @@ function mapLeaves(n: M.PaneNode, f: (l: M.Leaf) => M.Leaf): M.PaneNode {
 export function serialize(
   l: M.Layout,
   live: (paneId: string) => { cwd?: string; agentId?: string } | undefined,
-  extra: { windowTitle?: string; panel?: string | null } = {},
+  extra: { windowTitle?: string; panel?: string | null; dock?: unknown } = {},
 ): SavedWindow {
   const tabs = l.tabs.map((t) => ({
     ...t,

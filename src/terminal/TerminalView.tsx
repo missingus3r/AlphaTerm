@@ -1,4 +1,4 @@
-import { createEffect, on, onCleanup, onMount } from "solid-js";
+import { createEffect, createSignal, on, onCleanup, onMount, Show } from "solid-js";
 import { Terminal, type IDisposable, type IMarker } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -92,6 +92,10 @@ interface Block {
 
 export function TerminalView(props: Props) {
   let host!: HTMLDivElement;
+  // Botones para saltar al principio o al final cuando la salida es larga.
+  const [canTop, setCanTop] = createSignal(false);
+  const [canBottom, setCanBottom] = createSignal(false);
+  let scrollTo: ((where: "top" | "bottom") => void) | undefined;
 
   onMount(() => {
     const look0 = props.look;
@@ -180,6 +184,11 @@ export function TerminalView(props: Props) {
         const m = parse133(data);
         if (!m) return false;
         if (m.type === "promptStart") {
+          // El primer prompt con OSC 133 ya prueba que la shell tiene integración.
+          if (!integrated) {
+            integrated = true;
+            patch({ integrated: true });
+          }
           runStartup();
           if (!firstPromptMarked) {
             firstPromptMarked = true;
@@ -363,6 +372,26 @@ export function TerminalView(props: Props) {
     });
     term.onResize(({ cols, rows }) => void session?.resize(cols, rows));
 
+    // Saltos: se muestran si hay más de 3 pantallas de salida y no se está ya en ese extremo.
+    let jumpRaf = 0;
+    const updateJumps = () => {
+      cancelAnimationFrame(jumpRaf);
+      jumpRaf = requestAnimationFrame(() => {
+        const buf = term.buffer.active;
+        const long = buf.length > term.rows * 3;
+        setCanTop(long && buf.viewportY > 0);
+        setCanBottom(long && buf.viewportY < buf.baseY);
+      });
+    };
+    term.onScroll(updateJumps);
+    term.onWriteParsed(updateJumps);
+    scrollTo = (where) => {
+      if (where === "top") term.scrollToTop();
+      else term.scrollToBottom();
+      term.focus();
+      updateJumps();
+    };
+
     const copy = () => {
       const sel = term.getSelection();
       if (sel) void writeText(sel);
@@ -508,8 +537,10 @@ export function TerminalView(props: Props) {
         return true;
       },
       text: (n) => {
+        // Hasta la línea del cursor: debajo solo hay filas vacías de la pantalla.
         const buf = term.buffer.active;
-        return bufferText(buf.length - Math.max(1, Math.min(n, 5000)), buf.length).replace(/\n+$/, "\n");
+        const end = buf.baseY + buf.cursorY + 1;
+        return bufferText(end - Math.max(1, Math.min(n, 5000)), end).replace(/\n+$/, "\n");
       },
       lastOutput: () => {
         const b = [...blocks].reverse().find((x) => x.output && x.end && x.output.line >= 0 && x.end.line >= 0);
@@ -522,6 +553,7 @@ export function TerminalView(props: Props) {
     onCleanup(() => {
       disposed = true;
       clearInterval(activity);
+      cancelAnimationFrame(jumpRaf);
       clearTimeout(startupTimer);
       ro.disconnect();
       cancelAnimationFrame(raf);
@@ -537,5 +569,21 @@ export function TerminalView(props: Props) {
     });
   });
 
-  return <div class="term-host" ref={host} />;
+  return (
+    <>
+      <div class="term-host" ref={host} />
+      <div class="jumps">
+        <Show when={canTop()}>
+          <button class="jump" title="Ir al principio de la salida" onMouseDown={(e) => e.preventDefault()} onClick={() => scrollTo?.("top")}>
+            ⤒
+          </button>
+        </Show>
+        <Show when={canBottom()}>
+          <button class="jump" title="Ir al final (lo último)" onMouseDown={(e) => e.preventDefault()} onClick={() => scrollTo?.("bottom")}>
+            ⤓
+          </button>
+        </Show>
+      </div>
+    </>
+  );
 }

@@ -88,9 +88,13 @@ export function TabBar(props: Props) {
       window.removeEventListener("keydown", esc);
     });
   });
+  // Primero la acción y después cerrar: con el menú cerrado, Solid ya no deja leer su valor (m()).
   const act = (f: () => void) => {
-    setMenu(null);
-    f();
+    try {
+      f();
+    } finally {
+      setMenu(null);
+    }
   };
 
   return (
@@ -202,7 +206,10 @@ export function TabBar(props: Props) {
         </For>
         <div class="new-tab">
           <button class="btn add" title="Pestaña nueva (Ctrl+Shift+T)" onClick={() => props.onNew()}>
-            +
+            {/* Dibujado: el carácter "+" no queda centrado en todas las fuentes. */}
+            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M6 1.5v9M1.5 6h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+            </svg>
           </button>
           <select
             class="profile"

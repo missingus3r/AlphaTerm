@@ -65,7 +65,16 @@ export function termLook(s: Settings, theme: Theme): TermLook {
     scrollback: s.terminal.scrollback,
     transparent,
     // El fondo lo pinta la ventana (con su opacidad); la terminal deja pasar.
-    theme: transparent ? { ...theme.colors, background: "#00000000" } : { ...theme.colors },
+    theme: {
+      ...theme.colors,
+      ...(transparent ? { background: "#00000000" } : {}),
+      // Sin el borde del ruler de la derecha (se veía como una línea clara) y con una barra de
+      // desplazamiento discreta.
+      overviewRulerBorder: "#00000000",
+      scrollbarSliderBackground: `${theme.colors.foreground.slice(0, 7)}22`,
+      scrollbarSliderHoverBackground: `${theme.colors.foreground.slice(0, 7)}44`,
+      scrollbarSliderActiveBackground: `${theme.colors.foreground.slice(0, 7)}66`,
+    },
   };
 }
 

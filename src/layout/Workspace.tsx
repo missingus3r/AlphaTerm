@@ -14,6 +14,7 @@ import type { AgentDef } from "../settings/schema";
 import { agentRunning, agentState, pushRecent } from "../panels/agentState";
 import type { RunningAgent } from "../panels/AgentsPanel";
 import { ActivityBar, PANELS, type PanelId } from "../panels/ActivityBar";
+import * as D from "../panels/dock";
 import { SysWidget, type TabProcs } from "../widgets/SysWidget";
 import { providerFor, UsageFooter } from "../widgets/UsageFooter";
 import { candidate, mergeRecipe, type PaneRef, type Server } from "../panels/servers";
@@ -29,8 +30,7 @@ const ProjectsPanel = lazy(() => import("../panels/ProjectsPanel"));
 const GitPanel = lazy(() => import("../panels/GitPanel"));
 const HistoryPanel = lazy(() => import("../panels/HistoryPanel"));
 const DockerPanel = lazy(() => import("../panels/DockerPanel"));
-const PANEL_WIDTH_PREF = "alphaterm.panel.width";
-const PANEL_PREF = "alphaterm.panel";
+const DOCK_PREF = "alphaterm.dock";
 
 /** Estado vivo de cada panel (clave: id del panel). */
 interface PaneState extends PaneInfo {
@@ -223,61 +223,78 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
 
   const closePane = (tabId: string, paneId: string) => update((x) => M.closePane(x, tabId, paneId));
 
-  // --- Paneles laterales y agentes -------------------------------------------------------------
-  const readPanel = (): PanelId | null => {
+  // --- Paneles laterales en mosaico -----------------------------------------------------------
+  // Se guardan en la sesión de la ventana y, como preferencia, para las ventanas nuevas.
+  const readDock = (): D.Dock => {
     try {
-      const v = localStorage.getItem(PANEL_PREF);
-      return PANELS.some((p) => p.id === v) ? (v as PanelId) : null;
+      return D.normalizeDock(JSON.parse(localStorage.getItem(DOCK_PREF) ?? "null"));
     } catch {
-      return null;
+      return { cols: [] };
     }
   };
-  const [panel, setPanelRaw] = createSignal<PanelId | null>(
-    restored && restored.panel !== undefined ? ((restored.panel as PanelId | null) ?? null) : readPanel(),
-  );
-  const setPanel = (p: PanelId | null) => {
-    setPanelRaw(p);
+  const initialDock = (): D.Dock => {
+    if (restored?.dock) return D.normalizeDock(restored.dock);
+    // Sesiones viejas (un solo panel).
+    if (restored && typeof restored.panel === "string" && PANELS.some((x) => x.id === restored.panel)) {
+      return D.openPanel({ cols: [] }, restored.panel as PanelId);
+    }
+    return restored ? { cols: [] } : readDock();
+  };
+  const [dock, setDockRaw] = createSignal<D.Dock>(initialDock());
+  const setDock = (d: D.Dock) => {
+    setDockRaw(d);
     try {
-      if (p) localStorage.setItem(PANEL_PREF, p);
-      else localStorage.removeItem(PANEL_PREF);
+      localStorage.setItem(DOCK_PREF, JSON.stringify(d));
     } catch {
       /* no importa */
     }
   };
-  const togglePanel = (p: PanelId) => setPanel(panel() === p ? null : p);
+  const panelOpen = (p: PanelId) => D.isOpen(dock(), p);
+  const togglePanel = (p: PanelId) => setDock(D.togglePanel(dock(), p));
+  const showPanel = (p: PanelId) => setDock(D.openPanel(dock(), p));
   /** Repositorio que muestra el panel de git (null = el de la carpeta del panel activo). */
   const [gitRoot, setGitRoot] = createSignal<string | null>(null);
 
-  // Ancho del panel lateral (se arrastra el borde izquierdo).
-  const readWidth = () => {
-    try {
-      const v = Number(localStorage.getItem(PANEL_WIDTH_PREF));
-      return v >= 240 && v <= 1200 ? v : 340;
-    } catch {
-      return 340;
-    }
-  };
-  const [panelWidth, setPanelWidth] = createSignal(readWidth());
-  const startPanelDrag = (e: PointerEvent) => {
+  // Ancho de una columna: se arrastra su borde izquierdo.
+  const startColDrag = (colId: string, e: PointerEvent) => {
     e.preventDefault();
     const startX = e.clientX;
-    const startW = panelWidth();
+    const startW = dock().cols.find((c) => c.id === colId)?.width ?? D.DEFAULT_W;
     document.body.classList.add("resizing", "resizing-row");
-    const move = (ev: PointerEvent) => setPanelWidth(Math.min(Math.max(240, startW + (startX - ev.clientX)), Math.max(260, window.innerWidth - 300)));
+    const move = (ev: PointerEvent) => setDockRaw(D.setColWidth(dock(), colId, Math.min(startW + (startX - ev.clientX), window.innerWidth - 360)));
     const up = () => {
       document.body.classList.remove("resizing", "resizing-row");
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
-      try {
-        localStorage.setItem(PANEL_WIDTH_PREF, String(panelWidth()));
-      } catch {
-        /* no importa */
-      }
+      setDock(dock());
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
-
+  // Alto entre dos paneles de una columna.
+  const startSplitDrag = (colId: string, i: number, e: PointerEvent) => {
+    e.preventDefault();
+    const col = (e.target as HTMLElement).closest(".dock-col");
+    if (!col) return;
+    const box = col.getBoundingClientRect();
+    document.body.classList.add("resizing", "resizing-column");
+    const move = (ev: PointerEvent) => setDockRaw(D.resizeSplit(dock(), colId, i, (ev.clientY - box.top) / box.height));
+    const up = () => {
+      document.body.classList.remove("resizing", "resizing-column");
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setDock(dock());
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  // Reordenar: se arrastra la barra de título de un panel.
+  const [dragPanel, setDragPanel] = createSignal<PanelId | null>(null);
+  const dropOn = (to: D.DropTarget) => {
+    const p = dragPanel();
+    setDragPanel(null);
+    if (p) setDock(D.movePanel(dock(), p, to));
+  };
   // Contador de cambios git por pestaña (carpeta del panel activo de cada una). Cada 10 s con la
   // ventana visible y cuando termina un comando.
   const [gitCounts, setGitCounts] = createSignal<Record<string, number | null>>({});
@@ -396,7 +413,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   createEffect(() => {
     const snapshot = serialize(layout(), (id) => (panes[id] ? { cwd: panes[id].cwd, agentId: panes[id].agentId } : undefined), {
       windowTitle: windowTitle(),
-      panel: panel(),
+      dock: dock(),
     });
     const json = JSON.stringify(snapshot);
     clearTimeout(saveTimer);
@@ -442,9 +459,9 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   };
   const anyRunning = () => Object.values(panes).some((p) => p.running || (!p.integrated && p.fgProcess));
   createEffect(() => {
-    const ms = panel() === "servers" ? 3000 : anyRunning() ? 10_000 : 0;
+    const ms = panelOpen("servers") ? 3000 : anyRunning() ? 10_000 : 0;
     if (!ms) return;
-    if (panel() === "servers") untrack(() => void refreshServers());
+    if (panelOpen("servers")) untrack(() => void refreshServers());
     const t = setInterval(() => !document.hidden && void refreshServers(), ms);
     onCleanup(() => clearInterval(t));
   });
@@ -603,9 +620,82 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     window.addEventListener("pointerup", up);
   };
 
+  const PANEL_LABEL: Record<PanelId, string> = { agents: "Agentes", servers: "Servidores", projects: "Proyectos", git: "Git", history: "Historial", docker: "Docker" };
+  const renderPanel = (id: PanelId) => {
+    switch (id) {
+      case "servers":
+        return (
+              <ServersPanel
+                servers={servers()}
+                loading={serversLoading()}
+                error={serversError()}
+                paneOf={paneOf}
+                recipes={settings().recipes}
+                update={props.store.update}
+                onRefresh={() => void refreshServers()}
+                onStart={startRecipe}
+                onFocus={focusPane}
+              />
+        );
+      case "projects":
+        return (
+              <ProjectsPanel
+                manual={settings().projects.manual}
+                hidden={settings().projects.hidden}
+                recentDirs={settings().recentDirs}
+                agents={settings().agents}
+                update={props.store.update}
+                onTerminal={(dir) => update((x) => M.addTab(x, M.newTab(newTabProfile(), dir)))}
+                onAgent={(a, dir) => launchAgent(a, dir)}
+                onGit={(dir) => {
+                  setGitRoot(dir);
+                  showPanel("git");
+                }}
+              />
+        );
+      case "git":
+        return (
+              <GitPanel
+                dir={gitRoot() ?? activeCwd()}
+                onChanged={() => void refreshCounts()}
+                onTerminal={(dir) => update((x) => M.addTab(x, M.newTab(newTabProfile(), dir)))}
+              />
+        );
+      case "docker":
+        return (
+              <DockerPanel
+                presets={settings().docker.presets}
+                update={props.store.update}
+                onTerminal={(command, title) =>
+                  update((x) => {
+                    const t = M.newTab(defaultProfile(), undefined, { command, env: pathEnv() ? { PATH: pathEnv()! } : {} });
+                    return M.addTab(x, { ...t, manualTitle: title });
+                  })
+                }
+              />
+        );
+      case "history":
+        return (
+              <HistoryPanel onUse={useCommand} version={historyVersion()} />
+        );
+      case "agents":
+        return (
+              <AgentsPanel
+                agents={settings().agents}
+                running={runningAgents()}
+                activeCwd={activeCwd()}
+                recentDirs={settings().recentDirs}
+                onLaunch={launchAgent}
+                onFocus={focusPane}
+                update={props.store.update}
+              />
+        );
+    }
+  };
+
   return (
     <div class="workspace-root">
-    <div class="workspace" classList={{ vertical: vertical(), "with-panel": !!panel() }}>
+    <div class="workspace" classList={{ vertical: vertical(), "with-panel": dock().cols.length > 0 }}>
       <TabBar
         tabs={tabItems()}
         activeId={layout().activeTab}
@@ -728,75 +818,67 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
           }}
         </For>
       </main>
-      <Show when={panel()}>
-        <aside class="side-panel" style={{ width: `${panelWidth()}px` }}>
-          <div class="panel-resize" onPointerDown={startPanelDrag} title="Arrastrar para cambiar el ancho" />
-          <Suspense>
-            <Show when={panel() === "servers"}>
-              <ServersPanel
-                servers={servers()}
-                loading={serversLoading()}
-                error={serversError()}
-                paneOf={paneOf}
-                recipes={settings().recipes}
-                update={props.store.update}
-                onRefresh={() => void refreshServers()}
-                onStart={startRecipe}
-                onFocus={focusPane}
-              />
-            </Show>
-            <Show when={panel() === "projects"}>
-              <ProjectsPanel
-                manual={settings().projects.manual}
-                hidden={settings().projects.hidden}
-                recentDirs={settings().recentDirs}
-                agents={settings().agents}
-                update={props.store.update}
-                onTerminal={(dir) => update((x) => M.addTab(x, M.newTab(newTabProfile(), dir)))}
-                onAgent={(a, dir) => launchAgent(a, dir)}
-                onGit={(dir) => {
-                  setGitRoot(dir);
-                  setPanel("git");
-                }}
-              />
-            </Show>
-            <Show when={panel() === "git"}>
-              <GitPanel
-                dir={gitRoot() ?? activeCwd()}
-                onChanged={() => void refreshCounts()}
-                onTerminal={(dir) => update((x) => M.addTab(x, M.newTab(newTabProfile(), dir)))}
-              />
-            </Show>
-            <Show when={panel() === "docker"}>
-              <DockerPanel
-                presets={settings().docker.presets}
-                update={props.store.update}
-                onTerminal={(command, title) =>
-                  update((x) => {
-                    const t = M.newTab(defaultProfile(), undefined, { command, env: pathEnv() ? { PATH: pathEnv()! } : {} });
-                    return M.addTab(x, { ...t, manualTitle: title });
-                  })
-                }
-              />
-            </Show>
-            <Show when={panel() === "history"}>
-              <HistoryPanel onUse={useCommand} version={historyVersion()} />
-            </Show>
-            <Show when={panel() === "agents"}>
-              <AgentsPanel
-                agents={settings().agents}
-                running={runningAgents()}
-                activeCwd={activeCwd()}
-                recentDirs={settings().recentDirs}
-                onLaunch={launchAgent}
-                onFocus={focusPane}
-                update={props.store.update}
-              />
-            </Show>
-          </Suspense>
+      <Show when={dock().cols.length > 0}>
+        <aside class="dock" classList={{ dragging: !!dragPanel() }}>
+          <For each={dock().cols.map((c) => c.id)}>
+            {(colId, ci) => {
+              const col = () => dock().cols.find((c) => c.id === colId);
+              return (
+                <>
+                  <div class="dock-drop" onDragOver={(e) => e.preventDefault()} onDrop={() => dropOn({ kind: "newCol", index: ci() })} title="Soltar acá: columna nueva" />
+                  <div class="dock-col" style={{ width: `${col()?.width ?? D.DEFAULT_W}px` }}>
+                    <div class="dock-col-resize" onPointerDown={(e) => startColDrag(colId, e)} title="Arrastrar para cambiar el ancho" />
+                    <For each={col()?.panels.map((p) => p.id) ?? []}>
+                      {(pid, pi) => {
+                        const size = () => col()?.panels.find((p) => p.id === pid)?.size ?? 1;
+                        return (
+                          <>
+                            <Show when={pi() > 0}>
+                              <div class="dock-split" onPointerDown={(e) => startSplitDrag(colId, pi() - 1, e)} title="Arrastrar para cambiar el alto" />
+                            </Show>
+                            <section
+                              class="dock-panel"
+                              classList={{ dragged: dragPanel() === pid }}
+                              style={{ "flex-grow": String(size()) }}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={(e) => {
+                                const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                dropOn({ kind: "panel", target: pid, after: e.clientY > r.top + r.height / 2 });
+                              }}
+                            >
+                              <header
+                                class="dock-head"
+                                draggable={true}
+                                onDragStart={(e) => {
+                                  setDragPanel(pid);
+                                  e.dataTransfer?.setData("text/plain", pid);
+                                }}
+                                onDragEnd={() => setDragPanel(null)}
+                                title="Arrastrar para mover el panel"
+                              >
+                                <span class="grip">⋮⋮</span>
+                                <b>{PANEL_LABEL[pid]}</b>
+                                <button class="icon-btn tiny-x" title="Cerrar el panel" onClick={() => setDock(D.closePanel(dock(), pid))}>
+                                  ×
+                                </button>
+                              </header>
+                              <div class="dock-body">
+                                <Suspense>{renderPanel(pid)}</Suspense>
+                              </div>
+                            </section>
+                          </>
+                        );
+                      }}
+                    </For>
+                  </div>
+                </>
+              );
+            }}
+          </For>
+          <div class="dock-drop end" onDragOver={(e) => e.preventDefault()} onDrop={() => dropOn({ kind: "newCol", index: dock().cols.length })} title="Soltar acá: columna nueva" />
         </aside>
       </Show>
-      <ActivityBar active={panel()} onToggle={togglePanel} help={shortcutHelp(settings().shortcuts)} />
+      <ActivityBar isOpen={panelOpen} onToggle={togglePanel} help={shortcutHelp(settings().shortcuts)} />
       </div>
     </div>
     <GuardianModal />

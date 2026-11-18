@@ -90,7 +90,7 @@ class Doc(FPDF):
             return
         self.set_font("Segoe", "", 8)
         self.set_text_color(*GRIS)
-        self.cell(0, 6, f"NovaTerm — {self.titulo_doc}", align="L")
+        self.cell(0, 6, f"AlphaTerm — {self.titulo_doc}", align="L")
         self.ln(8)
 
     def footer(self):
@@ -104,7 +104,7 @@ class Doc(FPDF):
         self.ln(60)
         self.set_font("Segoe", "B", 30)
         self.set_text_color(*ACENTO)
-        self.cell(0, 14, "NovaTerm", new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 14, "AlphaTerm", new_x="LMARGIN", new_y="NEXT")
         self.set_font("Segoe", "", 16)
         self.set_text_color(*NEGRO)
         self.multi_cell(0, 9, self.titulo_doc, new_x="LMARGIN", new_y="NEXT")
@@ -114,7 +114,8 @@ class Doc(FPDF):
         self.multi_cell(0, 6, subtitulo, new_x="LMARGIN", new_y="NEXT")
         self.ln(30)
         self.set_font("Segoe", "", 9)
-        self.multi_cell(0, 5, f"{guardado}\nGenerado el {date.today():%d/%m/%Y} desde Plan_Terminal_NovaTerm.txt",
+        fuente = getattr(self, "fuente", "Plan_Terminal_NovaTerm.txt")
+        self.multi_cell(0, 5, f"{guardado}\nGenerado el {date.today():%d/%m/%Y} desde {fuente}",
                         new_x="LMARGIN", new_y="NEXT")
 
     def seccion(self, titulo: str):
@@ -165,8 +166,9 @@ class Doc(FPDF):
 
 
 def construir(nombre: str, titulo: str, subtitulo: str, guardado: str,
-              secciones: dict[str, list[str]], orden: list[str]):
+              secciones: dict[str, list[str]], orden: list[str], fuente: str = "Plan_Terminal_NovaTerm.txt"):
     doc = Doc(titulo)
+    doc.fuente = fuente
     doc.portada(subtitulo, guardado)
     for clave in orden:
         reales = [k for k in secciones if k.startswith(clave)]
@@ -194,6 +196,16 @@ def main():
         "Fases F0 a F9, criterios de cierre y verificación.",
         guardado, secciones,
         ["FASES", "VERIFICACIÓN", "ADENDA"],
+    )
+    guia = RAIZ / "Documentacion" / "Guia_de_codigo.txt"
+    enc, secs = leer_secciones(guia.read_text(encoding="utf-8"))
+    construir(
+        "Guía de código.pdf",
+        "Guía de código",
+        "Cómo está armado AlphaTerm, dónde está cada cosa y cómo extenderlo.",
+        next((l.strip() for l in enc if l.startswith("Guardado:")), ""), secs,
+        list(secs.keys()),
+        "Documentacion/Guia_de_codigo.txt",
     )
 
 
