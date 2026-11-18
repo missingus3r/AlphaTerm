@@ -11,12 +11,13 @@ Regla de honestidad: lo que no esté verificado con datos reales de la máquina 
 | F1 — Núcleo terminal | Terminada | 17/11/2026 | Probada en la app; throughput a la par de Windows Terminal |
 | F2 — Layout | Terminada | 18/11/2026 | Probada en la app: pestañas, splits, multi-ventana, integración y títulos |
 | F3 — Settings y temas | Terminada | 18/11/2026 | Probada en la app: temas, Mica/Acrylic, fuentes, ligaduras, atajos, edición a mano del archivo |
-| F4 — Agentes | Pendiente | | |
-| F5 — Widgets | Pendiente | | |
-| F6 — Servidores/Puertos | Pendiente | | |
-| F7 — Proyectos | Pendiente | | |
-| F8 — Git | Pendiente | | |
-| F9 — Pulido | Pendiente | | |
+| F4 — Agentes | Terminada | 18/11/2026 | Claude Code lanzado desde el panel, estados y detección real |
+| F5 — Widgets | Terminada | 18/11/2026 | CPU/RAM y consumo con datos reales (agy exacto, Codex y Claude con su antigüedad) |
+| F6 — Servidores/Puertos | Terminada | 18/11/2026 | Servidor en pestaña detectado, receta guardada, detener e iniciar |
+| F7 — Proyectos | Terminada | 18/11/2026 | Proyectos de Claude/Codex y árbol con .gitignore |
+| F8 — Git | Terminada | 18/11/2026 | Diff, stage y commit desde el panel en un repo de prueba |
+| F9 — Pulido | Terminada | 18/11/2026 | Resumen por modelo (servidor de prueba), mediciones, guía de código |
+| Extras — AlphaTerm | Terminada | 18/11/2026 | Pedidos durante la implementación: API para agentes, Docker, guardián, mosaico, sesión… |
 
 ---
 
@@ -377,3 +378,126 @@ Aprobado por Bruno el 17/11/2026 ("Sí, arrancá F1").
 - Archivos nuevos: 10 (2 módulos Rust, 5 de lógica/estado, 1 componente, 1 hoja de estilos, 1 de tests).
 - Bundle principal: 557 KB (533 KB en F2); configuración 21 KB y ligaduras 191 KB aparte, bajo demanda.
 - Tests: Rust 24 (+2 ignorados), Vitest 51. Todos en verde.
+
+---
+
+## F4 a F9 y extras (18/11/2026)
+
+Bruno pidió seguir de corrido hasta el final y probar todo al terminar; en el medio agregó funciones
+(ver la adenda del plan) y el cambio de nombre a **AlphaTerm**. Cada fase quedó en su commit.
+
+### F4 — Agentes
+- Catálogo editable (Claude Code, Codex, Antigravity, OpenCode y propios) con comando, variables y
+  ocultar. Detección sin ejecutar nada: PATH del proceso + del registro + carpetas habituales
+  (encontró los cuatro: `.local\bin\claude.exe`, `npm\codex.cmd`, `agy\bin\agy.exe`, `npm\opencode.cmd`).
+- Lanzar abre una pestaña con la shell por defecto y escribe el comando al primer prompt (el agente
+  corre dentro de la shell). Estados: arrancando, trabajando (hay salida), esperando input
+  (silencio), te necesita (campana), terminó (con código). También en el punto de la pestaña.
+- Bug encontrado: el Enter se escribía como un salto de línea literal (en una plantilla JS se vuelve
+  `\n` y PowerShell lo toma como línea incompleta). Bug de F1 que apareció acá: si el panel se
+  ajustaba mientras arrancaba la sesión, el tamaño nuevo se perdía y los TUI se dibujaban corridos.
+
+### F5 — Widgets
+- CPU y RAM con sparkline de 60 s; clic: top de procesos y consumo de cada pestaña (árbol de la shell).
+- Consumo: **agy** exacto por `/quota` (0 tokens, ejecutado sin shell); **Codex** del último
+  `rate_limits` de sus sesiones, que ahora vienen comprimidas (`.jsonl.zst`, se leen con ruzstd);
+  **Claude** de la statusline de Claude Code (no se leen credenciales: decisión que ya estaba en el
+  Claude Control Panel). Sin statusline, estimación en tokens. Cada dato dice fuente y antigüedad.
+- Hallazgo: la statusline de Claude Code apunta a `Desktop\claude-control-panel\statusline.js`, que ya
+  no existe; la configuración lo avisa y ofrece instalar la de AlphaTerm (con copia del archivo).
+  No se tocó: cambia la configuración de Claude Code y es decisión de Bruno.
+
+### F6 — Servidores y puertos
+- Puertos en escucha por GetExtendedTcpTable (IPv4 e IPv6), con proceso, comando, carpeta y uptime;
+  marca los que nacieron en una pestaña. Detener con taskkill /T (más confirmación si no es de
+  AlphaTerm; nunca PID ≤ 4). Recetas automáticas (comando por OSC 633 + carpeta + puertos) o a mano.
+
+### F7 — Proyectos
+- Desde los transcripts de Claude Code (`cwd`) y las sesiones de Codex (`session_meta`), más los
+  agregados a mano y las carpetas recientes. Árbol perezoso con `.gitignore` (crate ignore) y vigilante
+  de las carpetas abiertas (notify).
+
+### F8 — Git
+- CLI de git sin consola ni prompts: status porcelain v2, diff unificado o lado a lado, stage por
+  archivo o todos, commit (Ctrl+Enter), historial con grafo, ramas, fetch/pull --ff-only/push (con -u
+  si falta upstream), clone e init. Contador de cambios en cada pestaña.
+
+### F9 — Pulido
+- Resumen de pestaña con un modelo (endpoint compatible con OpenAI; apagado por defecto). Orden del
+  nombre: manual > título del programa > modelo > heurística.
+- Guía de código (`Documentacion\Guia_de_codigo.txt` y `Guía de código.pdf`), adenda en el plan.
+
+### Extras pedidos
+Historial de comandos global, ubicación actual en el footer, consumo del agente activo resaltado,
+restaurar la sesión, rutas clicables con vista previa, carpetas y color de pestañas, título de
+ventana, **API de control** (HTTP local + token, servidor MCP y CLI `alphaterm-mcp.mjs`), **Docker**,
+**guardián** y paneles laterales en **mosaico** (varios a la vez, redimensionables y reordenables).
+
+### Tests
+- Rust: 55 (+3 ignorados). Nuevos: detección de agentes, sysmon, consumo (fechas, Codex, agy,
+  statusline), puertos (tabla real), proyectos (árbol con .gitignore), git (ciclo real en un repo
+  temporal), historial, sesión, Docker (argumentos sin shell), guardián (clasificador y hook),
+  migración de la carpeta, resumen por modelo.
+- Vitest: 96. Nuevos: estado de agentes, formatos, recetas, proyectos, diff, rutas, sesión, carpetas
+  de pestañas, consumo, mosaico.
+
+### Prueba en la app (release, CDP + computer use)
+| Prueba | Resultado |
+|---|---|
+| Lanzar Claude Code desde el panel (con `--mcp-config` y `--settings`), estado "esperando input" y "terminó (código 1)" | OK |
+| API: ping, list, open_tab, split, open_window (sub ventana), run con espera (salida exacta y código 7), read, send, close; token inválido → 401 | OK |
+| MCP por stdio como cliente: initialize, tools/list (14), tools/call, error en panel inexistente | OK |
+| Guardián por la API (Remove-Item): diálogo en las dos ventanas, Bloquear → la API recibe el bloqueo | OK |
+| Hook de Claude Code (simulado con el JSON que manda Claude): Edit con diff → permitir; rm -rf → deny | OK |
+| Docker: motor apagado detectado, "Abrir Docker Desktop" lo arranca, versión 29.7.2 en el panel y la API | OK (sin contenedores: ver pendientes) |
+| Servidor Python en una pestaña: marcado de AlphaTerm, receta guardada, detener y volver a iniciar (HTTP 200) | OK |
+| Git: diff numerado, stage de un archivo, commit solo de ese archivo | OK |
+| Historial con comandos de las dos ventanas y códigos | OK |
+| Proyectos y árbol sin node_modules/dist/target | OK |
+| Color y carpeta de pestaña, plegar, título de ventana | OK (después de arreglar el menú) |
+| Restaurar la sesión al reabrir: título, 5 pestañas, división, carpetas, panel | OK |
+| Rutas en la salida: vista previa de imagen (3840 px) y de carpeta | OK |
+| Resumen por modelo contra un servidor de prueba: 3 pedidos por vuelta, nombre limpio | OK |
+| Mosaico: 3 paneles a la vez, mover arriba de otro y a columna nueva, ancho y alto, guardado | OK |
+| Saltos al principio/final con 300 líneas | OK |
+| Footer: agy 7 % semanal (coincide con /quota), Codex y Claude marcados como viejos | OK |
+| Configuración: las 8 secciones se dibujan; detecta la statusline rota | OK |
+
+### Bugs encontrados en la prueba final y corregidos
+- **Footer en bucle**: `load()` leía una señal dentro de su efecto → 60 layouts por segundo, nodos
+  creciendo y el renderer en 180 MB (RAM total 373 MB). Con `untrack` el renderer baja a ~45 MB.
+- La API leía las últimas filas de la pantalla (vacías) en vez de hasta el cursor.
+- La integración se marcaba recién con el primer comando: `run` no podía esperar en una pestaña nueva.
+- El menú de pestaña se cerraba antes de aplicar la acción (Solid no deja leer su valor ya cerrado).
+- Línea clara a la derecha de la terminal: el borde del "overview ruler" de xterm.
+
+### Mediciones (release, 18/11/2026)
+| Medición | Resultado | Meta del plan |
+|---|---|---|
+| Arranque hasta el primer prompt | 1,2–1,4 s (PowerShell 5.1 solo tarda ~0,18 s) | < 500 ms — **no** |
+| RAM privada con 1 pestaña (AlphaTerm + WebView2) | ~225 MB (renderer 45, GPU 108) | < 120 MB — **no** |
+| Throughput | a la par de Windows Terminal (F1: el límite es ConPTY) | comparable — sí |
+| Latencia de tecla | no medida | < 10 ms — sin dato |
+
+La RAM y el arranque los domina WebView2 (el proceso de GPU crece con la ventana transparente y WebGL).
+Bajar de ahí pediría otro motor de interfaz: no se hizo.
+
+### Pendiente / no verificado
+- **Docker con un contenedor real**: no hay imágenes en la máquina y bajar una es una descarga
+  (se pregunta antes).
+- **Claude Code con una tarea real** pasando por el hook: se probó el script con el mismo JSON que
+  manda Claude y que Claude acepta los dos flags; no se aceptó el "confiar en la carpeta" (cambia su
+  configuración) ni se le dio una tarea (gasta cuota).
+- Codex y agy lanzados desde el panel; el modo de aprobación de Codex con `-s read-only -a on-request`.
+- Resumen con un modelo de verdad (en Ollama no hay modelos; bajar uno es una descarga).
+- Los selectores de carpeta nativos (no se pueden manejar con computer use).
+- La sesión no guarda tamaño ni posición de las ventanas.
+- Empaquetado (exe suelto o instalador NSIS): decisión de Bruno.
+- La carpeta del proyecto sigue siendo `Desktop\NovaTerm`: se renombra cuando esta sesión de Claude
+  Code la suelte.
+
+### Stats
+- Commits: F3 `8b4a54b`, F4 `9ce06bc`, F5 `3b94920`, F6 `b617faf`, F7 `38c09ad`, F8 `de356a4`,
+  renombre `85f31a8`, extras y F9 hasta `cef9654`.
+- Tests: Rust 55 (+3 ignorados), Vitest 96. Todos en verde.
+- Binario release: alphaterm.exe 14,9 MB (+ conpty.dll y OpenConsole.exe).

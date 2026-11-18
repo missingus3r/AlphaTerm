@@ -1,33 +1,55 @@
-# NovaTerm — contexto para Claude Code
+# AlphaTerm (antes NovaTerm) — contexto para Claude Code
 
-Terminal propia estilo Warp, más liviana y rápida, orientada a trabajar con agentes de IA.
-El plan completo está en `Plan_Terminal_NovaTerm.txt` (en esta misma carpeta): es la fuente de verdad.
+Terminal propia estilo Warp, más liviana, orientada a trabajar con agentes de IA.
+El plan está en `Plan_Terminal_NovaTerm.txt` (con adendas al final: entorno de casa y AlphaTerm);
+la guía de código en `Documentacion\Guia_de_codigo.txt` (y su PDF); el registro de cada fase en
+`Documentacion\Informe_Proceso_y_Stats.md`.
 
 ## Estado al 18/11/2026
-- Plan aprobado por Bruno ("vamos a implementarlo").
-- F0 hecha en la PC de casa: entorno verificado, adenda al plan, PDFs en `Documentacion\` (se regeneran con `python Documentacion\generar_pdfs.py`) e Informe iniciado.
-- F1 terminada (17/11/2026): una pestaña ConPTY + xterm WebGL, perfiles, resize, copiar/pegar. Throughput a la par de Windows Terminal.
-- F2 terminada (18/11/2026): pestañas, splits, multi-ventana, barra H/V, marquee, shell integration (PowerShell, Git Bash, cmd) y título-resumen.
-- F3 terminada (18/11/2026): settings.json en `%APPDATA%\NovaTerm` (vigilado, escritura atómica), ventana de configuración (Ctrl+,), temas + importar, Mica/Acrylic/opacidad/imagen, fuentes y ligaduras, atajos configurables. Próximo paso: F4 (Agentes).
-- Gotchas de F3: el esquema vive en `src/settings/schema.ts` (el backend guarda JSON opaco; las claves de fases nuevas se agregan ahí y `normalize` conserva las desconocidas); las ventanas son transparentes y el fondo lo pinta el body (xterm con `allowTransparency` y viewport transparente por CSS); las ligaduras leen la fuente vía `font_file` (reemplazo de `queryLocalFonts`). Para inspeccionar el WebView: `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333` antes de `npx tauri dev`, y CDP por WebSocket.
-- Gotchas de F2: los paneles se iteran por id y se posicionan por rectángulos (anidarlos re-monta las terminales y mata la shell); las escrituras a la PTY van por `WriteQueue` (si no, se invierten teclas); nunca atajos con Ctrl+Alt (AltGr en teclado español); los scripts de `src-tauri\shell\` se editan con Edit, no con heredoc (se comen los `\\`).
-- Correr la app: `npx tauri dev`, o `npx tauri build --no-bundle` y abrir `src-tauri\target\release\novaterm.exe`. Tests: `cargo test` en `src-tauri` y `npx vitest run`.
-- `src-tauri\conpty\` tiene la ConPTY de Microsoft (sideload); `build.rs` la copia al lado del exe.
-- Versiones fijadas: SolidJS 1.9 (no 2.0), xterm.js 6 (fallback DOM, no canvas), reqwest 0.13 con `native-tls`. Ver adenda del plan.
+- F0 a F9 terminadas, más los extras pedidos (API de control para agentes + MCP, Docker, guardián,
+  paneles en mosaico, historial, sesión, rutas con vista previa, carpetas y color de pestañas…).
+- Renombrada a AlphaTerm: binario `alphaterm.exe`, identificador `uy.alphaterm.app`, datos en
+  `%APPDATA%\AlphaTerm` (se copia la de NovaTerm la primera vez). La carpeta del proyecto todavía
+  puede llamarse `Desktop\NovaTerm` si no se renombró.
+- Pendiente: decidir empaquetado (exe suelto o instalador NSIS); probar Docker con un contenedor
+  real y Claude Code con una tarea real pasando por el guardián; metas de RAM (<120 MB) y arranque
+  (<500 ms) no se cumplen (~225 MB y 1,2–1,4 s, dominados por WebView2).
+
+## Correr y probar
+- Desarrollo: `npx tauri dev`. Release: `npx tauri build --no-bundle` → `src-tauri\target\release\alphaterm.exe`.
+- Tests: `cargo test` en `src-tauri` (anteponer `~/.cargo/bin` al PATH), `npx vitest run`, `npx tsc --noEmit`.
+- Inspeccionar el WebView: `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333`
+  antes de abrir la app y hablarle por CDP (Runtime.evaluate, Input.dispatchMouseEvent). Si ya hay
+  una AlphaTerm abierta sin ese flag, el WebView2 no arranca (comparten carpeta de datos).
+- API de control: `node %APPDATA%\AlphaTerm\alphaterm-mcp.mjs list` (o `call <método> '<json>'`).
+- Medir arranque: `ALPHATERM_BENCH=<archivo>` anota los ms hasta el primer prompt.
+
+## Gotchas
+- Paneles de terminal: se iteran por id y se posicionan por rectángulos (anidarlos re-monta las
+  terminales y mata la shell). Lo mismo con los paneles laterales del mosaico: iterar ids, no objetos.
+- Escrituras a la PTY por `WriteQueue` (si no, se invierten teclas). Nunca atajos con Ctrl+Alt (AltGr).
+- Solid: dentro de un `createEffect`, una función que lee y cambia una señal lo vuelve a disparar en
+  bucle (pasó en el footer: 180 MB). Usar `untrack` u `on`. Y en `<Show>` con callback, no leer `m()`
+  después de cerrar (por eso el menú aplica la acción antes de cerrarse).
+- Enter a la shell: `String.fromCharCode(13)`, nunca un salto de línea literal en una plantilla.
+- Scripts de parches: escribirlos con Write a un .py; los heredoc de bash se comen `\\` y `\n`.
+- El esquema de settings vive en `src/settings/schema.ts`; el backend guarda JSON opaco.
+- Ventanas transparentes: el fondo lo pinta el body; xterm con viewport transparente por CSS.
+- Codex guarda sesiones como `.jsonl.zst`. agy: nunca desde Git Bash (MSYS convierte `/quota`).
+- Claude: el consumo exacto sale de la statusline (no se leen credenciales).
+- computer use: el escritorio a veces queda al frente y bloquea clics; usar CDP para la interfaz.
 
 ## Decisiones ya tomadas (no re-discutir sin motivo)
-- Stack: Tauri 2 + Rust en el backend; Vite + TypeScript + SolidJS en el frontend; xterm.js 6 con el addon WebGL (fallback al renderer DOM).
-- Resumen de pestaña híbrido, en este orden: título manual > título OSC 0/2 del agente > heurística > LLM opcional.
-- Salida del PTY agrupada (~4 ms / 64 KB) por `tauri::ipc::Channel` binario, sin JSON por chunk, con contrapresión.
-- Git vía git CLI (porcelain v2), no libgit2.
-- Fallback si cargo/crates.io no funciona: Electron 41.3.0 (cacheado en la PC del trabajo).
+- Tauri 2 + Rust; Vite + TypeScript + SolidJS 1.9; xterm.js 6 con WebGL (fallback DOM).
+- Nombre de pestaña: manual > título OSC del programa > resumen por modelo (opcional) > heurística.
+- Salida de la PTY agrupada por `tauri::ipc::Channel` binario con contrapresión.
+- Git por la CLI. Docker por la CLI. Nada de shell en el medio para comandos armados por la app.
 
-## Ojo con el entorno
-- El plan se armó en la PC del trabajo (`C:\Users\usuario`): ahí hay inspección SSL (Node necesitó `--use-system-ca`), PowerShell bloquea `.ps1` (usar `.cmd`), `objects.githubusercontent.com` está bloqueado y Rust no estaba instalado.
-- Esta carpeta se creó en otra máquina (`C:\Users\Br1`), donde ya existen `.rustup` y `.cargo`. Hay que verificar el entorno real de donde se esté corriendo antes de asumir lo del plan: `rustc -V`, `cargo -V`, `node -v` y la conexión con crates.io.
-- En casa (`C:\Users\Br1`): Rust 1.99.1 fuera del PATH (anteponer `~/.cargo/bin`), Node 22, red limpia, sin pwsh (PowerShell 5.1 alcanza). Gemini CLI ahora es Antigravity CLI (`agy`); su cuota sale exacta de `agy -p /quota --output-format json`, pero nunca desde Git Bash (MSYS convierte `/quota` en ruta y agy lo corre como prompt, gastando cuota). fpdf2 está en Python 3.11 (`python`), no en 3.14.
+## Entorno
+- Casa (`C:\Users\Br1`): Rust 1.99.1 fuera del PATH, Node 22, PowerShell 5.1 (sin pwsh), Docker
+  Desktop instalado, Ollama sin modelos.
+- PC del trabajo: inspección SSL, PowerShell bloquea `.ps1`, sin Rust al armar el plan.
 
 ## Forma de trabajo
-- Cada fase cierra verificada: compila, arranca, pasa un smoke test y queda registrada en `Documentacion/Informe_Proceso_y_Stats.md`.
-- Honestidad: lo que no esté verificado (por ejemplo, la cuota de Gemini o el endpoint de uso de Claude) se marca como tal en la UI y en el Informe.
+- Cada fase cierra verificada y registrada en el Informe; lo no verificado se marca como tal.
 - Bruno prefiere respuestas en español, directas, en párrafos y con pushback honesto.
