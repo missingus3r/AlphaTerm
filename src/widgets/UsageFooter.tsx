@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createSignal, For, onCleanup, onMount, Show, untrack } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { Settings } from "../settings/schema";
@@ -27,7 +27,8 @@ function Provider(props: { id: ProviderId; everyMs: number; active: boolean; ope
   };
   createEffect(() => {
     const ms = props.everyMs;
-    void load();
+    // untrack: load() lee busy(); sin esto el efecto se re-ejecuta en bucle con cada carga.
+    untrack(() => void load());
     const t = setInterval(() => !document.hidden && void load(), ms);
     onCleanup(() => clearInterval(t));
   });
