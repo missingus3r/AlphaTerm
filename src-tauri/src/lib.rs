@@ -2,6 +2,7 @@ pub mod agents;
 pub mod fonts;
 pub mod ports;
 pub mod procinfo;
+pub mod projects;
 pub mod pty;
 pub mod settings;
 pub mod sysmon;
@@ -19,6 +20,7 @@ pub fn run() {
         .manage(Arc::new(pty::PtyState::default()))
         .manage(procinfo::ProcState::default())
         .manage(sysmon::SysState::default())
+        .manage(projects::WatchState::default())
         .manage(settings::SettingsState::new(settings::data_dir().join("settings.json")))
         .setup(|app| {
             settings::SettingsState::watch(app.handle().clone());
@@ -28,6 +30,7 @@ pub fn run() {
             if let WindowEvent::Destroyed = event {
                 // Al cerrarse una ventana, sus shells mueren con ella (las otras ventanas siguen).
                 window.state::<Arc<pty::PtyState>>().kill_owner(window.label());
+                projects::unwatch_window(&window.state::<projects::WatchState>(), window.label());
                 // Si ya no queda ninguna terminal, la configuración no se queda sola abierta.
                 let app = window.app_handle();
                 let terminals = app
@@ -67,6 +70,10 @@ pub fn run() {
             usage::usage_get,
             ports::ports_list,
             ports::ports_kill,
+            projects::projects_discover,
+            projects::fs_list,
+            projects::fs_watch,
+            projects::fs_open,
             usage::usage_statusline_status,
             usage::usage_statusline_install,
             fonts::font_file,

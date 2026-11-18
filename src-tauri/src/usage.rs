@@ -235,7 +235,7 @@ pub fn parse_codex_line(v: &Value, now: i64) -> Option<(i64, Vec<UsageWindow>, O
     (!out.is_empty()).then_some((ts * 1000, out, plan))
 }
 
-fn read_maybe_zst(p: &Path) -> Option<String> {
+pub(crate) fn read_maybe_zst(p: &Path) -> Option<String> {
     let f = std::fs::File::open(p).ok()?;
     let mut s = String::new();
     if p.extension().is_some_and(|e| e == "zst") {

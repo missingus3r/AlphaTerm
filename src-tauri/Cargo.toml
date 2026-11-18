@@ -22,6 +22,8 @@ tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"
 base64 = "0.22"
 ruzstd = "0.9.1"
+ignore = "0.4.34"
+notify = "8.2.2"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56"

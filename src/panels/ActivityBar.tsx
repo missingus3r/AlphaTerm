@@ -35,6 +35,12 @@ export const PANELS: { id: PanelId; label: string; command: string; icon: () => 
         </>,
       ),
   },
+  {
+    id: "projects",
+    label: "Proyectos",
+    command: "panelProjects",
+    icon: () => svg(<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />),
+  },
 ];
 
 export function ActivityBar(props: { active: PanelId | null; onToggle: (p: PanelId) => void; help: [string, string][] }) {

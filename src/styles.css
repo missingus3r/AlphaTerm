@@ -293,3 +293,31 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .banner { border: 1px solid var(--err); color: var(--err); border-radius: 7px; padding: 6px 10px; line-height: 1.4; font-size: 12px; }
 .banner.ok { border-color: var(--ok); color: var(--ok); }
 .link:disabled { opacity: .4; cursor: not-allowed; text-decoration: none; }
+
+/* --- Panel de proyectos --- */
+.project-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.project { border-radius: 8px; }
+.project.missing { opacity: .5; }
+.project.hidden { opacity: .45; }
+.project-row { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 8px; cursor: pointer; }
+.project-row:hover { background: var(--tab-hover); }
+.caret { width: 12px; flex: none; color: var(--muted); font-size: 11px; text-align: center; }
+.project-badges { display: inline-flex; gap: 3px; flex: none; }
+.badge.git { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
+.project-actions { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 0 6px 6px 24px; font-size: 12px; }
+.project-actions .link { font-size: 12px; }
+.agent-pick { position: relative; }
+.menu {
+  position: absolute; top: 18px; left: 0; z-index: 30; display: flex; flex-direction: column; min-width: 160px;
+  background: var(--bg-solid); border: 1px solid var(--line); border-radius: 8px; padding: 4px; box-shadow: 0 8px 24px #0007;
+}
+.menu button { background: none; border: 0; color: var(--text); font: inherit; text-align: left; padding: 5px 8px; border-radius: 5px; cursor: pointer; }
+.menu button:hover { background: var(--tab-hover); }
+.tree { padding: 0 0 6px 10px; font-size: 12.5px; }
+.tree-row { display: flex; align-items: center; gap: 4px; height: 22px; padding-right: 6px; border-radius: 5px; cursor: default; white-space: nowrap; }
+.tree-row.dir { cursor: pointer; }
+.tree-row:hover { background: var(--tab-hover); }
+.tree-row.err { color: var(--err); white-space: normal; height: auto; }
+.tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.icon-btn.tiny { width: 18px; height: 18px; font-size: 12px; opacity: 0; }
+.tree-row:hover .icon-btn.tiny { opacity: 1; }

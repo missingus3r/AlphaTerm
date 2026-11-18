@@ -94,7 +94,7 @@ impl ProcState {
 }
 
 /// Busca el `.git` subiendo desde `cwd`. Soporta worktrees (`.git` como archivo con `gitdir:`).
-fn git_dir(cwd: &Path) -> Option<PathBuf> {
+pub fn git_dir(cwd: &Path) -> Option<PathBuf> {
     for dir in cwd.ancestors() {
         let g = dir.join(".git");
         if g.is_dir() {

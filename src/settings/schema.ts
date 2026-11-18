@@ -106,6 +106,8 @@ export interface Settings {
   sysmon: { enabled: boolean; everyMs: number };
   /** Recetas para iniciar servidores. */
   recipes: Recipe[];
+  /** Proyectos agregados a mano y ocultos de la lista. */
+  projects: { manual: string[]; hidden: string[] };
 }
 
 export const DEFAULT_FONT = "Cascadia Mono";
@@ -136,6 +138,7 @@ export const DEFAULTS: Settings = {
   usage: { claude: true, codex: true, agy: true, filesEverySec: 60, agyEveryMin: 10 },
   sysmon: { enabled: true, everyMs: 1000 },
   recipes: [],
+  projects: { manual: [], hidden: [] },
 };
 
 export const LIMITS = {
@@ -236,6 +239,9 @@ export function normalizeAgents(v: unknown): AgentDef[] {
   return out;
 }
 
+const strList = (v: unknown): string[] =>
+  Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === "string" && x.trim() !== ""))] : [];
+
 function normalizeRecipes(v: unknown): Recipe[] {
   if (!Array.isArray(v)) return [];
   const seen = new Set<string>();
@@ -313,6 +319,10 @@ export function normalize(raw: unknown, baseColors: ThemeColors): Settings {
       };
     })(),
     recipes: normalizeRecipes(r.recipes),
+    projects: {
+      manual: strList(obj(r.projects).manual),
+      hidden: strList(obj(r.projects).hidden),
+    },
     sysmon: {
       enabled: bool(obj(r.sysmon).enabled, DEFAULTS.sysmon.enabled),
       everyMs: Math.round(num(obj(r.sysmon).everyMs, DEFAULTS.sysmon.everyMs, LIMITS.sysmonMs)),

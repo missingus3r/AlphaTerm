@@ -21,6 +21,7 @@ import type { Recipe } from "../settings/schema";
 
 const AgentsPanel = lazy(() => import("../panels/AgentsPanel"));
 const ServersPanel = lazy(() => import("../panels/ServersPanel"));
+const ProjectsPanel = lazy(() => import("../panels/ProjectsPanel"));
 const PANEL_PREF = "novaterm.panel";
 
 /** Estado vivo de cada panel (clave: id del panel). */
@@ -221,6 +222,8 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     }
   };
   const togglePanel = (p: PanelId) => setPanel(panel() === p ? null : p);
+  /** Repositorio que muestra el panel de git (null = el de la carpeta del panel activo). */
+  const [gitRoot, setGitRoot] = createSignal<string | null>(null);
   const activeCwd = () => {
     const id = activePaneId();
     return id ? panes[id]?.cwd : undefined;
@@ -528,6 +531,21 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                 onRefresh={() => void refreshServers()}
                 onStart={startRecipe}
                 onFocus={focusPane}
+              />
+            </Show>
+            <Show when={panel() === "projects"}>
+              <ProjectsPanel
+                manual={settings().projects.manual}
+                hidden={settings().projects.hidden}
+                recentDirs={settings().recentDirs}
+                agents={settings().agents}
+                update={props.store.update}
+                onTerminal={(dir) => update((x) => M.addTab(x, M.newTab(newTabProfile(), dir)))}
+                onAgent={(a, dir) => launchAgent(a, dir)}
+                onGit={(dir) => {
+                  setGitRoot(dir);
+                  setPanel("git");
+                }}
               />
             </Show>
             <Show when={panel() === "agents"}>
