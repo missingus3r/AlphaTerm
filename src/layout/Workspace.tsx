@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createResource, createSignal, For, lazy, on, onCleanup, onMount, Show, Suspense } from "solid-js";
+import { createEffect, createMemo, createResource, createSignal, For, lazy, on, onCleanup, onMount, Show, Suspense, untrack } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { createStore, produce } from "solid-js/store";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -16,8 +16,11 @@ import type { RunningAgent } from "../panels/AgentsPanel";
 import { ActivityBar, PANELS, type PanelId } from "../panels/ActivityBar";
 import { SysWidget, type TabProcs } from "../widgets/SysWidget";
 import { UsageFooter } from "../widgets/UsageFooter";
+import { candidate, mergeRecipe, type PaneRef, type Server } from "../panels/servers";
+import type { Recipe } from "../settings/schema";
 
 const AgentsPanel = lazy(() => import("../panels/AgentsPanel"));
+const ServersPanel = lazy(() => import("../panels/ServersPanel"));
 const PANEL_PREF = "novaterm.panel";
 
 /** Estado vivo de cada panel (clave: id del panel). */
@@ -226,6 +229,57 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   // PATH completo (proceso + registro + carpetas de agentes): un agente instalado después de
   // abrir NovaTerm igual se encuentra.
   const [pathEnv] = createResource(() => invoke<string>("agents_path_env").catch(() => ""));
+
+  // --- Servidores ------------------------------------------------------------------------------
+  // Se consultan cada 3 s con el panel abierto; con el panel cerrado, cada 10 s y solo si alguna
+  // pestaña está corriendo algo (para guardar la receta de lo que nazca ahí).
+  const [servers, setServers] = createSignal<Server[]>([]);
+  const [serversLoading, setServersLoading] = createSignal(false);
+  const [serversError, setServersError] = createSignal<string | null>(null);
+  const paneByShell = createMemo(() => {
+    const m = new Map<number, PaneRef>();
+    for (const t of layout().tabs)
+      for (const l of M.leaves(t.root)) {
+        const p = panes[l.id];
+        if (p?.pid) m.set(p.pid, { tabId: t.id, paneId: l.id, title: titleOf(t), cwd: p.cwd, lastCommand: p.lastCommand, running: p.running });
+      }
+    return m;
+  });
+  const paneOf = (pid: number | null) => (pid === null ? undefined : paneByShell().get(pid));
+  const refreshServers = async () => {
+    if (serversLoading()) return;
+    setServersLoading(true);
+    try {
+      const list = await invoke<Server[]>("ports_list");
+      setServers(list);
+      setServersError(null);
+      // Recetas: lo que nació en una pestaña con un comando conocido.
+      let recipes = settings().recipes;
+      for (const s of list) {
+        const c = candidate(s, paneOf(s.shellPid));
+        if (c) recipes = mergeRecipe(recipes, c, () => M.newId("r"));
+      }
+      if (recipes !== settings().recipes) props.store.update((d) => void (d.recipes = recipes));
+    } catch (e) {
+      setServersError(String(e));
+    } finally {
+      setServersLoading(false);
+    }
+  };
+  const anyRunning = () => Object.values(panes).some((p) => p.running || (!p.integrated && p.fgProcess));
+  createEffect(() => {
+    const ms = panel() === "servers" ? 3000 : anyRunning() ? 10_000 : 0;
+    if (!ms) return;
+    if (panel() === "servers") untrack(() => void refreshServers());
+    const t = setInterval(() => !document.hidden && void refreshServers(), ms);
+    onCleanup(() => clearInterval(t));
+  });
+  /** Inicia una receta en una pestaña de fondo (no le saca el foco a la actual). */
+  const startRecipe = (r: Recipe) => {
+    const env: Record<string, string> = { ...(pathEnv() ? { PATH: pathEnv()! } : {}), ...r.env };
+    update((x) => ({ ...M.addTab(x, M.newTab(defaultProfile(), r.cwd || undefined, { command: r.command, env })), activeTab: x.activeTab }));
+    setTimeout(() => void refreshServers(), 4000);
+  };
   const launchAgent = (agent: AgentDef, cwd: string | undefined) => {
     const env: Record<string, string> = { ...(pathEnv() ? { PATH: pathEnv()! } : {}), ...agent.env };
     update((x) => M.addTab(x, M.newTab(defaultProfile(), cwd, { command: agent.command, env, agentId: agent.id })));
@@ -463,6 +517,19 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
       <Show when={panel()}>
         <aside class="side-panel">
           <Suspense>
+            <Show when={panel() === "servers"}>
+              <ServersPanel
+                servers={servers()}
+                loading={serversLoading()}
+                error={serversError()}
+                paneOf={paneOf}
+                recipes={settings().recipes}
+                update={props.store.update}
+                onRefresh={() => void refreshServers()}
+                onStart={startRecipe}
+                onFocus={focusPane}
+              />
+            </Show>
             <Show when={panel() === "agents"}>
               <AgentsPanel
                 agents={settings().agents}

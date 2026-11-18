@@ -22,6 +22,19 @@ export const PANELS: { id: PanelId; label: string; command: string; icon: () => 
         </>,
       ),
   },
+  {
+    id: "servers",
+    label: "Servidores",
+    command: "panelServers",
+    icon: () =>
+      svg(
+        <>
+          <rect x="3" y="4" width="18" height="7" rx="2" />
+          <rect x="3" y="13" width="18" height="7" rx="2" />
+          <path d="M7 7.5h.01M7 16.5h.01M11 7.5h6M11 16.5h6" />
+        </>,
+      ),
+  },
 ];
 
 export function ActivityBar(props: { active: PanelId | null; onToggle: (p: PanelId) => void; help: [string, string][] }) {

@@ -65,6 +65,11 @@ impl PtyState {
         }
     }
 
+    /// PID de la shell de todas las sesiones (de todas las ventanas).
+    pub fn all_shell_pids(&self) -> Vec<u32> {
+        self.sessions.lock().unwrap().values().filter_map(|s| s.pid).collect()
+    }
+
     fn shell_pids(&self, ids: &[u32]) -> Vec<(u32, u32)> {
         let map = self.sessions.lock().unwrap();
         ids.iter().filter_map(|id| Some((*id, map.get(id)?.pid?))).collect()

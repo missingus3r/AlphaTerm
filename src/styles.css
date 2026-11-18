@@ -264,3 +264,32 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .badge.old { color: #e5b44f; border-color: #e5b44f66; }
 .usage-gear { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; }
 .usage-gear:hover { color: var(--text); }
+
+/* --- Panel de servidores --- */
+.segmented.small { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; align-self: flex-start; }
+.segmented.small button { background: none; border: 0; color: var(--muted); font: inherit; font-size: 12px; padding: 3px 10px; cursor: pointer; }
+.segmented.small button + button { border-left: 1px solid var(--line); }
+.segmented.small button.on { background: var(--accent); color: var(--bg-solid); }
+.server-list, .recipe-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.server { padding: 7px 8px; border-radius: 8px; border: 1px solid var(--line); display: flex; flex-direction: column; gap: 3px; }
+.server.ours { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.server.system { opacity: .65; }
+.server-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.server-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.ports { display: inline-flex; gap: 3px; flex-wrap: wrap; }
+.port {
+  font: 12px "Cascadia Mono", Consolas, monospace; background: var(--bg-solid); color: var(--accent);
+  border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; cursor: pointer;
+}
+.port:hover { border-color: var(--accent); }
+.server-meta { color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.server-actions { display: flex; gap: 12px; }
+.server-actions .link { font-size: 12px; }
+.badge.nt { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+.recipe { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 8px; }
+.recipe:hover { background: var(--tab-hover); }
+.icon-btn.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.banner { border: 1px solid var(--err); color: var(--err); border-radius: 7px; padding: 6px 10px; line-height: 1.4; font-size: 12px; }
+.banner.ok { border-color: var(--ok); color: var(--ok); }
+.link:disabled { opacity: .4; cursor: not-allowed; text-decoration: none; }

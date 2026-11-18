@@ -35,6 +35,20 @@ export const BUILTIN_AGENTS: AgentDef[] = [
   { id: "opencode", name: "OpenCode", command: "opencode", env: {}, hidden: false, builtin: true },
 ];
 
+/** Cómo volver a iniciar un servidor. */
+export interface Recipe {
+  id: string;
+  name: string;
+  command: string;
+  cwd: string;
+  env: Record<string, string>;
+  /** Puertos en los que se lo vio escuchar. */
+  ports: number[];
+  /** Guardada sola (vista nacer en una pestaña) o escrita a mano. */
+  auto: boolean;
+  lastSeen?: number;
+}
+
 export interface Settings {
   version: 1;
   appearance: {
@@ -90,6 +104,8 @@ export interface Settings {
   };
   /** Widget de CPU y RAM. */
   sysmon: { enabled: boolean; everyMs: number };
+  /** Recetas para iniciar servidores. */
+  recipes: Recipe[];
 }
 
 export const DEFAULT_FONT = "Cascadia Mono";
@@ -119,6 +135,7 @@ export const DEFAULTS: Settings = {
   recentDirs: [],
   usage: { claude: true, codex: true, agy: true, filesEverySec: 60, agyEveryMin: 10 },
   sysmon: { enabled: true, everyMs: 1000 },
+  recipes: [],
 };
 
 export const LIMITS = {
@@ -219,6 +236,29 @@ export function normalizeAgents(v: unknown): AgentDef[] {
   return out;
 }
 
+function normalizeRecipes(v: unknown): Recipe[] {
+  if (!Array.isArray(v)) return [];
+  const seen = new Set<string>();
+  const out: Recipe[] = [];
+  for (const r of v.filter(isObj)) {
+    const id = str(r.id, "");
+    const command = str(r.command, "");
+    if (!id || !command || seen.has(id)) continue;
+    seen.add(id);
+    out.push({
+      id,
+      name: str(r.name, command),
+      command,
+      cwd: typeof r.cwd === "string" ? r.cwd : "",
+      env: normalizeEnv(r.env),
+      ports: Array.isArray(r.ports) ? r.ports.filter((p): p is number => Number.isInteger(p) && p > 0 && p < 65536) : [],
+      auto: bool(r.auto, false),
+      ...(typeof r.lastSeen === "number" ? { lastSeen: r.lastSeen } : {}),
+    });
+  }
+  return out;
+}
+
 export function normalize(raw: unknown, baseColors: ThemeColors): Settings {
   const r = obj(raw);
   const a = obj(r.appearance);
@@ -272,6 +312,7 @@ export function normalize(raw: unknown, baseColors: ThemeColors): Settings {
         agyEveryMin: Math.round(num(u.agyEveryMin, D.agyEveryMin, LIMITS.agyEveryMin)),
       };
     })(),
+    recipes: normalizeRecipes(r.recipes),
     sysmon: {
       enabled: bool(obj(r.sysmon).enabled, DEFAULTS.sysmon.enabled),
       everyMs: Math.round(num(obj(r.sysmon).everyMs, DEFAULTS.sysmon.everyMs, LIMITS.sysmonMs)),

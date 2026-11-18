@@ -1,5 +1,6 @@
 pub mod agents;
 pub mod fonts;
+pub mod ports;
 pub mod procinfo;
 pub mod pty;
 pub mod settings;
@@ -64,6 +65,8 @@ pub fn run() {
             sysmon::sys_stats,
             sysmon::sys_top,
             usage::usage_get,
+            ports::ports_list,
+            ports::ports_kill,
             usage::usage_statusline_status,
             usage::usage_statusline_install,
             fonts::font_file,

@@ -48,6 +48,9 @@ export const COMMANDS: Command[] = [
   { id: "copyLastOutput", label: "Copiar la salida del último comando", action: { type: "copyLastOutput" }, defaults: ["Ctrl+Shift+O"] },
   { id: "openSettings", label: "Abrir la configuración", action: { type: "openSettings" }, defaults: ["Ctrl+,"] },
   { id: "panelAgents", label: "Panel de agentes", action: { type: "togglePanel", panel: "agents" }, defaults: ["Ctrl+Shift+A"] },
+  { id: "panelServers", label: "Panel de servidores", action: { type: "togglePanel", panel: "servers" }, defaults: ["Ctrl+Shift+P"] },
+  { id: "panelProjects", label: "Panel de proyectos", action: { type: "togglePanel", panel: "projects" }, defaults: ["Ctrl+Shift+E"] },
+  { id: "panelGit", label: "Panel de git", action: { type: "togglePanel", panel: "git" }, defaults: ["Ctrl+Shift+G"] },
 ];
 
 /** Ctrl+1…8 van a esa pestaña y Ctrl+9 a la última. No se cambian. */
