@@ -19,12 +19,16 @@ import { providerFor, UsageFooter } from "../widgets/UsageFooter";
 import { candidate, mergeRecipe, type PaneRef, type Server } from "../panels/servers";
 import type { Recipe } from "../settings/schema";
 import { restore as restoreSession, serialize, type SavedWindow } from "./session";
+import { handleControl } from "./control";
+import { GuardianModal } from "../widgets/GuardianModal";
+import { listen } from "@tauri-apps/api/event";
 
 const AgentsPanel = lazy(() => import("../panels/AgentsPanel"));
 const ServersPanel = lazy(() => import("../panels/ServersPanel"));
 const ProjectsPanel = lazy(() => import("../panels/ProjectsPanel"));
 const GitPanel = lazy(() => import("../panels/GitPanel"));
 const HistoryPanel = lazy(() => import("../panels/HistoryPanel"));
+const DockerPanel = lazy(() => import("../panels/DockerPanel"));
 const PANEL_WIDTH_PREF = "alphaterm.panel.width";
 const PANEL_PREF = "alphaterm.panel";
 
@@ -34,6 +38,7 @@ interface PaneState extends PaneInfo {
   pid?: number | null;
   renderer?: string;
   exited?: boolean;
+  ended?: number;
   agentId?: string;
   agentStarted?: boolean;
   active?: boolean;
@@ -331,6 +336,31 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     return providerFor(p.agentId, p.running ? p.lastCommand : undefined, p.fgProcess);
   };
 
+  // --- API de control: esta ventana contesta por sus paneles --------------------------------------
+  onMount(async () => {
+    const label = getCurrentWindow().label;
+    const un = await listen<{ id: number; method: string; params: Record<string, unknown>; window: string; windows: string[] }>("control-request", async (e) => {
+      if (e.payload.window !== label) return;
+      let reply: unknown;
+      try {
+        reply = await handleControl(e.payload, {
+          label,
+          layout,
+          pane: (id) => panes[id],
+          handle: (id) => handles.get(id),
+          titleOf,
+          update,
+          defaultProfile,
+          env: (): Record<string, string> => (pathEnv() ? { PATH: pathEnv()! } : {}),
+        });
+      } catch (err) {
+        reply = { error: String(err) };
+      }
+      void invoke("control_respond", { id: e.payload.id, reply });
+    });
+    onCleanup(un);
+  });
+
   // --- Sesión: se guarda un rato después de cada cambio (layout, carpetas, título, panel) ----------
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   createEffect(() => {
@@ -394,9 +424,27 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     update((x) => ({ ...M.addTab(x, M.newTab(defaultProfile(), r.cwd || undefined, { command: r.command, env })), activeTab: x.activeTab }));
     setTimeout(() => void refreshServers(), 4000);
   };
+  // Archivos para lanzar Claude Code con el MCP de AlphaTerm y el hook del guardián.
+  const [controlFiles] = createResource(() => invoke<{ claudeSettings: string; claudeMcp: string; mcpScript: string }>("control_files").catch(() => null));
+  /** Comando con el que arranca un agente: Claude y Codex suman el guardián y la API de control. */
+  const agentCommand = (agent: AgentDef) => {
+    const first = agent.command.trim().split(/\s+/)[0].split(/[\\/]/).pop()!.toLowerCase().replace(/\.(exe|cmd)$/, "");
+    const s = settings();
+    const extra: string[] = [];
+    const f = controlFiles();
+    if (first === "claude" && f) {
+      if (s.control.enabled) extra.push(`--mcp-config "${f.claudeMcp}"`);
+      if (s.guardian.enabled && s.guardian.claude) extra.push(`--settings "${f.claudeSettings}"`);
+    }
+    if (first === "codex" && s.guardian.enabled && s.guardian.codex && !/(\s|^)(-s|--sandbox|-a|--ask-for-approval)(\s|=)/.test(agent.command)) {
+      // Codex no tiene hooks: se usa su propio modo de aprobación (pide permiso para escribir).
+      extra.push("-s read-only -a on-request");
+    }
+    return [agent.command, ...extra].join(" ");
+  };
   const launchAgent = (agent: AgentDef, cwd: string | undefined) => {
     const env: Record<string, string> = { ...(pathEnv() ? { PATH: pathEnv()! } : {}), ...agent.env };
-    update((x) => M.addTab(x, M.newTab(defaultProfile(), cwd, { command: agent.command, env, agentId: agent.id })));
+    update((x) => M.addTab(x, M.newTab(defaultProfile(), cwd, { command: agentCommand(agent), env, agentId: agent.id })));
     if (cwd) props.store.update((d) => void (d.recentDirs = pushRecent(d.recentDirs, cwd)));
   };
   // Shells de esta ventana (para el consumo por pestaña del widget de CPU/RAM).
@@ -601,6 +649,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                         style={{ left: pct(r().x), top: pct(r().y), width: pct(r().w), height: pct(r().h) }}
                       >
                         <TerminalView
+                          paneId={paneId}
                           profileId={leafAt.profileId}
                           cwd={leafAt.cwd}
                           startup={leafAt.startup}
@@ -688,6 +737,18 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                 onTerminal={(dir) => update((x) => M.addTab(x, M.newTab(newTabProfile(), dir)))}
               />
             </Show>
+            <Show when={panel() === "docker"}>
+              <DockerPanel
+                presets={settings().docker.presets}
+                update={props.store.update}
+                onTerminal={(command, title) =>
+                  update((x) => {
+                    const t = M.newTab(defaultProfile(), undefined, { command, env: pathEnv() ? { PATH: pathEnv()! } : {} });
+                    return M.addTab(x, { ...t, manualTitle: title });
+                  })
+                }
+              />
+            </Show>
             <Show when={panel() === "history"}>
               <HistoryPanel onUse={useCommand} version={historyVersion()} />
             </Show>
@@ -708,6 +769,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
       <ActivityBar active={panel()} onToggle={togglePanel} help={shortcutHelp(settings().shortcuts)} />
       </div>
     </div>
+    <GuardianModal />
     <UsageFooter
       usage={settings().usage}
       onSettings={() => void openSettings()}

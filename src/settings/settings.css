@@ -112,3 +112,7 @@ small { font-size: 11.5px; }
 .note-warn { color: var(--muted); }
 
 .next { line-height: 1.7; padding-left: 20px; }
+.guard-log { list-style: none; margin: 0; padding: 0; font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
+.guard-log .bad { color: var(--err); }
+.guard-log .good { color: var(--ok); }
+.settings-main h3 + .row { border-top: 0; }

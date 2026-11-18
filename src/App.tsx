@@ -1,4 +1,4 @@
-import { createMemo, createResource, lazy, Show, Suspense } from "solid-js";
+import { createEffect, createMemo, createResource, lazy, Show, Suspense } from "solid-js";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { killOwned, termInfo } from "./terminal/pty";
 import { Workspace } from "./layout/Workspace";
@@ -34,6 +34,17 @@ function Themed(props: { store: SettingsStore }) {
     }
   });
   const look = createMemo(() => termLook(props.store.settings(), theme()));
+  // El backend necesita saber si la API de control y el guardián están prendidos (y las recetas
+  // de Docker, para que un agente pueda iniciarlas por nombre).
+  createEffect(() => {
+    const s = props.store.settings();
+    void invoke("control_config", {
+      enabled: s.control.enabled,
+      guardianOn: s.guardian.enabled,
+      guardianModify: s.guardian.modify,
+      presets: s.docker.presets,
+    }).catch(() => {});
+  });
   return (
     <>
       <Show when={info.error}>

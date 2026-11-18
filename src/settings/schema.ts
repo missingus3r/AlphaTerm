@@ -49,6 +49,16 @@ export interface Recipe {
   lastSeen?: number;
 }
 
+/** Contenedor de Docker configurado para iniciar con un clic. */
+export interface DockerPreset {
+  name: string;
+  image: string;
+  ports: string[];
+  env: Record<string, string>;
+  volumes: string[];
+  command: string;
+}
+
 export interface Settings {
   version: 1;
   appearance: {
@@ -110,6 +120,11 @@ export interface Settings {
   projects: { manual: string[]; hidden: string[] };
   /** Al abrir, volver a como estaban las ventanas. */
   session: { restore: boolean; relaunchAgents: boolean };
+  /** API de control para que los agentes manejen AlphaTerm. */
+  control: { enabled: boolean };
+  /** Guardián: pregunta antes de que un agente borre o modifique archivos. */
+  guardian: { enabled: boolean; modify: boolean; claude: boolean; codex: boolean };
+  docker: { presets: DockerPreset[] };
 }
 
 export const DEFAULT_FONT = "Cascadia Mono";
@@ -142,6 +157,9 @@ export const DEFAULTS: Settings = {
   recipes: [],
   projects: { manual: [], hidden: [] },
   session: { restore: true, relaunchAgents: false },
+  control: { enabled: true },
+  guardian: { enabled: true, modify: true, claude: true, codex: true },
+  docker: { presets: [] },
 };
 
 export const LIMITS = {
@@ -245,6 +263,18 @@ export function normalizeAgents(v: unknown): AgentDef[] {
 const strList = (v: unknown): string[] =>
   Array.isArray(v) ? [...new Set(v.filter((x): x is string => typeof x === "string" && x.trim() !== ""))] : [];
 
+function normalizePresets(v: unknown): DockerPreset[] {
+  if (!Array.isArray(v)) return [];
+  const seen = new Set<string>();
+  return v.filter(isObj).flatMap((p) => {
+    const name = str(p.name, "");
+    const image = str(p.image, "");
+    if (!name || !image || seen.has(name.toLowerCase())) return [];
+    seen.add(name.toLowerCase());
+    return [{ name, image, ports: strList(p.ports), env: normalizeEnv(p.env), volumes: strList(p.volumes), command: typeof p.command === "string" ? p.command : "" }];
+  });
+}
+
 function normalizeRecipes(v: unknown): Recipe[] {
   if (!Array.isArray(v)) return [];
   const seen = new Set<string>();
@@ -322,6 +352,14 @@ export function normalize(raw: unknown, baseColors: ThemeColors): Settings {
       };
     })(),
     recipes: normalizeRecipes(r.recipes),
+    control: { enabled: bool(obj(r.control).enabled, DEFAULTS.control.enabled) },
+    guardian: {
+      enabled: bool(obj(r.guardian).enabled, DEFAULTS.guardian.enabled),
+      modify: bool(obj(r.guardian).modify, DEFAULTS.guardian.modify),
+      claude: bool(obj(r.guardian).claude, DEFAULTS.guardian.claude),
+      codex: bool(obj(r.guardian).codex, DEFAULTS.guardian.codex),
+    },
+    docker: { presets: normalizePresets(obj(r.docker).presets) },
     session: {
       restore: bool(obj(r.session).restore, DEFAULTS.session.restore),
       relaunchAgents: bool(obj(r.session).relaunchAgents, DEFAULTS.session.relaunchAgents),

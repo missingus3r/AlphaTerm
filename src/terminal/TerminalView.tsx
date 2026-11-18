@@ -17,6 +17,9 @@ import type { Action } from "../layout/shortcuts";
 import type { TermLook } from "../settings/apply";
 import type { Startup } from "../layout/model";
 import { registerPathLinks } from "./pathLinks";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+
+const windowLabel = getCurrentWindow().label;
 
 export type Renderer = "webgl" | "dom";
 
@@ -36,6 +39,8 @@ export interface TermPatch {
   active?: boolean;
   /** Sonó la campana (BEL) y nadie escribió desde entonces. */
   bell?: boolean;
+  /** Cuántos comandos terminaron en este panel (para esperar a uno). */
+  ended?: number;
 }
 
 const QUIET_MS = 2500;
@@ -54,6 +59,8 @@ export interface TermHandle {
 }
 
 interface Props {
+  /** Id del panel (va en ALPHATERM_PANE para la API de control). */
+  paneId: string;
   profileId: string;
   cwd?: string;
   /** Comando a correr cuando la shell esté lista (agentes). */
@@ -148,6 +155,7 @@ export function TerminalView(props: Props) {
     // --- Shell integration ---------------------------------------------------------------
     let integrated = false;
     let running = false;
+    let endedCount = 0;
     const blocks: Block[] = [];
     let current: Block | null = null;
     const oscs: IDisposable[] = [];
@@ -181,12 +189,13 @@ export function TerminalView(props: Props) {
           patch({ integrated, running: true });
         } else if (m.type === "commandEnd" && running) {
           running = false;
+          endedCount++;
           if (current) {
             current.end = term.registerMarker(0);
             current.exitCode = m.exitCode;
             markExit(current);
           }
-          patch({ running: false, exitCode: m.exitCode, agentTitle: undefined });
+          patch({ running: false, exitCode: m.exitCode, agentTitle: undefined, ended: endedCount });
         }
         return true;
       }),
@@ -294,7 +303,7 @@ export function TerminalView(props: Props) {
         current_session = await PtySession.spawn({
           profileId: props.profileId,
           cwd: props.cwd,
-          env: { ...props.env, ...props.startup?.env },
+          env: { ...props.env, ...props.startup?.env, ALPHATERM_PANE: props.paneId, ALPHATERM_WINDOW: windowLabel },
           cols: term.cols,
           rows: term.rows,
           // El ack va cuando xterm terminó de procesar el trozo: eso es lo que frena al backend.

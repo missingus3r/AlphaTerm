@@ -49,6 +49,10 @@ export function restore(
   const fix = (leaf: M.Leaf): M.Leaf => {
     const profileId = opts.profileOk(leaf.profileId) ? leaf.profileId : opts.fallbackProfile;
     const agent = leaf.startup?.agentId ? opts.agents.find((a) => a.id === leaf.startup!.agentId) : undefined;
+    // Comandos explícitos (una ventana abierta por la API con un comando) se corren igual.
+    if (leaf.startup?.command && !leaf.startup.agentId) {
+      return { kind: "leaf", id: leaf.id, profileId, cwd: leaf.cwd, startup: { command: leaf.startup.command, env: opts.env } };
+    }
     const startup =
       opts.relaunch && agent
         ? { command: [agent.command, RESUME_ARGS[agent.id]].filter(Boolean).join(" "), env: { ...opts.env, ...agent.env }, agentId: agent.id }

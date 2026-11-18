@@ -1,6 +1,9 @@
 pub mod agents;
+pub mod control;
+pub mod docker;
 pub mod fonts;
 pub mod git;
+pub mod guardian;
 pub mod history;
 pub mod ports;
 pub mod procinfo;
@@ -26,12 +29,15 @@ pub fn run() {
         .manage(projects::WatchState::default())
         .manage(session::SessionState::default())
         .manage(history::HistoryState::default())
+        .manage(guardian::GuardianState::default())
+        .manage(control::ControlState::default())
         .manage({
             settings::migrate_from_novaterm();
             settings::SettingsState::new(settings::data_dir().join("settings.json"))
         })
         .setup(|app| {
             settings::SettingsState::watch(app.handle().clone());
+            control::start(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -89,6 +95,19 @@ pub fn run() {
             projects::fs_head,
             session::session_put,
             history::history_add,
+            docker::docker_status,
+            docker::docker_desktop,
+            docker::docker_containers,
+            docker::docker_images,
+            docker::docker_action,
+            docker::docker_logs,
+            docker::docker_start_preset,
+            guardian::guardian_answer,
+            control::control_respond,
+            control::control_config,
+            control::control_files,
+            guardian::guardian_open,
+            guardian::guardian_log,
             history::history_search,
             session::session_restore,
             session::session_claim,

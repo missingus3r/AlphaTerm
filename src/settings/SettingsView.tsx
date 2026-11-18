@@ -9,12 +9,13 @@ import { revealSettings, type SettingsStore } from "./store";
 import { allThemes, findTheme, importThemes, themeId, type Theme } from "./themes";
 import "./settings.css";
 
-type Section = "apariencia" | "fuente" | "fondo" | "terminal" | "consumo" | "atajos" | "proximo";
+type Section = "apariencia" | "fuente" | "fondo" | "terminal" | "agentes" | "consumo" | "atajos" | "proximo";
 const SECTIONS: [Section, string][] = [
   ["apariencia", "Tema y colores"],
   ["fuente", "Fuente y cursor"],
   ["fondo", "Fondo de la ventana"],
   ["terminal", "Terminal e interfaz"],
+  ["agentes", "Agentes y guardián"],
   ["consumo", "Consumo y widgets"],
   ["atajos", "Atajos de teclado"],
   ["proximo", "Próximas fases"],
@@ -173,6 +174,9 @@ export default function SettingsView(props: { info: TermInfo; store: SettingsSto
         </Show>
         <Show when={section() === "terminal"}>
           <TerminalSection s={s()} set={set} info={props.info} />
+        </Show>
+        <Show when={section() === "agentes"}>
+          <AgentsSection s={s()} set={set} />
         </Show>
         <Show when={section() === "consumo"}>
           <UsageSection s={s()} set={set} />
@@ -577,6 +581,85 @@ function TerminalSection(props: SectionProps & { info: TermInfo }) {
         >
           <For each={[500, 1000, 2000, 5000, 10000]}>{(ms) => <option value={ms}>{ms < 1000 ? `${ms} ms` : `${ms / 1000} s`}</option>}</For>
         </select>
+      </Row>
+    </section>
+  );
+}
+
+// --- Agentes, API de control y guardián -----------------------------------------------------------------
+
+interface GuardLog {
+  at: number;
+  decision: string;
+  ask: { kind: string; agent: string; tool: string; summary: string; paths: string[] };
+}
+
+function AgentsSection(props: SectionProps) {
+  const [files] = createResource(() => invoke<{ claudeMcp: string; claudeSettings: string; mcpScript: string }>("control_files"));
+  const [log, { refetch }] = createResource(() => invoke<GuardLog[]>("guardian_log"));
+  const [copied, setCopied] = createSignal<string | null>(null);
+  const copy = async (id: string, text: string) => {
+    const { writeText } = await import("@tauri-apps/plugin-clipboard-manager");
+    await writeText(text);
+    setCopied(id);
+    setTimeout(() => setCopied(null), 1500);
+  };
+  const g = () => props.s.guardian;
+  const script = () => (files()?.mcpScript ?? "").replace(/\\/g, "/");
+  const claudeCmd = () => `claude mcp add --scope user alphaterm -- node "${script()}"`;
+  const codexToml = () => `[mcp_servers.alphaterm]\ncommand = "node"\nargs = ["${script()}"]`;
+  return (
+    <section>
+      <h2>Agentes y guardián</h2>
+      <Row label="API de control" hint="Deja que los agentes manejen AlphaTerm: ver pestañas, abrir pestañas, paneles y ventanas, correr comandos y leer su salida, y manejar Docker. Solo escucha en 127.0.0.1 y pide un token que cambia en cada inicio.">
+        <Toggle checked={props.s.control.enabled} label={props.s.control.enabled ? "Prendida" : "Apagada"} onChange={(v) => props.set((d) => void (d.control.enabled = v))} />
+      </Row>
+      <Row label="Cómo la usan los agentes" hint="Claude Code lanzado desde el panel de agentes ya la tiene (como servidor MCP). Cualquier agente puede usar el CLI: node $env:ALPHATERM_CTL list">
+        <div class="actions tight">
+          <button class="btn" onClick={() => void copy("claude", claudeCmd())}>
+            {copied() === "claude" ? "Copiado" : "Copiar comando para Claude Code (global)"}
+          </button>
+          <button class="btn" onClick={() => void copy("codex", codexToml())}>
+            {copied() === "codex" ? "Copiado" : "Copiar bloque para ~/.codex/config.toml"}
+          </button>
+        </div>
+        <small class="muted">Esos dos agregan AlphaTerm a la configuración global del agente: se copian para que los pegues vos (no se cambian solos).</small>
+      </Row>
+      <Row label="Guardián" hint="Antes de que un agente borre o modifique archivos, pregunta (en una ventana encima de todo) y espera tu respuesta.">
+        <Toggle checked={g().enabled} label={g().enabled ? "Prendido" : "Apagado"} onChange={(v) => props.set((d) => void (d.guardian.enabled = v))} />
+      </Row>
+      <Show when={g().enabled}>
+        <Row label="Qué vigila">
+          <span>Borrados: siempre.</span>
+          <Toggle checked={g().modify} label="También modificaciones (editar, crear, pisar)" onChange={(v) => props.set((d) => void (d.guardian.modify = v))} />
+        </Row>
+        <Row label="Dónde frena" hint="Windows no deja frenar escrituras de cualquier programa sin un driver: el guardián actúa donde se puede.">
+          <Toggle checked={g().claude} label="Claude Code lanzado desde AlphaTerm (hook antes de cada edición, escritura o comando que borra)" onChange={(v) => props.set((d) => void (d.guardian.claude = v))} />
+          <Toggle checked={g().codex} label="Codex lanzado desde AlphaTerm (con su modo de aprobación: -s read-only -a on-request)" onChange={(v) => props.set((d) => void (d.guardian.codex = v))} />
+          <small class="muted">Siempre: comandos que un agente manda por la API de control (run, send, docker rm). Otros agentes (agy, OpenCode…) no se pueden frenar desde afuera.</small>
+        </Row>
+      </Show>
+      <Row label="Últimas decisiones">
+        <button class="link small" onClick={() => void refetch()}>
+          Actualizar
+        </button>
+        <ul class="guard-log">
+          <For each={(log() ?? []).slice(0, 15)} fallback={<li class="muted">Nada todavía.</li>}>
+            {(e) => (
+              <li title={`${e.ask.agent} · ${e.ask.tool}\n${e.ask.paths.join("\n")}`}>
+                <span class={e.decision.startsWith("bloqueado") ? "bad" : "good"}>{e.decision}</span> · {e.ask.summary}
+                <small class="muted"> · {new Date(e.at).toLocaleTimeString()}</small>
+              </li>
+            )}
+          </For>
+        </ul>
+      </Row>
+      <h3>Al abrir AlphaTerm</h3>
+      <Row label="Recuperar el último estado" hint="Ventanas, pestañas, paneles con su carpeta, colores, carpetas de pestañas y título.">
+        <Toggle checked={props.s.session.restore} label={props.s.session.restore ? "Sí" : "No"} onChange={(v) => props.set((d) => void (d.session.restore = v))} />
+      </Row>
+      <Row label="Relanzar los agentes" hint="Claude Code con --continue y Codex con resume --last (retoman la última conversación de esa carpeta). Si no, quedan como shells en su carpeta.">
+        <Toggle checked={props.s.session.relaunchAgents} label={props.s.session.relaunchAgents ? "Sí" : "No"} onChange={(v) => props.set((d) => void (d.session.relaunchAgents = v))} />
       </Row>
     </section>
   );

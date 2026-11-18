@@ -131,7 +131,15 @@ pub fn pty_spawn(
         cwd,
         cols,
         rows,
-        &env.unwrap_or_default(),
+        &{
+            // Variables de la API de control (para que un agente de esta pestaña pueda usarla).
+            use tauri::Manager;
+            let mut e = env.unwrap_or_default();
+            for (k, v) in webview.app_handle().state::<crate::control::ControlState>().env() {
+                e.insert(k, v);
+            }
+            e
+        },
         move |bytes| on_data.send(InvokeResponseBody::Raw(bytes)).is_ok(),
         move |code| {
             let _ = on_event.send(PtyEvent::Exit { code });

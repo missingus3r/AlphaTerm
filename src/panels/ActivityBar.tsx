@@ -67,6 +67,18 @@ export const PANELS: { id: PanelId; label: string; command: string; icon: () => 
         </>,
       ),
   },
+  {
+    id: "docker",
+    label: "Docker",
+    command: "panelDocker",
+    icon: () =>
+      svg(
+        <>
+          <path d="M3 12h16c-.5 4-4 7-9 7-4 0-6.5-2.5-7-7z" />
+          <path d="M5 12V9h3v3M8 12V9h3v3M11 12V9h3v3M8 9V6h3v3M19.5 11.5c.8-.2 1.5-.9 1.5-2" />
+        </>,
+      ),
+  },
 ];
 
 export function ActivityBar(props: { active: PanelId | null; onToggle: (p: PanelId) => void; help: [string, string][] }) {
