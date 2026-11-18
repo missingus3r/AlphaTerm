@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { headline, providerFor } from "./UsageFooter";
+import { headline, providerFor } from "./usage";
 
 describe("consumo del agente activo", () => {
   it("reconoce el agente por id, comando o proceso", () => {

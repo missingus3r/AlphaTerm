@@ -4,46 +4,10 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { Settings } from "../settings/schema";
 import { ago, fmtPct, level, until } from "./format";
 
-export interface UsageWindow {
-  label: string;
-  usedPct: number;
-  resetsAt: number | null;
-  stale: boolean;
-}
-export interface Usage {
-  provider: string;
-  exact: boolean;
-  source: string;
-  updatedAt: number | null;
-  windows: UsageWindow[];
-  note: string | null;
-}
-export type ProviderId = "claude" | "codex" | "agy";
+import { headline, type ProviderId, type Usage } from "./usage";
+export { providerFor, type ProviderId } from "./usage";
 
 const NAMES: Record<ProviderId, string> = { claude: "Claude", codex: "Codex", agy: "Antigravity" };
-
-/** Qué proveedor de consumo corresponde a un agente o a un comando ("claude --continue" → claude). */
-export function providerFor(agentId?: string, command?: string, fg?: string): ProviderId | null {
-  const pick = (s?: string) => {
-    const w = (s ?? "").trim().split(/[\s\\/]+/).pop()?.toLowerCase().replace(/\.(exe|cmd)$/, "") ?? "";
-    const first = (s ?? "").trim().split(/\s+/)[0]?.toLowerCase().replace(/\.(exe|cmd)$/, "") ?? "";
-    for (const c of [first, w]) if (c === "claude" || c === "codex" || c === "agy") return c as ProviderId;
-    return null;
-  };
-  return pick(agentId) ?? pick(command) ?? pick(fg);
-}
-
-/** Ventanas a mostrar en el footer (agy tiene muchas: se muestran las del grupo más usado). */
-export function headline(u: Usage): UsageWindow[] {
-  if (u.provider !== "agy" || u.windows.length <= 2) return u.windows;
-  const groups = new Map<string, UsageWindow[]>();
-  for (const w of u.windows) {
-    const g = w.label.split(" · ")[0];
-    groups.set(g, [...(groups.get(g) ?? []), w]);
-  }
-  const worst = [...groups.values()].sort((a, b) => Math.max(...b.map((w) => w.usedPct)) - Math.max(...a.map((w) => w.usedPct)))[0];
-  return worst ?? u.windows.slice(0, 2);
-}
 
 function Provider(props: { id: ProviderId; everyMs: number; active: boolean; open: boolean; onOpen: (open: boolean) => void }) {
   const [u, setU] = createSignal<Usage | null>(null);
