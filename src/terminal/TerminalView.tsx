@@ -15,6 +15,7 @@ import { PtySession } from "./pty";
 import { cmdRunningCommand, isShellTitle } from "../layout/title";
 import type { Action } from "../layout/shortcuts";
 import type { TermLook } from "../settings/apply";
+import type { Startup } from "../layout/model";
 
 export type Renderer = "webgl" | "dom";
 
@@ -30,7 +31,13 @@ export interface TermPatch {
   exitCode?: number | null;
   agentTitle?: string | undefined;
   exited?: boolean;
+  /** Hubo salida en los últimos segundos (para saber si un agente trabaja o espera). */
+  active?: boolean;
+  /** Sonó la campana (BEL) y nadie escribió desde entonces. */
+  bell?: boolean;
 }
+
+const QUIET_MS = 2500;
 
 /** Acciones que la vista sabe hacer sobre su terminal (las pide el contenedor). */
 export interface TermHandle {
@@ -42,6 +49,10 @@ export interface TermHandle {
 interface Props {
   profileId: string;
   cwd?: string;
+  /** Comando a correr cuando la shell esté lista (agentes). */
+  startup?: Startup;
+  /** Variables extra para la shell (ej. el PATH completo para agentes). */
+  env?: Record<string, string>;
   windowsBuild: number;
   look: TermLook;
   /** Atajo de la app para esta tecla (o null si va a la shell). */
@@ -148,6 +159,7 @@ export function TerminalView(props: Props) {
         const m = parse133(data);
         if (!m) return false;
         if (m.type === "promptStart") {
+          runStartup();
           current = { prompt: term.registerMarker(0) };
           blocks.push(current);
           if (blocks.length > 2000) blocks.splice(0, blocks.length - 2000).forEach((b) => b.prompt.dispose());
@@ -222,6 +234,37 @@ export function TerminalView(props: Props) {
       return true;
     };
 
+    // --- Comando inicial (agentes) ------------------------------------------------------------
+    // Se escribe en la shell cuando aparece el primer prompt (integración) o, si la shell no
+    // tiene integración, a los 2,5 s. Así el agente corre dentro de la shell: al salir, queda ahí.
+    let startupPending = !!props.startup?.command;
+    let startupTimer: ReturnType<typeof setTimeout> | undefined;
+    const runStartup = () => {
+      if (!startupPending || !session) return;
+      startupPending = false;
+      clearTimeout(startupTimer);
+      const s = session;
+      const ENTER = String.fromCharCode(13); // lo que manda la tecla Enter
+      setTimeout(() => s.write(props.startup!.command + ENTER), 60);
+    };
+
+    // --- Actividad y campana ------------------------------------------------------------------
+    let lastData = 0;
+    let active = false;
+    let bell = false;
+    const activity = setInterval(() => {
+      if (active && Date.now() - lastData > QUIET_MS) {
+        active = false;
+        patch({ active: false });
+      }
+    }, 1000);
+    term.onBell(() => {
+      if (!bell) {
+        bell = true;
+        patch({ bell: true });
+      }
+    });
+
     // --- Sesión ----------------------------------------------------------------------------
     let session: PtySession | null = null;
     let ack: AckBatcher | null = null;
@@ -235,11 +278,18 @@ export function TerminalView(props: Props) {
         current_session = await PtySession.spawn({
           profileId: props.profileId,
           cwd: props.cwd,
+          env: { ...props.env, ...props.startup?.env },
           cols: term.cols,
           rows: term.rows,
           // El ack va cuando xterm terminó de procesar el trozo: eso es lo que frena al backend.
           onData: (bytes) => {
-            if (!disposed) term.write(bytes, () => batch.add(bytes.byteLength));
+            if (disposed) return;
+            term.write(bytes, () => batch.add(bytes.byteLength));
+            lastData = Date.now();
+            if (!active) {
+              active = true;
+              patch({ active: true });
+            }
           },
           onEvent: (ev) => {
             if (ev.type !== "exit") return;
@@ -263,11 +313,20 @@ export function TerminalView(props: Props) {
         return;
       }
       session = current_session;
+      // Si el panel se ajustó mientras la sesión arrancaba, ese resize se perdió: se manda ahora.
+      if (current_session.spawnedCols !== term.cols || current_session.spawnedRows !== term.rows) {
+        void current_session.resize(term.cols, term.rows);
+      }
       ack = batch;
       patch({ sessionId: current_session.id, pid: current_session.info.pid, exited: false });
+      if (startupPending) startupTimer = setTimeout(runStartup, 2500);
     };
 
     term.onData((data) => {
+      if (bell) {
+        bell = false;
+        patch({ bell: false });
+      }
       if (session) void session.write(data);
       else if (exited && data === "\r") void start();
     });
@@ -302,7 +361,13 @@ export function TerminalView(props: Props) {
       else void paste();
     };
     host.addEventListener("contextmenu", onContext);
-    const onFocusIn = () => props.onFocus();
+    const onFocusIn = () => {
+      props.onFocus();
+      if (bell) {
+        bell = false;
+        patch({ bell: false });
+      }
+    };
     host.addEventListener("focusin", onFocusIn);
 
     let raf = 0;
@@ -396,6 +461,8 @@ export function TerminalView(props: Props) {
 
     onCleanup(() => {
       disposed = true;
+      clearInterval(activity);
+      clearTimeout(startupTimer);
       ro.disconnect();
       cancelAnimationFrame(raf);
       host.removeEventListener("contextmenu", onContext);

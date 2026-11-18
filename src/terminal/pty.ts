@@ -40,6 +40,7 @@ export const newWindow = () => invoke<string>("window_new");
 export interface SpawnOptions {
   profileId: string;
   cwd?: string;
+  env?: Record<string, string>;
   cols: number;
   rows: number;
   onData: (bytes: Uint8Array) => void;
@@ -49,6 +50,9 @@ export interface SpawnOptions {
 /** Sesión PTY del backend. La salida llega como ArrayBuffer por un canal binario. */
 export class PtySession {
   private readonly queue: WriteQueue;
+
+  spawnedCols = 0;
+  spawnedRows = 0;
 
   private constructor(readonly info: SpawnInfo) {
     this.queue = new WriteQueue((data) => invoke<void>("pty_write", { id: info.id, data }));
@@ -62,12 +66,16 @@ export class PtySession {
     const info = await invoke<SpawnInfo>("pty_spawn", {
       profileId: o.profileId,
       cwd: o.cwd ?? null,
+      env: o.env ?? null,
       cols: o.cols,
       rows: o.rows,
       onData,
       onEvent,
     });
-    return new PtySession(info);
+    const s = new PtySession(info);
+    s.spawnedCols = o.cols;
+    s.spawnedRows = o.rows;
+    return s;
   }
 
   get id() {

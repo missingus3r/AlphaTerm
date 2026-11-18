@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULTS, normalize } from "./schema";
+import { BUILTIN_AGENTS, DEFAULTS, normalize, normalizeAgents } from "./schema";
 import { BASE_COLORS, BUILTIN_THEMES, findTheme, importThemes, isDark, luminance, mix, themeId, uiPalette } from "./themes";
 
 const norm = (raw: unknown) => normalize(raw, BASE_COLORS);
@@ -30,7 +30,7 @@ describe("normalize", () => {
 
   it("conserva claves de otras fases y completa temas propios", () => {
     const s = norm({
-      agents: [{ name: "claude" }],
+      futuro: [{ name: "algo de F9" }],
       customThemes: [
         { id: "mio", name: "Mío", colors: { background: "#101010", red: "rojo" } },
         { id: "mio", name: "Duplicado" },
@@ -38,7 +38,7 @@ describe("normalize", () => {
       ],
       shortcuts: { newTab: ["Ctrl+Shift+Y", 4], raro: "x" },
     }) as unknown as Record<string, unknown> & ReturnType<typeof norm>;
-    expect(s.agents).toEqual([{ name: "claude" }]);
+    expect(s.futuro).toEqual([{ name: "algo de F9" }]);
     expect(s.customThemes).toHaveLength(1);
     expect(s.customThemes[0].colors.background).toBe("#101010");
     expect(s.customThemes[0].colors.red).toBe(BASE_COLORS.red);
@@ -129,5 +129,32 @@ describe("importar temas", () => {
   it("ids propios sin choques", () => {
     expect(themeId("Mi Tema Ñandú", new Set())).toBe("mi-mi-tema-nandu");
     expect(themeId("X", new Set(["mi-x"]))).toBe("mi-x-2");
+  });
+});
+
+describe("catálogo de agentes", () => {
+  it("los de fábrica siempre están, con lo que se les cambió", () => {
+    const a = normalizeAgents([{ id: "claude", command: "claude --model opus", env: { FOO: "1", "MAL NOMBRE": "x", N: 3 } }]);
+    expect(a.map((x) => x.id)).toEqual(BUILTIN_AGENTS.map((x) => x.id));
+    expect(a[0].command).toBe("claude --model opus");
+    expect(a[0].name).toBe("Claude Code");
+    expect(a[0].env).toEqual({ FOO: "1" });
+    expect(normalizeAgents(undefined)).toEqual(BUILTIN_AGENTS);
+  });
+
+  it("los propios se agregan al final y sin comando no valen", () => {
+    const a = normalizeAgents([
+      { id: "aider", name: "Aider", command: "aider --no-git" },
+      { id: "sin-comando", name: "X" },
+      { id: "aider", name: "Duplicado", command: "y" },
+      { id: "codex", builtin: false, command: "codex --full-auto" },
+    ]);
+    expect(a.map((x) => x.id)).toEqual([...BUILTIN_AGENTS.map((x) => x.id), "aider"]);
+    expect(a.at(-1)).toMatchObject({ name: "Aider", builtin: false });
+    expect(a.find((x) => x.id === "codex")).toMatchObject({ command: "codex --full-auto", builtin: true });
+  });
+
+  it("carpetas recientes sin repetir", () => {
+    expect(normalize({ recentDirs: ["C:\a", "C:\a", "", 4, "C:\b"] }, BASE_COLORS).recentDirs).toEqual(["C:\a", "C:\b"]);
   });
 });

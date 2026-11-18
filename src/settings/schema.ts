@@ -16,6 +16,25 @@ export interface CustomTheme {
   colors: ThemeColors;
 }
 
+export interface AgentDef {
+  id: string;
+  name: string;
+  /** Línea de comando que se escribe en la shell (ej. "claude --model opus"). */
+  command: string;
+  /** Variables de entorno extra para la pestaña del agente. */
+  env: Record<string, string>;
+  /** Oculto del panel (sin borrarlo). */
+  hidden: boolean;
+  builtin: boolean;
+}
+
+export const BUILTIN_AGENTS: AgentDef[] = [
+  { id: "claude", name: "Claude Code", command: "claude", env: {}, hidden: false, builtin: true },
+  { id: "codex", name: "Codex", command: "codex", env: {}, hidden: false, builtin: true },
+  { id: "agy", name: "Antigravity (agy)", command: "agy", env: {}, hidden: false, builtin: true },
+  { id: "opencode", name: "OpenCode", command: "opencode", env: {}, hidden: false, builtin: true },
+];
+
 export interface Settings {
   version: 1;
   appearance: {
@@ -55,6 +74,10 @@ export interface Settings {
   };
   /** Atajos cambiados (id de acción → combinaciones). Lo que no está usa el de fábrica. */
   shortcuts: Record<string, string[]>;
+  /** Catálogo de agentes: los de fábrica (editables) y los propios. */
+  agents: AgentDef[];
+  /** Carpetas usadas hace poco para lanzar agentes (la más reciente primero). */
+  recentDirs: string[];
 }
 
 export const DEFAULT_FONT = "Cascadia Mono";
@@ -80,6 +103,8 @@ export const DEFAULTS: Settings = {
   terminal: { defaultProfile: "", scrollback: 10_000 },
   behavior: { foregroundPollMs: 2000 },
   shortcuts: {},
+  agents: BUILTIN_AGENTS,
+  recentDirs: [],
 };
 
 export const LIMITS = {
@@ -145,6 +170,38 @@ function normalizeShortcuts(v: unknown): Record<string, string[]> {
   return out;
 }
 
+function normalizeEnv(v: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, val] of Object.entries(obj(v))) {
+    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(k) && typeof val === "string") out[k] = val;
+  }
+  return out;
+}
+
+/** Los de fábrica siempre están (con lo que se les haya cambiado); los propios se agregan al final. */
+export function normalizeAgents(v: unknown): AgentDef[] {
+  const list = Array.isArray(v) ? v.filter(isObj) : [];
+  const byId = new Map(list.map((a) => [str(a.id, ""), a] as const));
+  const fix = (a: Obj, base: AgentDef): AgentDef => ({
+    id: base.id,
+    name: str(a.name, base.name),
+    command: str(a.command, base.command),
+    env: normalizeEnv(a.env),
+    hidden: bool(a.hidden, false),
+    builtin: base.builtin,
+  });
+  const out = BUILTIN_AGENTS.map((b) => fix(byId.get(b.id) ?? {}, b));
+  const seen = new Set(out.map((a) => a.id));
+  for (const a of list) {
+    const id = str(a.id, "");
+    const command = str(a.command, "");
+    if (!id || !command || seen.has(id)) continue;
+    seen.add(id);
+    out.push(fix(a, { id, name: id, command, env: {}, hidden: false, builtin: false }));
+  }
+  return out;
+}
+
 export function normalize(raw: unknown, baseColors: ThemeColors): Settings {
   const r = obj(raw);
   const a = obj(r.appearance);
@@ -183,6 +240,10 @@ export function normalize(raw: unknown, baseColors: ThemeColors): Settings {
       foregroundPollMs: Math.round(num(obj(r.behavior).foregroundPollMs, D.behavior.foregroundPollMs, LIMITS.foregroundPollMs)),
     },
     shortcuts: normalizeShortcuts(r.shortcuts),
+    agents: normalizeAgents(r.agents),
+    recentDirs: Array.isArray(r.recentDirs)
+      ? [...new Set(r.recentDirs.filter((d): d is string => typeof d === "string" && d.trim() !== ""))].slice(0, 12)
+      : [],
   };
 }
 

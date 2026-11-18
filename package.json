@@ -13,6 +13,7 @@
   "dependencies": {
     "@tauri-apps/api": "2.12.5",
     "@tauri-apps/plugin-clipboard-manager": "2.5.0",
+    "@tauri-apps/plugin-dialog": "2.8.4",
     "@tauri-apps/plugin-opener": "2.7.3",
     "@xterm/addon-fit": "0.11.0",
     "@xterm/addon-ligatures": "0.10.0",

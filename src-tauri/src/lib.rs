@@ -1,3 +1,4 @@
+pub mod agents;
 pub mod fonts;
 pub mod procinfo;
 pub mod pty;
@@ -11,6 +12,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(Arc::new(pty::PtyState::default()))
         .manage(procinfo::ProcState::default())
         .manage(settings::SettingsState::new(settings::data_dir().join("settings.json")))
@@ -54,6 +56,8 @@ pub fn run() {
             settings::background_store,
             settings::background_read,
             fonts::fonts_list,
+            agents::agents_detect,
+            agents::agents_path_env,
             fonts::font_file,
         ])
         .run(tauri::generate_context!())

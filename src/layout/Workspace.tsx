@@ -1,4 +1,5 @@
-import { createEffect, createMemo, createSignal, For, on, onCleanup, onMount } from "solid-js";
+import { createEffect, createMemo, createResource, createSignal, For, lazy, on, onCleanup, onMount, Show, Suspense } from "solid-js";
+import { invoke } from "@tauri-apps/api/core";
 import { createStore, produce } from "solid-js/store";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import * as M from "./model";
@@ -9,6 +10,13 @@ import { TerminalView, type TermHandle, type TermPatch } from "../terminal/Termi
 import { foreground, gitBranch, newWindow, type TermInfo } from "../terminal/pty";
 import type { TermLook } from "../settings/apply";
 import { openSettings, type SettingsStore } from "../settings/store";
+import type { AgentDef } from "../settings/schema";
+import { agentRunning, agentState, pushRecent } from "../panels/agentState";
+import type { RunningAgent } from "../panels/AgentsPanel";
+import { ActivityBar, PANELS, type PanelId } from "../panels/ActivityBar";
+
+const AgentsPanel = lazy(() => import("../panels/AgentsPanel"));
+const PANEL_PREF = "novaterm.panel";
 
 /** Estado vivo de cada panel (clave: id del panel). */
 interface PaneState extends PaneInfo {
@@ -16,6 +24,10 @@ interface PaneState extends PaneInfo {
   pid?: number | null;
   renderer?: string;
   exited?: boolean;
+  agentId?: string;
+  agentStarted?: boolean;
+  active?: boolean;
+  bell?: boolean;
 }
 
 const pct = (n: number) => `${(n * 100).toFixed(4)}%`;
@@ -49,7 +61,13 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
 
   const ensurePane = (leaf: M.Leaf) => {
     if (!panes[leaf.id]) {
-      setPanes(leaf.id, { shellName: profileName(leaf.profileId), integrated: false, running: false, cwd: leaf.cwd });
+      setPanes(leaf.id, {
+        shellName: profileName(leaf.profileId),
+        integrated: false,
+        running: false,
+        cwd: leaf.cwd,
+        agentId: leaf.startup?.agentId,
+      });
     }
   };
   createEffect(() => layout().tabs.forEach((t) => M.leaves(t.root).forEach(ensurePane)));
@@ -72,8 +90,19 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
 
   const titleOf = (t: M.Tab) => tabTitle(t.manualTitle, panes[t.activePane], profileName(M.leaves(t.root)[0]?.profileId ?? ""));
 
+  // Un agente "arrancó" cuando su comando empezó a correr (por integración o por proceso).
+  createEffect(() => {
+    for (const [id, p] of Object.entries(panes)) {
+      if (p.agentId && !p.agentStarted && agentRunning(p)) setPanes(id, "agentStarted", true);
+    }
+  });
+
   const statusOf = (t: M.Tab): TabStatus => {
     const ps = M.leaves(t.root).map((l) => panes[l.id]).filter(Boolean);
+    const agents = ps.filter((p) => p.agentId).map(agentState);
+    if (agents.includes("attention")) return "attention";
+    if (agents.includes("working")) return "running";
+    if (agents.includes("waiting")) return "waiting";
     if (ps.some((p) => p.running || (!p.integrated && p.fgProcess))) return "running";
     if (ps.some((p) => p.exited)) return "exited";
     if (ps.some((p) => p.exitCode !== undefined && p.exitCode !== null && p.exitCode !== 0)) return "error";
@@ -167,6 +196,60 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
 
   const closePane = (tabId: string, paneId: string) => update((x) => M.closePane(x, tabId, paneId));
 
+  // --- Paneles laterales y agentes -------------------------------------------------------------
+  const readPanel = (): PanelId | null => {
+    try {
+      const v = localStorage.getItem(PANEL_PREF);
+      return PANELS.some((p) => p.id === v) ? (v as PanelId) : null;
+    } catch {
+      return null;
+    }
+  };
+  const [panel, setPanelRaw] = createSignal<PanelId | null>(readPanel());
+  const setPanel = (p: PanelId | null) => {
+    setPanelRaw(p);
+    try {
+      if (p) localStorage.setItem(PANEL_PREF, p);
+      else localStorage.removeItem(PANEL_PREF);
+    } catch {
+      /* no importa */
+    }
+  };
+  const togglePanel = (p: PanelId) => setPanel(panel() === p ? null : p);
+  const activeCwd = () => {
+    const id = activePaneId();
+    return id ? panes[id]?.cwd : undefined;
+  };
+
+  // PATH completo (proceso + registro + carpetas de agentes): un agente instalado después de
+  // abrir NovaTerm igual se encuentra.
+  const [pathEnv] = createResource(() => invoke<string>("agents_path_env").catch(() => ""));
+  const launchAgent = (agent: AgentDef, cwd: string | undefined) => {
+    const env: Record<string, string> = { ...(pathEnv() ? { PATH: pathEnv()! } : {}), ...agent.env };
+    update((x) => M.addTab(x, M.newTab(defaultProfile(), cwd, { command: agent.command, env, agentId: agent.id })));
+    if (cwd) props.store.update((d) => void (d.recentDirs = pushRecent(d.recentDirs, cwd)));
+  };
+  const focusPane = (tabId: string, paneId: string) => update((x) => M.focusPane(M.selectTab(x, tabId), tabId, paneId));
+  const runningAgents = createMemo<RunningAgent[]>(() =>
+    layout().tabs.flatMap((t) =>
+      M.leaves(t.root)
+        .filter((l) => panes[l.id]?.agentId)
+        .map((l) => {
+          const p = panes[l.id]!;
+          return {
+            tabId: t.id,
+            paneId: l.id,
+            agentId: p.agentId!,
+            name: settings().agents.find((a) => a.id === p.agentId)?.name ?? p.agentId!,
+            cwd: p.cwd,
+            state: agentState(p),
+            title: titleOf(t),
+            exitCode: p.exitCode,
+          };
+        }),
+    ),
+  );
+
   const run = (a: Action) => {
     const t = active();
     switch (a.type) {
@@ -202,6 +285,9 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
         break;
       case "openSettings":
         void openSettings();
+        break;
+      case "togglePanel":
+        togglePanel(a.panel);
         break;
       case "jumpPrompt": {
         const id = activePaneId();
@@ -257,7 +343,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   };
 
   return (
-    <div class="workspace" classList={{ vertical: vertical() }}>
+    <div class="workspace" classList={{ vertical: vertical(), "with-panel": !!panel() }}>
       <TabBar
         tabs={tabItems()}
         activeId={layout().activeTab}
@@ -285,6 +371,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
         onNewWindow={() => void newWindow()}
         onSettings={() => void openSettings()}
       />
+      <div class="body">
       <main class="tab-area">
         {/* Se itera por id (texto) para que Solid no vuelva a crear terminales cuando cambia el árbol. */}
         <For each={layout().tabs.map((t) => t.id)}>
@@ -311,6 +398,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                         <TerminalView
                           profileId={leafAt.profileId}
                           cwd={leafAt.cwd}
+                          startup={leafAt.startup}
                           windowsBuild={props.info.windowsBuild}
                           look={props.look}
                           match={match}
@@ -356,6 +444,25 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
           }}
         </For>
       </main>
+      <Show when={panel()}>
+        <aside class="side-panel">
+          <Suspense>
+            <Show when={panel() === "agents"}>
+              <AgentsPanel
+                agents={settings().agents}
+                running={runningAgents()}
+                activeCwd={activeCwd()}
+                recentDirs={settings().recentDirs}
+                onLaunch={launchAgent}
+                onFocus={focusPane}
+                update={props.store.update}
+              />
+            </Show>
+          </Suspense>
+        </aside>
+      </Show>
+      <ActivityBar active={panel()} onToggle={togglePanel} help={shortcutHelp(settings().shortcuts)} />
+      </div>
     </div>
   );
 }

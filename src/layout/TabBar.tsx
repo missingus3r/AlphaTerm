@@ -2,7 +2,7 @@ import { createSignal, For, Show } from "solid-js";
 import { Marquee } from "./Marquee";
 import type { Profile } from "../terminal/pty";
 
-export type TabStatus = "idle" | "running" | "error" | "exited";
+export type TabStatus = "idle" | "running" | "waiting" | "attention" | "error" | "exited";
 
 export interface TabItem {
   id: string;
@@ -36,6 +36,8 @@ interface Props {
 const STATUS_LABEL: Record<TabStatus, string> = {
   idle: "En espera",
   running: "Ejecutando",
+  waiting: "Un agente espera input",
+  attention: "Un agente te necesita",
   error: "El último comando falló",
   exited: "La shell terminó",
 };

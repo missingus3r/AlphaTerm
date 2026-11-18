@@ -115,16 +115,18 @@ pub fn pty_spawn(
     cwd: Option<String>,
     cols: u16,
     rows: u16,
+    env: Option<HashMap<String, String>>,
     on_data: Channel<InvokeResponseBody>,
     on_event: Channel<PtyEvent>,
 ) -> Result<SpawnInfo, String> {
-    spawn(
+    spawn_env(
         state.inner(),
         webview.label(),
         &profile_id,
         cwd,
         cols,
         rows,
+        &env.unwrap_or_default(),
         move |bytes| on_data.send(InvokeResponseBody::Raw(bytes)).is_ok(),
         move |code| {
             let _ = on_event.send(PtyEvent::Exit { code });
@@ -142,6 +144,22 @@ pub fn spawn(
     cwd: Option<String>,
     cols: u16,
     rows: u16,
+    on_data: impl FnMut(Vec<u8>) -> bool + Send + 'static,
+    on_exit: impl FnOnce(Option<u32>) + Send + 'static,
+) -> Result<SpawnInfo, String> {
+    spawn_env(state, owner, profile_id, cwd, cols, rows, &HashMap::new(), on_data, on_exit)
+}
+
+/// Igual que `spawn`, con variables de entorno extra (por ejemplo, las de un agente).
+#[allow(clippy::too_many_arguments)]
+pub fn spawn_env(
+    state: &Arc<PtyState>,
+    owner: &str,
+    profile_id: &str,
+    cwd: Option<String>,
+    cols: u16,
+    rows: u16,
+    extra_env: &HashMap<String, String>,
     mut on_data: impl FnMut(Vec<u8>) -> bool + Send + 'static,
     on_exit: impl FnOnce(Option<u32>) + Send + 'static,
 ) -> Result<SpawnInfo, String> {
@@ -166,6 +184,11 @@ pub fn spawn(
     cmd.env("COLORTERM", "truecolor");
     cmd.env("TERM_PROGRAM", "NovaTerm");
     cmd.env("TERM_PROGRAM_VERSION", env!("CARGO_PKG_VERSION"));
+    for (k, v) in extra_env {
+        if !k.is_empty() && !k.contains('=') {
+            cmd.env(k, v);
+        }
+    }
 
     let mut child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
     drop(pair.slave);

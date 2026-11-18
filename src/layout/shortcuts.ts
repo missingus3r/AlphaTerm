@@ -17,7 +17,8 @@ export type Action =
   | { type: "toggleTabBar" }
   | { type: "jumpPrompt"; delta: 1 | -1 }
   | { type: "copyLastOutput" }
-  | { type: "openSettings" };
+  | { type: "openSettings" }
+  | { type: "togglePanel"; panel: "agents" | "servers" | "projects" | "git" };
 
 export interface Command {
   id: string;
@@ -46,6 +47,7 @@ export const COMMANDS: Command[] = [
   { id: "nextPrompt", label: "Ir al comando siguiente", action: { type: "jumpPrompt", delta: 1 }, defaults: ["Ctrl+Shift+Down"] },
   { id: "copyLastOutput", label: "Copiar la salida del último comando", action: { type: "copyLastOutput" }, defaults: ["Ctrl+Shift+O"] },
   { id: "openSettings", label: "Abrir la configuración", action: { type: "openSettings" }, defaults: ["Ctrl+,"] },
+  { id: "panelAgents", label: "Panel de agentes", action: { type: "togglePanel", panel: "agents" }, defaults: ["Ctrl+Shift+A"] },
 ];
 
 /** Ctrl+1…8 van a esa pestaña y Ctrl+9 a la última. No se cambian. */

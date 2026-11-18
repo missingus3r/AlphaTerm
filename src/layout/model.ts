@@ -5,11 +5,19 @@
 
 export type SplitDir = "row" | "column"; // row: lado a lado; column: uno arriba del otro
 
+/** Algo para correr apenas la shell esté lista (por ejemplo, un agente). */
+export interface Startup {
+  command: string;
+  env?: Record<string, string>;
+  agentId?: string;
+}
+
 export interface Leaf {
   kind: "leaf";
   id: string;
   profileId: string;
   cwd?: string;
+  startup?: Startup;
 }
 
 export interface Split {
@@ -38,12 +46,12 @@ export interface Layout {
 let seq = 0;
 export const newId = (prefix: string) => `${prefix}${Date.now().toString(36)}${(seq++).toString(36)}`;
 
-export function leaf(profileId: string, cwd?: string): Leaf {
-  return { kind: "leaf", id: newId("p"), profileId, cwd };
+export function leaf(profileId: string, cwd?: string, startup?: Startup): Leaf {
+  return { kind: "leaf", id: newId("p"), profileId, cwd, ...(startup ? { startup } : {}) };
 }
 
-export function newTab(profileId: string, cwd?: string): Tab {
-  const l = leaf(profileId, cwd);
+export function newTab(profileId: string, cwd?: string, startup?: Startup): Tab {
+  const l = leaf(profileId, cwd, startup);
   return { id: newId("t"), root: l, activePane: l.id };
 }
 
