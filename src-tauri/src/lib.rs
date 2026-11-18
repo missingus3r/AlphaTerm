@@ -1,5 +1,6 @@
 pub mod agents;
 pub mod fonts;
+pub mod git;
 pub mod ports;
 pub mod procinfo;
 pub mod projects;
@@ -74,6 +75,19 @@ pub fn run() {
             projects::fs_list,
             projects::fs_watch,
             projects::fs_open,
+            git::git_root,
+            git::git_status,
+            git::git_count,
+            git::git_diff,
+            git::git_stage,
+            git::git_commit,
+            git::git_log,
+            git::git_show,
+            git::git_branches,
+            git::git_switch,
+            git::git_remote,
+            git::git_clone,
+            git::git_init,
             usage::usage_statusline_status,
             usage::usage_statusline_install,
             fonts::font_file,

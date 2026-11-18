@@ -321,3 +321,59 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .tree-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .icon-btn.tiny { width: 18px; height: 18px; font-size: 12px; opacity: 0; }
 .tree-row:hover .icon-btn.tiny { opacity: 1; }
+
+/* --- Panel lateral redimensionable --- */
+.side-panel { position: relative; }
+.panel-resize { position: absolute; left: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 5; }
+.panel-resize:hover { background: color-mix(in srgb, var(--accent) 40%, transparent); }
+.tab .changes { font-size: 10px; color: #e5b44f; flex: none; font-variant-numeric: tabular-nums; }
+
+/* --- Panel de git --- */
+.git-repo { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.git-repo b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.git-branch { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.git-branch .ab { margin-left: 6px; color: var(--accent); }
+.git-remote { display: flex; gap: 6px; align-items: center; }
+.git-empty { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.banner.pre { white-space: pre-wrap; font-family: "Cascadia Mono", Consolas, monospace; font-size: 11.5px; max-height: 160px; overflow: auto; }
+.commit-msg { font-family: inherit; }
+.btn.commit { align-self: stretch; height: 28px; }
+.panel h3 { display: flex; align-items: center; justify-content: space-between; }
+.git-files, .git-log, .git-branches { list-style: none; margin: 0; padding: 0; }
+.git-file { display: flex; align-items: center; gap: 7px; height: 24px; padding: 0 6px; border-radius: 5px; cursor: pointer; }
+.git-file:hover, .git-file.on { background: var(--tab-hover); }
+.git-code { width: 14px; flex: none; text-align: center; font: 600 11px "Cascadia Mono", Consolas, monospace; }
+.git-code.c-M { color: #e5b44f; }
+.git-code.c-A, .git-code.c-U2 { color: var(--ok); }
+.git-code.c-D, .git-code.c-U { color: var(--err); }
+.git-code.c-R, .git-code.c-C { color: var(--accent); }
+.git-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+.git-path b { font-weight: 500; }
+.git-path small { color: var(--muted); }
+.icon-btn.tiny.show { opacity: 0; }
+.git-file:hover .icon-btn.tiny.show { opacity: 1; }
+.git-log li { display: flex; gap: 4px; font-size: 12px; line-height: 20px; white-space: nowrap; border-radius: 4px; }
+.git-log li.clickable { cursor: pointer; }
+.git-log li.clickable:hover, .git-log li.on { background: var(--tab-hover); }
+.graph { font-family: "Cascadia Mono", Consolas, monospace; color: var(--accent); white-space: pre; flex: none; }
+.log-text { overflow: hidden; text-overflow: ellipsis; }
+.log-text small { color: var(--muted); }
+.refs { color: #e5b44f; border: 1px solid #e5b44f66; border-radius: 4px; padding: 0 4px; margin-right: 5px; font-size: 11px; }
+.git-branches li { padding: 3px 6px; border-radius: 5px; cursor: pointer; font-size: 12.5px; }
+.git-branches li:hover { background: var(--tab-hover); }
+.git-branches li.current { color: var(--accent); cursor: default; }
+.git-branches li small { color: var(--muted); }
+.diff-box { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-top: 4px; }
+.diff-head { display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 8px; background: var(--bg-solid); border-bottom: 1px solid var(--line); }
+.diff-head .mono { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diff-count .add { color: var(--ok); }
+.diff-count .del { color: var(--err); }
+.diff { width: 100%; border-collapse: collapse; font: 11.5px/1.45 "Cascadia Mono", Consolas, monospace; display: block; overflow: auto; max-height: 55vh; }
+.diff td.no { color: var(--muted); text-align: right; padding: 0 5px; user-select: none; opacity: .7; min-width: 28px; }
+.diff td.code { white-space: pre; padding: 0 6px; }
+.diff.split td.code { width: 50%; white-space: pre-wrap; word-break: break-all; }
+.diff tr.d-add td.code, .diff td.code.d-add { background: color-mix(in srgb, var(--ok) 16%, transparent); }
+.diff tr.d-del td.code, .diff td.code.d-del { background: color-mix(in srgb, var(--err) 16%, transparent); }
+.diff td.code.d-empty { background: color-mix(in srgb, var(--line) 35%, transparent); }
+.diff tr.d-hunk td { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.diff tr.d-meta td { color: var(--muted); }

@@ -10,6 +10,8 @@ export interface TabItem {
   status: TabStatus;
   tooltip: string;
   panes: number;
+  /** Archivos cambiados en el repo git de la pestaña (si es un repo). */
+  changes?: number;
 }
 
 interface Props {
@@ -99,6 +101,11 @@ export function TabBar(props: Props) {
                   onBlur={(e) => props.onRename(t.id, e.currentTarget.value)}
                   placeholder="Vacío = nombre automático"
                 />
+              </Show>
+              <Show when={t.changes}>
+                <span class="changes" title={`${t.changes} archivos cambiados en git`}>
+                  ±{t.changes}
+                </span>
               </Show>
               <Show when={t.panes > 1}>
                 <span class="panes" title={`${t.panes} paneles`}>

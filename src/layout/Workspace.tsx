@@ -22,6 +22,8 @@ import type { Recipe } from "../settings/schema";
 const AgentsPanel = lazy(() => import("../panels/AgentsPanel"));
 const ServersPanel = lazy(() => import("../panels/ServersPanel"));
 const ProjectsPanel = lazy(() => import("../panels/ProjectsPanel"));
+const GitPanel = lazy(() => import("../panels/GitPanel"));
+const PANEL_WIDTH_PREF = "novaterm.panel.width";
 const PANEL_PREF = "novaterm.panel";
 
 /** Estado vivo de cada panel (clave: id del panel). */
@@ -126,7 +128,8 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
       ]
         .filter(Boolean)
         .join("\n");
-      return { id: t.id, title: titleOf(t), status: statusOf(t), tooltip: tip, panes: M.leaves(t.root).length };
+      const changes = p?.cwd ? gitCounts()[p.cwd] : undefined;
+      return { id: t.id, title: titleOf(t), status: statusOf(t), tooltip: tip, panes: M.leaves(t.root).length, changes: changes ?? undefined };
     }),
   );
 
@@ -224,6 +227,56 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   const togglePanel = (p: PanelId) => setPanel(panel() === p ? null : p);
   /** Repositorio que muestra el panel de git (null = el de la carpeta del panel activo). */
   const [gitRoot, setGitRoot] = createSignal<string | null>(null);
+
+  // Ancho del panel lateral (se arrastra el borde izquierdo).
+  const readWidth = () => {
+    try {
+      const v = Number(localStorage.getItem(PANEL_WIDTH_PREF));
+      return v >= 240 && v <= 1200 ? v : 340;
+    } catch {
+      return 340;
+    }
+  };
+  const [panelWidth, setPanelWidth] = createSignal(readWidth());
+  const startPanelDrag = (e: PointerEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = panelWidth();
+    document.body.classList.add("resizing", "resizing-row");
+    const move = (ev: PointerEvent) => setPanelWidth(Math.min(Math.max(240, startW + (startX - ev.clientX)), Math.max(260, window.innerWidth - 300)));
+    const up = () => {
+      document.body.classList.remove("resizing", "resizing-row");
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      try {
+        localStorage.setItem(PANEL_WIDTH_PREF, String(panelWidth()));
+      } catch {
+        /* no importa */
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
+  // Contador de cambios git por pestaña (carpeta del panel activo de cada una). Cada 10 s con la
+  // ventana visible y cuando termina un comando.
+  const [gitCounts, setGitCounts] = createSignal<Record<string, number | null>>({});
+  const tabCwds = createMemo(() => [...new Set(layout().tabs.map((t) => panes[t.activePane]?.cwd).filter((c): c is string => !!c))].join("\n"));
+  const refreshCounts = async () => {
+    const cwds = tabCwds().split("\n").filter(Boolean);
+    const out: Record<string, number | null> = {};
+    await Promise.all(cwds.map(async (c) => (out[c] = await invoke<number | null>("git_count", { dir: c }).catch(() => null))));
+    setGitCounts(out);
+  };
+  createEffect(
+    on([tabCwds, () => Object.values(panes).filter((p) => p.running).length], () => {
+      void refreshCounts();
+    }),
+  );
+  onMount(() => {
+    const t = setInterval(() => !document.hidden && void refreshCounts(), 10_000);
+    onCleanup(() => clearInterval(t));
+  });
   const activeCwd = () => {
     const id = activePaneId();
     return id ? panes[id]?.cwd : undefined;
@@ -518,7 +571,8 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
         </For>
       </main>
       <Show when={panel()}>
-        <aside class="side-panel">
+        <aside class="side-panel" style={{ width: `${panelWidth()}px` }}>
+          <div class="panel-resize" onPointerDown={startPanelDrag} title="Arrastrar para cambiar el ancho" />
           <Suspense>
             <Show when={panel() === "servers"}>
               <ServersPanel
@@ -546,6 +600,13 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                   setGitRoot(dir);
                   setPanel("git");
                 }}
+              />
+            </Show>
+            <Show when={panel() === "git"}>
+              <GitPanel
+                dir={gitRoot() ?? activeCwd()}
+                onChanged={() => void refreshCounts()}
+                onTerminal={(dir) => update((x) => M.addTab(x, M.newTab(newTabProfile(), dir)))}
               />
             </Show>
             <Show when={panel() === "agents"}>
