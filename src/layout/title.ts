@@ -19,6 +19,8 @@ export interface PaneInfo {
   /** Proceso en primer plano según el backend (descendiente más nuevo del shell). */
   fgProcess?: string;
   branch?: string;
+  /** Resumen hecho por un modelo (opcional, F9). */
+  llmTitle?: string;
 }
 
 /** Títulos que ponen los propios shells o ConPTY: no dicen nada de la tarea. */
@@ -80,8 +82,9 @@ export function heuristicTitle(p: PaneInfo): string {
   return what || place || p.shellName;
 }
 
+/** Orden: título que puso el programa > resumen del modelo (si está activado) > heurística. */
 export function paneTitle(p: PaneInfo): string {
-  return p.agentTitle?.trim() || heuristicTitle(p);
+  return p.agentTitle?.trim() || p.llmTitle?.trim() || heuristicTitle(p);
 }
 
 export function tabTitle(manual: string | undefined, focused: PaneInfo | undefined, fallback = "Terminal"): string {

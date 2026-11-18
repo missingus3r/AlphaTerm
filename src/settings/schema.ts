@@ -125,6 +125,8 @@ export interface Settings {
   /** Guardián: pregunta antes de que un agente borre o modifique archivos. */
   guardian: { enabled: boolean; modify: boolean; claude: boolean; codex: boolean };
   docker: { presets: DockerPreset[] };
+  /** Resumen de pestañas con un modelo (endpoint compatible con OpenAI). */
+  llm: { enabled: boolean; endpoint: string; model: string; apiKey: string; everySec: number };
 }
 
 export const DEFAULT_FONT = "Cascadia Mono";
@@ -160,6 +162,7 @@ export const DEFAULTS: Settings = {
   control: { enabled: true },
   guardian: { enabled: true, modify: true, claude: true, codex: true },
   docker: { presets: [] },
+  llm: { enabled: false, endpoint: "http://127.0.0.1:11434/v1", model: "", apiKey: "", everySec: 30 },
 };
 
 export const LIMITS = {
@@ -360,6 +363,13 @@ export function normalize(raw: unknown, baseColors: ThemeColors): Settings {
       codex: bool(obj(r.guardian).codex, DEFAULTS.guardian.codex),
     },
     docker: { presets: normalizePresets(obj(r.docker).presets) },
+    llm: {
+      enabled: bool(obj(r.llm).enabled, DEFAULTS.llm.enabled),
+      endpoint: str(obj(r.llm).endpoint, DEFAULTS.llm.endpoint),
+      model: typeof obj(r.llm).model === "string" ? (obj(r.llm).model as string).trim() : "",
+      apiKey: typeof obj(r.llm).apiKey === "string" ? (obj(r.llm).apiKey as string) : "",
+      everySec: Math.round(num(obj(r.llm).everySec, DEFAULTS.llm.everySec, [30, 3600])),
+    },
     session: {
       restore: bool(obj(r.session).restore, DEFAULTS.session.restore),
       relaunchAgents: bool(obj(r.session).relaunchAgents, DEFAULTS.session.relaunchAgents),

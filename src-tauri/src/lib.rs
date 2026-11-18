@@ -5,6 +5,7 @@ pub mod fonts;
 pub mod git;
 pub mod guardian;
 pub mod history;
+pub mod llm;
 pub mod ports;
 pub mod procinfo;
 pub mod projects;
@@ -18,7 +19,25 @@ pub mod windows;
 use std::sync::Arc;
 use tauri::{Manager, WindowEvent};
 
+/// Momento en que arrancó el proceso (para medir el arranque en frío).
+static STARTED: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+
+/// Marca de tiempo para benchmarks: ms desde que arrancó el proceso. Con ALPHATERM_BENCH=<archivo>
+/// se agrega una línea "nombre ms" a ese archivo.
+#[tauri::command]
+fn bench_mark(webview: tauri::Webview, name: String) -> u128 {
+    let ms = STARTED.get().map(|t| t.elapsed().as_millis()).unwrap_or(0);
+    if let Ok(path) = std::env::var("ALPHATERM_BENCH") {
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            let _ = writeln!(f, "{} {} {}", webview.label(), name, ms);
+        }
+    }
+    ms
+}
+
 pub fn run() {
+    STARTED.get_or_init(std::time::Instant::now);
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
@@ -106,6 +125,8 @@ pub fn run() {
             control::control_respond,
             control::control_config,
             control::control_files,
+            llm::llm_summarize,
+            bench_mark,
             guardian::guardian_open,
             guardian::guardian_log,
             history::history_search,

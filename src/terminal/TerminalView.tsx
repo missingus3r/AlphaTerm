@@ -18,6 +18,7 @@ import type { TermLook } from "../settings/apply";
 import type { Startup } from "../layout/model";
 import { registerPathLinks } from "./pathLinks";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { invoke } from "@tauri-apps/api/core";
 
 const windowLabel = getCurrentWindow().label;
 
@@ -156,6 +157,7 @@ export function TerminalView(props: Props) {
     let integrated = false;
     let running = false;
     let endedCount = 0;
+    let firstPromptMarked = false;
     const blocks: Block[] = [];
     let current: Block | null = null;
     const oscs: IDisposable[] = [];
@@ -179,6 +181,10 @@ export function TerminalView(props: Props) {
         if (!m) return false;
         if (m.type === "promptStart") {
           runStartup();
+          if (!firstPromptMarked) {
+            firstPromptMarked = true;
+            void invoke("bench_mark", { name: "first_prompt" }).catch(() => {});
+          }
           current = { prompt: term.registerMarker(0) };
           blocks.push(current);
           if (blocks.length > 2000) blocks.splice(0, blocks.length - 2000).forEach((b) => b.prompt.dispose());

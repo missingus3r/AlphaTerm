@@ -18,7 +18,7 @@ const SECTIONS: [Section, string][] = [
   ["agentes", "Agentes y guardián"],
   ["consumo", "Consumo y widgets"],
   ["atajos", "Atajos de teclado"],
-  ["proximo", "Próximas fases"],
+  ["proximo", "Acerca y límites"],
 ];
 const SECTION_PREF = "alphaterm.settings.section";
 
@@ -185,7 +185,7 @@ export default function SettingsView(props: { info: TermInfo; store: SettingsSto
           <ShortcutSection s={s()} set={set} />
         </Show>
         <Show when={section() === "proximo"}>
-          <NextSection />
+          <AboutSection path={props.store.path} />
         </Show>
       </main>
     </div>
@@ -654,6 +654,26 @@ function AgentsSection(props: SectionProps) {
           </For>
         </ul>
       </Row>
+      <h3>Resumen de pestañas con un modelo</h3>
+      <Row label="Resumir con un modelo" hint="Opcional: cada cierto tiempo se le pasan las últimas líneas de las pestañas con actividad a un modelo (Ollama, vLLM, LM Studio…) y su respuesta es el nombre de la pestaña. El título que pone un programa (Claude Code) y el nombre a mano siguen mandando.">
+        <Toggle checked={props.s.llm.enabled} label={props.s.llm.enabled ? "Prendido" : "Apagado"} onChange={(v) => props.set((d) => void (d.llm.enabled = v))} />
+      </Row>
+      <Show when={props.s.llm.enabled}>
+        <Row label="Endpoint (compatible con OpenAI)">
+          <input class="text mono" value={props.s.llm.endpoint} onChange={(e) => props.set((d) => void (d.llm.endpoint = e.currentTarget.value))} />
+        </Row>
+        <Row label="Modelo" hint="Por ejemplo qwen2.5:1.5b en Ollama. Uno chico alcanza.">
+          <input class="text mono" value={props.s.llm.model} placeholder="nombre del modelo" onChange={(e) => props.set((d) => void (d.llm.model = e.currentTarget.value))} />
+        </Row>
+        <Row label="Clave (si el endpoint la pide)">
+          <input class="text mono" type="password" value={props.s.llm.apiKey} onChange={(e) => props.set((d) => void (d.llm.apiKey = e.currentTarget.value))} />
+        </Row>
+        <Row label="Cada">
+          <select class="text" value={String(props.s.llm.everySec)} onChange={(e) => props.set((d) => void (d.llm.everySec = Number(e.currentTarget.value)))}>
+            <For each={[30, 60, 120, 300]}>{(v) => <option value={v}>{v < 60 ? `${v} s` : `${v / 60} min`}</option>}</For>
+          </select>
+        </Row>
+      </Show>
       <h3>Al abrir AlphaTerm</h3>
       <Row label="Recuperar el último estado" hint="Ventanas, pestañas, paneles con su carpeta, colores, carpetas de pestañas y título.">
         <Toggle checked={props.s.session.restore} label={props.s.session.restore ? "Sí" : "No"} onChange={(v) => props.set((d) => void (d.session.restore = v))} />
@@ -876,25 +896,31 @@ function ShortcutSection(props: SectionProps) {
   );
 }
 
-// --- Próximas fases --------------------------------------------------------------------------------
+// --- Acerca y límites ---------------------------------------------------------------------------------
 
-function NextSection() {
+function AboutSection(props: { path: string }) {
   return (
     <section>
-      <h2>Próximas fases</h2>
-      <p class="muted">Estas opciones del plan llegan con su fase; acá van a aparecer cuando estén hechas y probadas:</p>
+      <h2>Acerca y límites</h2>
+      <p>
+        <b>AlphaTerm</b> (antes NovaTerm): terminal para trabajar con agentes de IA. Tauri 2 + Rust, SolidJS y xterm.js.
+      </p>
+      <p class="muted">Configuración: {props.path}</p>
+      <h3>Lo que no hace (y por qué)</h3>
       <ul class="next">
         <li>
-          <b>Agentes</b> (F4): catálogo de Claude Code, Codex, Antigravity (agy) y OpenCode, comandos y variables de entorno.
+          <b>Guardián</b>: frena a Claude Code (hooks) y a Codex (su modo de aprobación) lanzados desde AlphaTerm, y a lo que pase por la API.
+          No puede frenar a cualquier programa: Windows no lo permite sin un driver de sistema de archivos.
         </li>
         <li>
-          <b>Consumo por suscripción</b> (F5): prender o apagar cada proveedor y cada cuánto se consulta.
+          <b>Consumo de Claude</b>: el porcentaje exacto sale de la statusline de Claude Code (hay que conectarla en «Consumo y widgets»).
+          No se leen las credenciales de Claude ni se llama a su servidor.
         </li>
         <li>
-          <b>CPU y RAM</b> (F5): frecuencia del widget.
+          <b>Consumo de Codex</b>: es el último dato que Codex dejó en sus sesiones; si hace días que no se usa, está viejo (se avisa).
         </li>
         <li>
-          <b>Resumen de pestañas con un modelo</b> (F9): endpoint compatible con OpenAI (Ollama o vLLM) y cada cuánto resume.
+          <b>Integración de la shell</b>: PowerShell, Git Bash y cmd. WSL no, y en cmd no se sabe el código de salida.
         </li>
       </ul>
     </section>

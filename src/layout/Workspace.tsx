@@ -336,6 +336,36 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     return providerFor(p.agentId, p.running ? p.lastCommand : undefined, p.fgProcess);
   };
 
+  // --- Resumen de pestañas con un modelo (opcional): cada N s (mínimo 30), solo las que tuvieron
+  // salida desde la última vez, de a 3 por vuelta. Si falla, se deja de intentar hasta el próximo cambio.
+  const hadOutput = new Set<string>();
+  createEffect(() => {
+    for (const [id, p] of Object.entries(panes)) if (p.active) hadOutput.add(id);
+  });
+  createEffect(() => {
+    const l = settings().llm;
+    if (!l.enabled || !l.model) return;
+    const t = setInterval(async () => {
+      if (document.hidden) return;
+      const ids = layout()
+        .tabs.map((tab) => tab.activePane)
+        .filter((id) => hadOutput.has(id))
+        .slice(0, 3);
+      for (const id of ids) {
+        hadOutput.delete(id);
+        const text = handles.get(id)?.text(80);
+        if (!text?.trim()) continue;
+        try {
+          const title = await invoke<string>("llm_summarize", { endpoint: l.endpoint, model: l.model, apiKey: l.apiKey || null, text });
+          if (panes[id]) setPanes(id, "llmTitle", title);
+        } catch (e) {
+          console.warn("Resumen con modelo:", e);
+        }
+      }
+    }, l.everySec * 1000);
+    onCleanup(() => clearInterval(t));
+  });
+
   // --- API de control: esta ventana contesta por sus paneles --------------------------------------
   onMount(async () => {
     const label = getCurrentWindow().label;
