@@ -501,3 +501,18 @@ Bajar de ahí pediría otro motor de interfaz: no se hizo.
   renombre `85f31a8`, extras y F9 hasta `cef9654`.
 - Tests: Rust 55 (+3 ignorados), Vitest 96. Todos en verde.
 - Binario release: alphaterm.exe 14,9 MB (+ conpty.dll y OpenConsole.exe).
+
+---
+
+## Después de la entrega (18/11/2026)
+
+- **Claude Code sin colores dentro de AlphaTerm** (lo vio Bruno): AlphaTerm se había abierto desde
+  esta sesión de Claude Code y las shells heredaban su entorno: `NO_COLOR=1` (apaga los colores) y
+  ~30 variables `CLAUDE_CODE_*`, incluidos tokens y la marca de sesión hija (de ahí el aviso
+  "Transcript saving is off"). Ahora las shells se crean sin esas variables, salvo que estén en el
+  entorno persistente de Windows. Verificado: abriendo AlphaTerm desde la misma sesión, la shell
+  queda sin NO_COLOR ni CLAUDE_*, y Claude Code se ve con colores.
+- `build.rs` dejó de copiar la ConPTY después de renombrar la carpeta (la ruta quedaba fija en el build
+  script compilado): ahora la lee al correr.
+- Tests: Rust 56 (+3 ignorados), Vitest 96.
+

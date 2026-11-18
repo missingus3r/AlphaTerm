@@ -5,6 +5,7 @@
 //!   y deja el código de salida para que el agrupador lo informe después del último byte.
 
 pub mod batcher;
+pub mod env;
 pub mod integration;
 pub mod profiles;
 
@@ -187,6 +188,12 @@ pub fn spawn_env(
     let pair = native_pty_system().openpty(size(cols, rows)).map_err(|e| e.to_string())?;
     let launch = integration::launch_for(&profile.id, &profile.args);
     let mut cmd = CommandBuilder::new(&profile.command);
+    // Sin lo que se heredó del programa que abrió AlphaTerm (NO_COLOR, marcas y tokens de Claude Code…).
+    static PERSISTENT: OnceLock<std::collections::HashSet<String>> = OnceLock::new();
+    let persistent = PERSISTENT.get_or_init(env::persistent_names);
+    for name in env::to_remove(std::env::vars_os().filter_map(|(k, _)| k.into_string().ok()), persistent) {
+        cmd.env_remove(name);
+    }
     cmd.args(&launch.args);
     for (k, v) in &launch.env {
         cmd.env(k, v);

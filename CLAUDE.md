@@ -38,6 +38,11 @@ la guía de código en `Documentacion\Guia_de_codigo.txt` (y su PDF); el registr
 - Codex guarda sesiones como `.jsonl.zst`. agy: nunca desde Git Bash (MSYS convierte `/quota`).
 - Claude: el consumo exacto sale de la statusline (no se leen credenciales).
 - computer use: el escritorio a veces queda al frente y bloquea clics; usar CDP para la interfaz.
+- Las shells no heredan el entorno de quien abrió AlphaTerm (`src-tauri/src/pty/env.rs`): Claude Code
+  le pone NO_COLOR=1 y decenas de CLAUDE_CODE_* (con tokens) a sus herramientas. Se respetan si están
+  en el entorno persistente de Windows.
+- `build.rs`: rutas con `std::env::var("CARGO_MANIFEST_DIR")`, no `env!()` (queda fija al compilar el
+  build script y se rompe al mover la carpeta).
 
 ## Decisiones ya tomadas (no re-discutir sin motivo)
 - Tauri 2 + Rust; Vite + TypeScript + SolidJS 1.9; xterm.js 6 con WebGL (fallback DOM).
