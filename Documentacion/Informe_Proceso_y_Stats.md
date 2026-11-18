@@ -9,7 +9,7 @@ Regla de honestidad: lo que no esté verificado con datos reales de la máquina 
 |---|---|---|---|
 | F0 — Preparación | Terminada | 17/11/2026 | Toolchain probado, PDFs generados, gate aprobado |
 | F1 — Núcleo terminal | Terminada | 17/11/2026 | Probada en la app; throughput a la par de Windows Terminal |
-| F2 — Layout | Pendiente | | |
+| F2 — Layout | Terminada | 18/11/2026 | Probada en la app: pestañas, splits, multi-ventana, integración y títulos |
 | F3 — Settings y temas | Pendiente | | |
 | F4 — Agentes | Pendiente | | |
 | F5 — Widgets | Pendiente | | |
@@ -185,8 +185,107 @@ Aprobado por Bruno el 17/11/2026 ("Sí, arrancá F1").
 - `term.onBinary` (modo de mouse X10 de algunos programas viejos) no se reenvía todavía.
 - ssh interactivo no probado (no hay servidor ni clave en esta PC).
 - clippy no está instalado en el toolchain de esta PC (`rustup component add clippy`).
-- Nada commiteado todavía en el repo git.
+- ~~Nada commiteado todavía en el repo git.~~ Commit `b5d6529` (18/11/2026).
 
 ### Stats
 - Tests: Rust 9 + 2 benchmarks ignorados (`bench_conpty`, `bench_raw`); Vitest 8. Todos en verde.
 - Build release: 3 min 41 s; debug: 1 min 9 s.
+
+---
+
+## F2 — Layout (18/11/2026)
+
+### Hecho
+- **Modelo** (`src\layout\model.ts`, funciones puras): pestañas con un árbol de paneles (hojas y
+  divisiones en dos), agregar/cerrar/ciclar/mover/renombrar pestañas, dividir y cerrar paneles,
+  proporciones, rectángulos de cada panel y vecino por dirección para moverse con el teclado.
+- **Render sin re-montar**: los paneles se dibujan planos, posicionados por rectángulos, e iterando
+  por id (texto). Si se anidaran como componentes, dividir un panel volvería a crear su terminal y
+  mataría la shell.
+- **Pestañas ocultas**: siguen recibiendo y cargando datos en el buffer, pero sin WebGL (se suelta el
+  contexto al ocultarse y se vuelve a cargar al mostrarse). Los navegadores limitan los contextos
+  WebGL a ~16, así que con muchas pestañas esto evita perder el render.
+- **Barra de pestañas** arriba o a la izquierda (Ctrl+Shift+B; preferencia en localStorage hasta
+  F3), arrastrar para reordenar, clic del medio cierra, doble clic o Ctrl+Shift+R renombra (vacío
+  vuelve al nombre automático), punto de estado (en espera / ejecutando / falló / terminó) y número
+  de paneles. Selector de perfil para las pestañas nuevas.
+- **Marquee**: el nombre se desplaza si no entra, se pausa con el mouse encima, respeta
+  prefers-reduced-motion (queda con puntos suspensivos) y el tooltip muestra el texto entero más
+  carpeta, shell, PID, renderer y último comando.
+- **Multi-ventana** (Ctrl+Shift+N o botón): cada ventana tiene sus pestañas y sus sesiones. Cada
+  sesión guarda su ventana dueña: al cerrarse una ventana mueren solo sus shells; al recargar la
+  vista se matan solo las de esa ventana. Sin pestañas, la ventana se cierra.
+- **Atajos** (`src\layout\shortcuts.ts`): Ctrl+Shift+T/N/W, Alt+Shift++ / - / D (dividir), Alt+flechas,
+  Ctrl+Tab, Ctrl+1…9, Ctrl+Shift+R/B/O, Ctrl+Shift+↑/↓. **Nunca Ctrl+Alt**: en teclado español es
+  AltGr y se usa para escribir @ # [ ].
+- **Salida limpia** (`exit` con código 0) cierra el panel, como Windows Terminal; con error queda el
+  mensaje y Enter reinicia.
+- **Shell integration** (`src-tauri\shell\` + `src-tauri\src\pty\integration.rs`):
+  - PowerShell 5.1/7: script por `-EncodedCommand` (no lo frena la política de ejecución). Envuelve
+    `prompt` y `PSConsoleHostReadLine`. OSC 133 A/B/C/D;código, 633;E;comando, 7;carpeta. Fuerza
+    salida UTF-8. Compatible 5.1 (`[char]27`).
+  - Git Bash: `--init-file` que primero carga /etc/profile y ~/.bash_profile (lo que haría
+    --login). PS0 con el truco del subíndice aritmético para marcar el inicio del comando.
+  - cmd: variable PROMPT con 133;A/B/D (sin código) y 9;9;carpeta. Sin clink.
+  - WSL: sin integración (pendiente).
+- **Bloques estilo Warp**: marca verde/roja a la izquierda de cada prompt y en la regla lateral según
+  el código de salida (con tooltip), saltar al comando anterior/siguiente (Ctrl+Shift+↑/↓) y copiar
+  la salida del último comando (Ctrl+Shift+O).
+- **Título-resumen** (`src\layout\title.ts`): manual > título OSC del programa (solo mientras corre
+  un comando, o si no hay integración y no es un título de shell) > heurística (comando en curso +
+  carpeta + rama git). Para cmd se aprovecha el título "cmd.exe - comando" que pone cmd mismo.
+  El backend da el proceso en primer plano (descendiente más nuevo de la shell, sin conhost ni
+  OpenConsole, con sysinfo; se consulta cada 2 s y se pausa con la ventana minimizada) y la rama
+  git (leyendo `.git/HEAD`, con soporte de worktrees).
+
+### Tests
+- Rust: 17 (+2 benchmarks). Nuevos: integración real con PowerShell y Git Bash (llegan 133;B,
+  633;E, 133;C y 133;D con el código correcto), script codificado, bash con finales LF, proceso en
+  primer plano (incluye PID reciclado) y rama git.
+- Vitest: 32. Nuevos: modelo de pestañas y paneles (incluye vecinos en una grilla 2x2), atajos
+  (incluye que AltGr no dispare nada), título y heurística, parseo de OSC 133/633/7/9, cola de
+  escritura.
+
+### Prueba en la app (computer use)
+| Prueba | Resultado |
+|---|---|
+| Nombre por carpeta ("Br1") y título de ventana | OK |
+| Repo git: "NovaTerm (main)"; con comando en curso: "ping -n 6 · …" | OK |
+| Marcas verde/roja por código de salida | OK |
+| Splits (auto, abajo), foco con Alt+flechas, borde del panel activo | OK |
+| Pestaña nueva, Ctrl+Tab, la pestaña oculta sigue corriendo y se repinta bien | OK |
+| Renombrar con nombre largo: marquee se desplaza | OK |
+| Barra a la izquierda | OK |
+| Ventana nueva; `exit` cierra panel, pestaña y ventana; las shells de la otra ventana siguen (5 → 4) | OK |
+| Claude Code dentro de un panel | OK |
+| Título OSC de un programa mientras corre ("✳ Refactor del login…") y vuelta a la carpeta | OK (simulado) |
+| Ctrl+Shift+O copia exactamente la salida del último comando (leído del portapapeles) | OK |
+| Git Bash con integración en la app (título con comando, marca roja en un `cd` fallido) | OK |
+| cmd: carpeta por OSC 9;9 y "ping -n 8 · NovaTerm (main)" mientras corre | OK |
+| Arrastrar divisor | OK (después del arreglo) |
+
+### Bugs encontrados y corregidos
+- **Teclas invertidas** ("cmd" llegaba como "cdm"): cada tecla iba en un `invoke` independiente y el
+  backend podía atenderlos en otro orden. `WriteQueue` manda de a una y junta lo que se tipea
+  mientras espera. Es el bug más serio de la fase.
+- El Enter que confirma el renombrado también llegaba a la shell (prompt vacío de más).
+- El divisor no arrastraba: con los eventos delegados de Solid, `currentTarget` no es el elemento.
+- Al escribir los scripts de shell con un heredoc, cada `\\` quedó como `\`: el prompt de
+  PowerShell fallaba (mostraba `PS>`). Lo detectó el test de integración real.
+- Con `cd X; ping …` el título mostraba el `cd`: ahora se toma el último tramo de la cadena.
+
+### Pendiente / no verificado
+- **Título real de Claude Code**: no se probó con una tarea real (para no gastar cuota); el
+  mecanismo se probó simulando el título OSC. Al intentarlo, un comando de prueba le llegó a Claude
+  Code como mensaje (los Ctrl+C no lo habían cerrado) y consumió un turno (~77 mil tokens, casi todo
+  contexto inicial) hasta que se interrumpió con Esc.
+- Si el `cd` y el programa van en la misma línea, la carpeta del título es la anterior hasta que
+  vuelve el prompt.
+- Cuando NovaTerm se lanza desde una sesión de Claude Code, las shells heredan variables
+  `CLAUDE_CODE_*` (Claude Code adentro avisa "Transcript saving is off"). Lanzada normalmente no pasa.
+- WSL sin integración; cmd sin código de salida ni texto del comando (haría falta clink).
+- La preferencia de barra vertical vive en localStorage hasta F3.
+
+### Stats
+- Archivos nuevos: 13 (6 de lógica con tests, 4 componentes, 2 scripts de shell, 1 módulo Rust).
+- Tests: Rust 17 (+2 ignorados), Vitest 32. Todos en verde.

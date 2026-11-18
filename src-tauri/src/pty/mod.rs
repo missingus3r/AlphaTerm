@@ -5,6 +5,7 @@
 //!   y deja el código de salida para que el agrupador lo informe después del último byte.
 
 pub mod batcher;
+pub mod integration;
 pub mod profiles;
 
 use batcher::{BatchConfig, Flow};
@@ -19,7 +20,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 use tauri::ipc::{Channel, InvokeResponseBody};
-use tauri::State;
+use tauri::{State, Webview};
 
 /// Bytes en vuelo antes de frenar al proceso (y desde dónde se lo vuelve a soltar).
 const HIGH_WATER: u64 = 2 * 1024 * 1024;
@@ -34,6 +35,9 @@ pub enum PtyEvent {
 }
 
 struct Session {
+    /// Ventana dueña de la sesión: al cerrarse esa ventana se matan sus sesiones.
+    owner: String,
+    pid: Option<u32>,
     writer: Mutex<Box<dyn Write + Send>>,
     master: Mutex<Option<Box<dyn MasterPty + Send>>>,
     killer: Mutex<Box<dyn ChildKiller + Send + Sync>>,
@@ -51,6 +55,19 @@ impl PtyState {
         let s = self.get(id)?;
         let mut w = s.writer.lock().unwrap();
         w.write_all(data).and_then(|_| w.flush()).map_err(|e| e.to_string())
+    }
+
+    /// Mata las sesiones de una ventana (se recargó la vista o se cerró la ventana).
+    pub fn kill_owner(&self, owner: &str) {
+        let mine: Vec<_> = self.sessions.lock().unwrap().values().filter(|s| s.owner == owner).cloned().collect();
+        for s in mine {
+            kill_session(&s);
+        }
+    }
+
+    fn shell_pids(&self, ids: &[u32]) -> Vec<(u32, u32)> {
+        let map = self.sessions.lock().unwrap();
+        ids.iter().filter_map(|id| Some((*id, map.get(id)?.pid?))).collect()
     }
 
     fn get(&self, id: u32) -> Result<Arc<Session>, String> {
@@ -90,7 +107,9 @@ fn home_dir() -> PathBuf {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn pty_spawn(
+    webview: Webview,
     state: State<'_, Arc<PtyState>>,
     profile_id: String,
     cwd: Option<String>,
@@ -101,6 +120,7 @@ pub fn pty_spawn(
 ) -> Result<SpawnInfo, String> {
     spawn(
         state.inner(),
+        webview.label(),
         &profile_id,
         cwd,
         cols,
@@ -114,8 +134,10 @@ pub fn pty_spawn(
 
 /// Lanza una sesión. `on_data` recibe los lotes (devolver `false` corta la sesión) y `on_exit`
 /// se llama una sola vez, después del último lote.
+#[allow(clippy::too_many_arguments)]
 pub fn spawn(
     state: &Arc<PtyState>,
+    owner: &str,
     profile_id: &str,
     cwd: Option<String>,
     cols: u16,
@@ -132,8 +154,12 @@ pub fn spawn(
     }
 
     let pair = native_pty_system().openpty(size(cols, rows)).map_err(|e| e.to_string())?;
+    let launch = integration::launch_for(&profile.id, &profile.args);
     let mut cmd = CommandBuilder::new(&profile.command);
-    cmd.args(&profile.args);
+    cmd.args(&launch.args);
+    for (k, v) in &launch.env {
+        cmd.env(k, v);
+    }
     let dir = cwd.map(PathBuf::from).filter(|p| p.is_dir()).unwrap_or_else(home_dir);
     cmd.cwd(dir);
     cmd.env("TERM", "xterm-256color");
@@ -149,6 +175,8 @@ pub fn spawn(
 
     let flow = Arc::new(Flow::new(HIGH_WATER, LOW_WATER));
     let session = Arc::new(Session {
+        owner: owner.to_string(),
+        pid,
         writer: Mutex::new(writer),
         master: Mutex::new(Some(pair.master)),
         killer: Mutex::new(child.clone_killer()),
@@ -244,14 +272,24 @@ pub fn pty_kill(state: State<'_, Arc<PtyState>>, id: u32) {
     }
 }
 
-/// Mata todas las sesiones. El frontend lo llama al arrancar, para no dejar shells huérfanas
-/// si la vista se recargó.
+/// Mata las sesiones de la ventana que llama. El frontend lo hace al arrancar, para no dejar
+/// shells huérfanas si la vista se recargó.
 #[tauri::command]
-pub fn pty_kill_all(state: State<'_, Arc<PtyState>>) {
-    let all: Vec<_> = state.sessions.lock().unwrap().values().cloned().collect();
-    for s in all {
-        kill_session(&s);
-    }
+pub fn pty_kill_owned(webview: Webview, state: State<'_, Arc<PtyState>>) {
+    state.kill_owner(webview.label());
+}
+
+/// Proceso en primer plano de cada sesión pedida (para la heurística del título).
+#[tauri::command]
+pub fn pty_foreground(
+    state: State<'_, Arc<PtyState>>,
+    procs: State<'_, crate::procinfo::ProcState>,
+    ids: Vec<u32>,
+) -> HashMap<u32, Option<crate::procinfo::Foreground>> {
+    let pairs = state.shell_pids(&ids);
+    let shells: Vec<u32> = pairs.iter().map(|p| p.1).collect();
+    let fg = procs.foreground(&shells);
+    pairs.into_iter().map(|(id, pid)| (id, fg.get(&pid).cloned().flatten())).collect()
 }
 
 #[cfg(test)]
@@ -268,6 +306,7 @@ mod tests {
         let (etx, erx) = channel::<Option<u32>>();
         let info = spawn(
             &state,
+            "test",
             "cmd",
             None,
             80,
@@ -300,7 +339,7 @@ mod tests {
     fn kill_corta_la_sesion() {
         let state = Arc::new(PtyState::default());
         let (etx, erx) = channel::<Option<u32>>();
-        let info = spawn(&state, "cmd", None, 80, 24, |_| true, move |c| etx.send(c).unwrap()).unwrap();
+        let info = spawn(&state, "test", "cmd", None, 80, 24, |_| true, move |c| etx.send(c).unwrap()).unwrap();
         state.write(info.id, b"[1;1R").unwrap();
         let t = Instant::now();
         state.get(info.id).map(|s| kill_session(&s)).unwrap();
@@ -334,6 +373,7 @@ mod bench {
         let id2 = id_cell.clone();
         let info = spawn(
             &state,
+            "test",
             "cmd",
             None,
             200,
@@ -386,7 +426,7 @@ mod bench_raw {
         let pair = native_pty_system()
             .openpty(PtySize { rows: 50, cols: 200, pixel_width: 0, pixel_height: 0 })
             .unwrap();
-        let mut cmd = match std::env::var("NOVA_BENCH_EXE") {
+        let cmd = match std::env::var("NOVA_BENCH_EXE") {
             Ok(exe) => {
                 let mut c = CommandBuilder::new(exe);
                 let args = std::env::var("NOVA_BENCH_ARGS").unwrap_or_default();
@@ -423,5 +463,55 @@ mod bench_raw {
         drop(pair.master);
         let (n, reads) = h.join().unwrap();
         println!("crudo: {:.1} MB en {:.2} s = {:.2} MB/s, {} lecturas", n as f64 / 1e6, secs, n as f64 / 1e6 / secs, reads);
+    }
+}
+
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use std::sync::mpsc::{channel, Receiver};
+    use std::time::Instant;
+
+    /// Junta salida hasta que aparezca `needle` (o se venza el plazo).
+    fn wait_for(rx: &Receiver<Vec<u8>>, acc: &mut String, needle: &str, secs: u64) -> bool {
+        let end = Instant::now() + Duration::from_secs(secs);
+        while !acc.contains(needle) {
+            let left = end.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return false;
+            }
+            if let Ok(b) = rx.recv_timeout(left) {
+                acc.push_str(&String::from_utf8_lossy(&b));
+            }
+        }
+        true
+    }
+
+    fn check_shell(profile: &str, failing: &str, code: u32) {
+        let state = Arc::new(PtyState::default());
+        let (tx, rx) = channel::<Vec<u8>>();
+        let info = spawn(&state, "test", profile, None, 120, 30, move |b| tx.send(b).is_ok(), |_| {}).unwrap();
+        state.write(info.id, b"\x1b[1;1R").unwrap();
+        let mut out = String::new();
+        assert!(wait_for(&rx, &mut out, "\x1b]133;B", 30), "{profile}: no llegó el fin del prompt: {out:?}");
+        assert!(out.contains("\x1b]7;file://") || out.contains("\x1b]9;9;"), "{profile}: sin carpeta: {out:?}");
+        state.write(info.id, format!("{failing}\r").as_bytes()).unwrap();
+        let end = format!("\x1b]133;D;{code}");
+        assert!(wait_for(&rx, &mut out, &end, 30), "{profile}: no llegó {end:?}: {out:?}");
+        assert!(out.contains("\x1b]633;E;"), "{profile}: sin texto del comando: {out:?}");
+        assert!(out.contains("\x1b]133;C"), "{profile}: sin inicio de comando");
+        state.write(info.id, b"exit\r").unwrap();
+    }
+
+    #[test]
+    fn powershell_emite_marcas_y_codigo() {
+        check_shell("powershell", "cmd /c exit 4", 4);
+    }
+
+    #[test]
+    fn git_bash_emite_marcas_y_codigo() {
+        if profiles::detect().iter().any(|p| p.id == "gitbash" && p.available) {
+            check_shell("gitbash", "(exit 5)", 5);
+        }
     }
 }

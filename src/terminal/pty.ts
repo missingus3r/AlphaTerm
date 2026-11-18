@@ -1,4 +1,5 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
+import { WriteQueue } from "./writeQueue";
 
 export interface Profile {
   id: string;
@@ -23,7 +24,18 @@ export interface SpawnInfo {
 export type PtyEvent = { type: "exit"; code: number | null };
 
 export const termInfo = () => invoke<TermInfo>("term_info");
-export const killAll = () => invoke<void>("pty_kill_all");
+/** Mata las sesiones de esta ventana (por si la vista se recargó). */
+export const killOwned = () => invoke<void>("pty_kill_owned");
+
+export interface Foreground {
+  name: string;
+  pid: number;
+}
+/** Proceso en primer plano de cada sesión (clave: id de sesión). */
+export const foreground = (ids: number[]) =>
+  invoke<Record<string, Foreground | null>>("pty_foreground", { ids });
+export const gitBranch = (cwd: string) => invoke<string | null>("git_branch", { cwd });
+export const newWindow = () => invoke<string>("window_new");
 
 export interface SpawnOptions {
   profileId: string;
@@ -36,7 +48,11 @@ export interface SpawnOptions {
 
 /** Sesión PTY del backend. La salida llega como ArrayBuffer por un canal binario. */
 export class PtySession {
-  private constructor(readonly info: SpawnInfo) {}
+  private readonly queue: WriteQueue;
+
+  private constructor(readonly info: SpawnInfo) {
+    this.queue = new WriteQueue((data) => invoke<void>("pty_write", { id: info.id, data }));
+  }
 
   static async spawn(o: SpawnOptions): Promise<PtySession> {
     const onData = new Channel<ArrayBuffer>();
@@ -58,8 +74,9 @@ export class PtySession {
     return this.info.id;
   }
 
+  /** Encola: las escrituras llegan a la shell en el mismo orden en que se tipearon. */
   write(data: string) {
-    return invoke<void>("pty_write", { id: this.id, data });
+    this.queue.write(data);
   }
 
   resize(cols: number, rows: number) {

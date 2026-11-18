@@ -1,31 +1,122 @@
 :root {
   --bg: #0d1017;
   --bar: #121722;
+  --tab: #171d2a;
+  --tab-hover: #1c2433;
   --line: #1f2737;
   --text: #d6deeb;
   --muted: #7d8aa3;
   --accent: #60a5fa;
+  --ok: #8bd49c;
+  --err: #ef6b73;
   color-scheme: dark;
   font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   font-size: 13px;
 }
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; background: var(--bg); color: var(--text); overflow: hidden; }
-.app { display: flex; flex-direction: column; height: 100%; }
-.topbar {
-  display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px;
-  background: var(--bar); border-bottom: 1px solid var(--line); flex: none; user-select: none;
+.app { height: 100%; }
+.error { padding: 16px; color: var(--err); }
+
+/* --- Disposición: barra arriba o a la izquierda --- */
+.workspace { display: flex; flex-direction: column; height: 100%; }
+.workspace.vertical { flex-direction: row; }
+.tab-area { flex: 1; min-width: 0; min-height: 0; position: relative; }
+
+/* --- Barra de pestañas --- */
+.tabbar {
+  display: flex; align-items: stretch; gap: 6px; flex: none; user-select: none;
+  background: var(--bar); border-bottom: 1px solid var(--line); height: 36px; padding: 0 6px;
 }
-.brand { font-weight: 600; color: var(--accent); letter-spacing: .02em; }
-.profile, .btn {
+.tabbar .tabs { display: flex; align-items: stretch; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.tabbar.vertical { flex-direction: column; width: 220px; height: auto; border-bottom: 0; border-right: 1px solid var(--line); padding: 6px; }
+.tabbar.vertical .tabs { flex-direction: column; overflow-x: hidden; overflow-y: auto; }
+
+.tab {
+  display: flex; align-items: center; gap: 7px; min-width: 120px; max-width: 240px; flex: 0 1 200px;
+  padding: 0 6px 0 10px; margin-top: 5px; border-radius: 7px 7px 0 0; cursor: default;
+  background: transparent; color: var(--muted); position: relative;
+}
+.tab:hover { background: var(--tab-hover); color: var(--text); }
+.tab.active { background: var(--bg); color: var(--text); }
+.tab.active::after { content: ""; position: absolute; left: 8px; right: 8px; top: 0; height: 2px; border-radius: 2px; background: var(--accent); }
+.tab.dragging { opacity: .5; }
+.tabbar.vertical .tab { max-width: none; flex: none; height: 32px; margin: 0; border-radius: 6px; }
+.tabbar.vertical .tab.active::after { left: 0; right: auto; top: 7px; bottom: 7px; width: 2px; height: auto; }
+
+.tab .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: #3a465c; }
+.tab .dot.st-running { background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+.tab .dot.st-error { background: var(--err); }
+.tab .dot.st-exited { background: transparent; border: 1px solid var(--muted); }
+@keyframes pulse { 50% { opacity: .35; } }
+
+.tab .panes { font-size: 10px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+.tab .close {
+  flex: none; width: 20px; height: 20px; border: 0; border-radius: 5px; background: none; color: var(--muted);
+  font-size: 15px; line-height: 1; cursor: pointer; opacity: 0;
+}
+.tab:hover .close, .tab.active .close { opacity: 1; }
+.tab .close:hover { background: #2a3447; color: var(--text); }
+.tab-edit { flex: 1; min-width: 0; background: var(--bar); color: var(--text); border: 1px solid var(--accent); border-radius: 4px; font: inherit; padding: 1px 4px; }
+
+/* --- Marquee --- */
+.marquee { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; }
+.marquee-inner { display: inline-block; }
+.marquee.scrolling .marquee-inner { animation: marquee var(--dur) ease-in-out infinite alternate; }
+.marquee.scrolling:hover .marquee-inner { animation-play-state: paused; }
+@keyframes marquee {
+  0%, 15% { transform: translateX(0); }
+  85%, 100% { transform: translateX(calc(-1 * var(--shift))); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee.scrolling .marquee-inner { animation: none; }
+  .marquee { text-overflow: ellipsis; }
+  .marquee-inner { display: inline; }
+}
+
+.new-tab { display: flex; align-items: center; gap: 4px; padding: 5px 0 0 4px; flex: none; }
+.tabbar.vertical .new-tab { padding: 6px 0 0; }
+.bar-actions { display: flex; align-items: center; gap: 4px; padding-top: 5px; flex: none; }
+.tabbar.vertical .bar-actions { padding-top: 6px; border-top: 1px solid var(--line); }
+.btn, .profile {
   background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
-  height: 24px; padding: 0 8px; font: inherit;
+  height: 24px; padding: 0 8px; font: inherit; display: inline-flex; align-items: center; justify-content: center;
 }
-.btn { cursor: pointer; }
+.btn { cursor: pointer; min-width: 26px; }
+.btn.add { font-size: 16px; }
+.btn.help { cursor: help; color: var(--muted); }
 .btn:hover, .profile:hover { border-color: var(--accent); }
-.title { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--muted); }
-.meta { color: var(--muted); font-variant-numeric: tabular-nums; }
-.term-area { flex: 1; min-height: 0; position: relative; }
-.term-host { position: absolute; inset: 0; padding: 6px 4px 4px 10px; }
+.profile { max-width: 150px; }
+
+/* --- Pestañas y paneles --- */
+.tab-view { position: absolute; inset: 0; display: none; }
+.tab-view.visible { display: block; }
+.pane { position: absolute; overflow: hidden; }
+.pane.focused::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  box-shadow: inset 0 0 0 1px #2563eb88; border-radius: 2px;
+}
+.term-host { position: absolute; inset: 0; padding: 6px 4px 4px 12px; }
 .term-host .xterm { height: 100%; }
-.error { padding: 16px; color: #ef6b73; }
+
+/* Zona de agarre de 7 px que se ve como una línea de 1 px. */
+.divider { position: absolute; z-index: 5; }
+.divider::before { content: ""; position: absolute; background: var(--line); transition: background .12s; }
+.divider.row { width: 7px; margin-left: -3px; cursor: col-resize; }
+.divider.row::before { left: 3px; width: 1px; top: 0; bottom: 0; }
+.divider.column { height: 7px; margin-top: -3px; cursor: row-resize; }
+.divider.column::before { top: 3px; height: 1px; left: 0; right: 0; }
+.divider:hover::before, body.resizing .divider::before { background: var(--accent); }
+
+/* --- Marcas de comandos (shell integration) --- */
+.nt-mark { pointer-events: auto; }
+.nt-mark::before {
+  content: ""; position: absolute; left: -9px; top: 2px; bottom: 2px; width: 3px; border-radius: 2px;
+}
+.nt-mark.nt-ok::before { background: #8bd49c99; }
+.nt-mark.nt-err::before { background: var(--err); }
+
+/* Mientras se arrastra un divisor, las terminales no se quedan con el mouse. */
+body.resizing .pane { pointer-events: none; }
+body.resizing-row, body.resizing-row * { cursor: col-resize !important; }
+body.resizing-column, body.resizing-column * { cursor: row-resize !important; }

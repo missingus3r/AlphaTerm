@@ -1,0 +1,28 @@
+//! Ventanas: cada ventana es independiente (sus pestañas y sus sesiones).
+
+use std::sync::atomic::{AtomicU32, Ordering};
+use tauri::webview::Color;
+use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder};
+
+static NEXT: AtomicU32 = AtomicU32::new(1);
+
+/// Abre una ventana nueva. Es async porque en Windows crear ventanas desde un comando
+/// sincrónico puede trabar el hilo de eventos.
+#[tauri::command]
+pub async fn window_new(app: AppHandle) -> Result<String, String> {
+    let label = format!("win-{}", NEXT.fetch_add(1, Ordering::SeqCst));
+    WebviewWindowBuilder::new(&app, &label, WebviewUrl::App("index.html".into()))
+        .title("NovaTerm")
+        .inner_size(1100.0, 700.0)
+        .min_inner_size(480.0, 300.0)
+        .background_color(Color(13, 16, 23, 255))
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(label)
+}
+
+/// Rama git de una carpeta (para el título de la pestaña).
+#[tauri::command]
+pub fn git_branch(cwd: String) -> Option<String> {
+    crate::procinfo::git_branch(std::path::Path::new(&cwd))
+}
