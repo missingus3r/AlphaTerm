@@ -1,6 +1,6 @@
 import { For, type JSX } from "solid-js";
 
-export type PanelId = "agents" | "servers" | "projects" | "git";
+export type PanelId = "agents" | "servers" | "projects" | "git" | "history" | "docker";
 
 /** Íconos de 18 px dibujados con trazos (heredan el color del texto). */
 const svg = (d: JSX.Element) => (
@@ -52,6 +52,18 @@ export const PANELS: { id: PanelId; label: string; command: string; icon: () => 
           <circle cx="6" cy="18" r="2.2" />
           <circle cx="18" cy="8" r="2.2" />
           <path d="M6 8.2v7.6M18 10.2c0 4-6 3.5-10.5 6.3" />
+        </>,
+      ),
+  },
+  {
+    id: "history",
+    label: "Historial",
+    command: "panelHistory",
+    icon: () =>
+      svg(
+        <>
+          <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+          <path d="M3 3v5h5M12 7v5l3 2" />
         </>,
       ),
   },

@@ -15,7 +15,7 @@ import { agentRunning, agentState, pushRecent } from "../panels/agentState";
 import type { RunningAgent } from "../panels/AgentsPanel";
 import { ActivityBar, PANELS, type PanelId } from "../panels/ActivityBar";
 import { SysWidget, type TabProcs } from "../widgets/SysWidget";
-import { UsageFooter } from "../widgets/UsageFooter";
+import { providerFor, UsageFooter } from "../widgets/UsageFooter";
 import { candidate, mergeRecipe, type PaneRef, type Server } from "../panels/servers";
 import type { Recipe } from "../settings/schema";
 import { restore as restoreSession, serialize, type SavedWindow } from "./session";
@@ -24,6 +24,7 @@ const AgentsPanel = lazy(() => import("../panels/AgentsPanel"));
 const ServersPanel = lazy(() => import("../panels/ServersPanel"));
 const ProjectsPanel = lazy(() => import("../panels/ProjectsPanel"));
 const GitPanel = lazy(() => import("../panels/GitPanel"));
+const HistoryPanel = lazy(() => import("../panels/HistoryPanel"));
 const PANEL_WIDTH_PREF = "alphaterm.panel.width";
 const PANEL_PREF = "alphaterm.panel";
 
@@ -299,6 +300,36 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   // PATH completo (proceso + registro + carpetas de agentes): un agente instalado después de
   // abrir AlphaTerm igual se encuentra.
   const [pathEnv] = createResource(() => invoke<string>("agents_path_env").catch(() => ""));
+
+  // --- Historial de comandos: se guarda cada comando que termina (shells con integración) ------
+  const [historyVersion, setHistoryVersion] = createSignal(0);
+  const wasRunning = new Map<string, boolean>();
+  createEffect(() => {
+    for (const [id, p] of Object.entries(panes)) {
+      const before = wasRunning.get(id) ?? false;
+      wasRunning.set(id, p.running);
+      if (before && !p.running && p.lastCommand) {
+        void invoke("history_add", {
+          entry: { command: p.lastCommand, cwd: p.cwd ?? null, exitCode: p.exitCode ?? null, at: Date.now(), shell: p.shellName ?? null },
+        })
+          .then(() => setHistoryVersion((v) => v + 1))
+          .catch(() => {});
+      }
+    }
+  });
+  const useCommand = (command: string, runIt: boolean) => {
+    const id = activePaneId();
+    if (!id) return;
+    handles.get(id)?.send(command, runIt);
+    handles.get(id)?.focus();
+  };
+  // Proveedor de consumo del agente de la pestaña activa (lanzado desde el panel o tipeado).
+  const activeProvider = () => {
+    const id = activePaneId();
+    const p = id ? panes[id] : undefined;
+    if (!p) return null;
+    return providerFor(p.agentId, p.running ? p.lastCommand : undefined, p.fgProcess);
+  };
 
   // --- Sesión: se guarda un rato después de cada cambio (layout, carpetas, título, panel) ----------
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -657,6 +688,9 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                 onTerminal={(dir) => update((x) => M.addTab(x, M.newTab(newTabProfile(), dir)))}
               />
             </Show>
+            <Show when={panel() === "history"}>
+              <HistoryPanel onUse={useCommand} version={historyVersion()} />
+            </Show>
             <Show when={panel() === "agents"}>
               <AgentsPanel
                 agents={settings().agents}
@@ -674,7 +708,13 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
       <ActivityBar active={panel()} onToggle={togglePanel} help={shortcutHelp(settings().shortcuts)} />
       </div>
     </div>
-    <UsageFooter usage={settings().usage} onSettings={() => void openSettings()} />
+    <UsageFooter
+      usage={settings().usage}
+      onSettings={() => void openSettings()}
+      cwd={activeCwd()}
+      branch={activePaneId() ? panes[activePaneId()!]?.branch : undefined}
+      activeProvider={activeProvider()}
+    />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 pub mod agents;
 pub mod fonts;
 pub mod git;
+pub mod history;
 pub mod ports;
 pub mod procinfo;
 pub mod projects;
@@ -24,6 +25,7 @@ pub fn run() {
         .manage(sysmon::SysState::default())
         .manage(projects::WatchState::default())
         .manage(session::SessionState::default())
+        .manage(history::HistoryState::default())
         .manage({
             settings::migrate_from_novaterm();
             settings::SettingsState::new(settings::data_dir().join("settings.json"))
@@ -86,6 +88,8 @@ pub fn run() {
             projects::fs_stat,
             projects::fs_head,
             session::session_put,
+            history::history_add,
+            history::history_search,
             session::session_restore,
             session::session_claim,
             git::git_root,

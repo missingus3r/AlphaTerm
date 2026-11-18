@@ -45,6 +45,12 @@ export interface TermHandle {
   jumpPrompt(delta: 1 | -1): void;
   copyLastOutput(): Promise<boolean>;
   focus(): void;
+  /** Escribe texto en la shell como si se tipeara (con Enter al final si `enter`). */
+  send(text: string, enter: boolean): boolean;
+  /** Últimas `n` líneas del buffer (lo que se ve y el historial), como texto. */
+  text(n: number): string;
+  /** Salida del último comando terminado (con integración), o null. */
+  lastOutput(): { command?: string; output: string; exitCode?: number | null } | null;
 }
 
 interface Props {
@@ -69,6 +75,7 @@ interface Props {
 }
 
 interface Block {
+  command?: string;
   prompt: IMarker;
   output?: IMarker;
   end?: IMarker;
@@ -187,6 +194,7 @@ export function TerminalView(props: Props) {
         const m = parse633(data);
         if (!m) return false;
         integrated = true;
+        if (current) current.command = m.command;
         patch({ integrated: true, lastCommand: m.command });
         return true;
       }),
@@ -464,7 +472,36 @@ export function TerminalView(props: Props) {
       ),
     );
 
-    props.ref?.({ jumpPrompt, copyLastOutput, focus: () => term.focus() });
+    const bufferText = (from: number, to: number) => {
+      const buf = term.buffer.active;
+      let out = "";
+      for (let i = Math.max(0, from); i < Math.min(to, buf.length); i++) {
+        const line = buf.getLine(i);
+        if (!line) continue;
+        const next = buf.getLine(i + 1);
+        out += line.translateToString(true) + (next?.isWrapped ? "" : "\n");
+      }
+      return out;
+    };
+    props.ref?.({
+      jumpPrompt,
+      copyLastOutput,
+      focus: () => term.focus(),
+      send: (text, enter) => {
+        if (!session) return false;
+        session.write(enter ? text + String.fromCharCode(13) : text);
+        return true;
+      },
+      text: (n) => {
+        const buf = term.buffer.active;
+        return bufferText(buf.length - Math.max(1, Math.min(n, 5000)), buf.length).replace(/\n+$/, "\n");
+      },
+      lastOutput: () => {
+        const b = [...blocks].reverse().find((x) => x.output && x.end && x.output.line >= 0 && x.end.line >= 0);
+        if (!b) return null;
+        return { output: bufferText(b.output!.line, b.end!.line).replace(/\n+$/, "\n"), exitCode: b.exitCode, command: b.command };
+      },
+    });
     void start();
 
     onCleanup(() => {
