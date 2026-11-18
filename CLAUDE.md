@@ -9,8 +9,8 @@ la guía de código en `Documentacion\Guia_de_codigo.txt` (y su PDF); el registr
 - F0 a F9 terminadas, más los extras pedidos (API de control para agentes + MCP, Docker, guardián,
   paneles en mosaico, historial, sesión, rutas con vista previa, carpetas y color de pestañas…).
 - Renombrada a AlphaTerm: binario `alphaterm.exe`, identificador `uy.alphaterm.app`, datos en
-  `%APPDATA%\AlphaTerm` (se copia la de NovaTerm la primera vez). La carpeta del proyecto todavía
-  puede llamarse `Desktop\NovaTerm` si no se renombró.
+  `%APPDATA%\AlphaTerm` (se copia la de NovaTerm la primera vez). La carpeta del proyecto es
+  `Desktop\AlphaTerm` (renombrada el 18/11/2026; antes `Desktop\NovaTerm`).
 - Pendiente: decidir empaquetado (exe suelto o instalador NSIS); probar Docker con un contenedor
   real y Claude Code con una tarea real pasando por el guardián; metas de RAM (<120 MB) y arranque
   (<500 ms) no se cumplen (~225 MB y 1,2–1,4 s, dominados por WebView2).

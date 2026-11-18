@@ -493,8 +493,8 @@ Bajar de ahí pediría otro motor de interfaz: no se hizo.
 - Los selectores de carpeta nativos (no se pueden manejar con computer use).
 - La sesión no guarda tamaño ni posición de las ventanas.
 - Empaquetado (exe suelto o instalador NSIS): decisión de Bruno.
-- La carpeta del proyecto sigue siendo `Desktop\NovaTerm`: se renombra cuando esta sesión de Claude
-  Code la suelte.
+- ~~La carpeta del proyecto sigue siendo `Desktop\NovaTerm`~~: renombrada a `Desktop\AlphaTerm` el
+  18/11/2026 (con la sesión de Claude Code fuera de la carpeta y la app cerrada).
 
 ### Stats
 - Commits: F3 `8b4a54b`, F4 `9ce06bc`, F5 `3b94920`, F6 `b617faf`, F7 `38c09ad`, F8 `de356a4`,

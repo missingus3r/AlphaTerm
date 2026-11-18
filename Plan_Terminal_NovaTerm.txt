@@ -37,7 +37,7 @@ Primer paso al aprobar: exportar este plan completo al Escritorio (Plan_Terminal
 ARQUITECTURA
 ====================================================================
 
-Desktop\NovaTerm\
+Desktop\NovaTerm\   (desde el 18/11/2026: Desktop\AlphaTerm\)
   src-tauri\        (Rust: backend)
     src\pty\        sesiones ConPTY (portable-pty), batching de salida, shell integration
     src\sys\        CPU/RAM (sysinfo), puertos/procesos (GetExtendedTcpTable via crate windows)
