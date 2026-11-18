@@ -21,7 +21,7 @@ export type ProviderId = "claude" | "codex" | "agy";
 export function providerFor(agentId?: string, command?: string, fg?: string): ProviderId | null {
   const pick = (s?: string) => {
     const first = (s ?? "").trim().split(/\s+/)[0] ?? "";
-    const base = first.split(/[\/]/).pop()?.toLowerCase().replace(/\.(exe|cmd)$/, "") ?? "";
+    const base = first.split(/[\\/]/).pop()?.toLowerCase().replace(/\.(exe|cmd)$/, "") ?? "";
     return base === "claude" || base === "codex" || base === "agy" ? (base as ProviderId) : null;
   };
   return pick(agentId) ?? pick(command) ?? pick(fg);
