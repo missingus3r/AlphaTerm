@@ -14,6 +14,8 @@ import type { AgentDef } from "../settings/schema";
 import { agentRunning, agentState, pushRecent } from "../panels/agentState";
 import type { RunningAgent } from "../panels/AgentsPanel";
 import { ActivityBar, PANELS, type PanelId } from "../panels/ActivityBar";
+import { SysWidget, type TabProcs } from "../widgets/SysWidget";
+import { UsageFooter } from "../widgets/UsageFooter";
 
 const AgentsPanel = lazy(() => import("../panels/AgentsPanel"));
 const PANEL_PREF = "novaterm.panel";
@@ -229,6 +231,14 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     update((x) => M.addTab(x, M.newTab(defaultProfile(), cwd, { command: agent.command, env, agentId: agent.id })));
     if (cwd) props.store.update((d) => void (d.recentDirs = pushRecent(d.recentDirs, cwd)));
   };
+  // Shells de esta ventana (para el consumo por pestaña del widget de CPU/RAM).
+  const tabProcs = createMemo<TabProcs[]>(() =>
+    layout().tabs.flatMap((t) =>
+      M.leaves(t.root)
+        .filter((l) => panes[l.id]?.pid)
+        .map((l, i, all) => ({ title: all.length > 1 ? `${titleOf(t)} (${i + 1})` : titleOf(t), pid: panes[l.id]!.pid! })),
+    ),
+  );
   const focusPane = (tabId: string, paneId: string) => update((x) => M.focusPane(M.selectTab(x, tabId), tabId, paneId));
   const runningAgents = createMemo<RunningAgent[]>(() =>
     layout().tabs.flatMap((t) =>
@@ -343,6 +353,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   };
 
   return (
+    <div class="workspace-root">
     <div class="workspace" classList={{ vertical: vertical(), "with-panel": !!panel() }}>
       <TabBar
         tabs={tabItems()}
@@ -370,6 +381,11 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
         onToggleBar={toggleBar}
         onNewWindow={() => void newWindow()}
         onSettings={() => void openSettings()}
+        widgets={
+          <Show when={settings().sysmon.enabled}>
+            <SysWidget everyMs={settings().sysmon.everyMs} tabs={tabProcs()} vertical={vertical()} />
+          </Show>
+        }
       />
       <div class="body">
       <main class="tab-area">
@@ -463,6 +479,8 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
       </Show>
       <ActivityBar active={panel()} onToggle={togglePanel} help={shortcutHelp(settings().shortcuts)} />
       </div>
+    </div>
+    <UsageFooter usage={settings().usage} onSettings={() => void openSettings()} />
     </div>
   );
 }

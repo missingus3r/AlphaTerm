@@ -78,6 +78,18 @@ export interface Settings {
   agents: AgentDef[];
   /** Carpetas usadas hace poco para lanzar agentes (la más reciente primero). */
   recentDirs: string[];
+  /** Footer de consumo por suscripción. */
+  usage: {
+    claude: boolean;
+    codex: boolean;
+    agy: boolean;
+    /** Claude y Codex se leen de archivos locales: es barato. */
+    filesEverySec: number;
+    /** agy ejecuta `agy -p /quota` (no gasta cuota, pero tarda unos segundos). */
+    agyEveryMin: number;
+  };
+  /** Widget de CPU y RAM. */
+  sysmon: { enabled: boolean; everyMs: number };
 }
 
 export const DEFAULT_FONT = "Cascadia Mono";
@@ -105,6 +117,8 @@ export const DEFAULTS: Settings = {
   shortcuts: {},
   agents: BUILTIN_AGENTS,
   recentDirs: [],
+  usage: { claude: true, codex: true, agy: true, filesEverySec: 60, agyEveryMin: 10 },
+  sysmon: { enabled: true, everyMs: 1000 },
 };
 
 export const LIMITS = {
@@ -115,6 +129,9 @@ export const LIMITS = {
   imageOpacity: [0.05, 1],
   scrollback: [500, 200_000],
   foregroundPollMs: [500, 10_000],
+  filesEverySec: [15, 3600],
+  agyEveryMin: [2, 240],
+  sysmonMs: [500, 10_000],
 } as const satisfies Record<string, readonly [number, number]>;
 
 type Obj = Record<string, unknown>;
@@ -244,6 +261,21 @@ export function normalize(raw: unknown, baseColors: ThemeColors): Settings {
     recentDirs: Array.isArray(r.recentDirs)
       ? [...new Set(r.recentDirs.filter((d): d is string => typeof d === "string" && d.trim() !== ""))].slice(0, 12)
       : [],
+    usage: (() => {
+      const u = obj(r.usage);
+      const D = DEFAULTS.usage;
+      return {
+        claude: bool(u.claude, D.claude),
+        codex: bool(u.codex, D.codex),
+        agy: bool(u.agy, D.agy),
+        filesEverySec: Math.round(num(u.filesEverySec, D.filesEverySec, LIMITS.filesEverySec)),
+        agyEveryMin: Math.round(num(u.agyEveryMin, D.agyEveryMin, LIMITS.agyEveryMin)),
+      };
+    })(),
+    sysmon: {
+      enabled: bool(obj(r.sysmon).enabled, DEFAULTS.sysmon.enabled),
+      everyMs: Math.round(num(obj(r.sysmon).everyMs, DEFAULTS.sysmon.everyMs, LIMITS.sysmonMs)),
+    },
   };
 }
 

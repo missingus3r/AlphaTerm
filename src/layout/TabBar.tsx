@@ -1,4 +1,4 @@
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, Show, type JSX } from "solid-js";
 import { Marquee } from "./Marquee";
 import type { Profile } from "../terminal/pty";
 
@@ -31,6 +31,8 @@ interface Props {
   onToggleBar: () => void;
   onNewWindow: () => void;
   onSettings: () => void;
+  /** Widgets que van en la barra (CPU/RAM). */
+  widgets?: JSX.Element;
 }
 
 const STATUS_LABEL: Record<TabStatus, string> = {
@@ -136,6 +138,7 @@ export function TabBar(props: Props) {
         </div>
       </div>
       <div class="bar-actions">
+        {props.widgets}
         <button class="btn" title="Ventana nueva (Ctrl+Shift+N)" onClick={props.onNewWindow}>
           ⧉
         </button>

@@ -3,6 +3,8 @@ pub mod fonts;
 pub mod procinfo;
 pub mod pty;
 pub mod settings;
+pub mod sysmon;
+pub mod usage;
 pub mod windows;
 
 use std::sync::Arc;
@@ -15,6 +17,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Arc::new(pty::PtyState::default()))
         .manage(procinfo::ProcState::default())
+        .manage(sysmon::SysState::default())
         .manage(settings::SettingsState::new(settings::data_dir().join("settings.json")))
         .setup(|app| {
             settings::SettingsState::watch(app.handle().clone());
@@ -58,6 +61,11 @@ pub fn run() {
             fonts::fonts_list,
             agents::agents_detect,
             agents::agents_path_env,
+            sysmon::sys_stats,
+            sysmon::sys_top,
+            usage::usage_get,
+            usage::usage_statusline_status,
+            usage::usage_statusline_install,
             fonts::font_file,
         ])
         .run(tauri::generate_context!())

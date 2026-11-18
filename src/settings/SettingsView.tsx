@@ -1,5 +1,6 @@
 import { createMemo, createResource, createSignal, For, onCleanup, Show, type JSX } from "solid-js";
 import type { TermInfo } from "../terminal/pty";
+import { invoke } from "@tauri-apps/api/core";
 import { COMMANDS, FIXED_HELP, comboOf, comboProblem, comboWarning, conflicts, effectiveBindings } from "../layout/shortcuts";
 import { activeTheme, createOsDark, fontStack, storeBackground } from "./apply";
 import { monospaceFonts } from "./fonts";
@@ -8,12 +9,13 @@ import { revealSettings, type SettingsStore } from "./store";
 import { allThemes, findTheme, importThemes, themeId, type Theme } from "./themes";
 import "./settings.css";
 
-type Section = "apariencia" | "fuente" | "fondo" | "terminal" | "atajos" | "proximo";
+type Section = "apariencia" | "fuente" | "fondo" | "terminal" | "consumo" | "atajos" | "proximo";
 const SECTIONS: [Section, string][] = [
   ["apariencia", "Tema y colores"],
   ["fuente", "Fuente y cursor"],
   ["fondo", "Fondo de la ventana"],
   ["terminal", "Terminal e interfaz"],
+  ["consumo", "Consumo y widgets"],
   ["atajos", "Atajos de teclado"],
   ["proximo", "Próximas fases"],
 ];
@@ -171,6 +173,9 @@ export default function SettingsView(props: { info: TermInfo; store: SettingsSto
         </Show>
         <Show when={section() === "terminal"}>
           <TerminalSection s={s()} set={set} info={props.info} />
+        </Show>
+        <Show when={section() === "consumo"}>
+          <UsageSection s={s()} set={set} />
         </Show>
         <Show when={section() === "atajos"}>
           <ShortcutSection s={s()} set={set} />
@@ -571,6 +576,95 @@ function TerminalSection(props: SectionProps & { info: TermInfo }) {
           onChange={(e) => props.set((d) => void (d.behavior.foregroundPollMs = Number(e.currentTarget.value)))}
         >
           <For each={[500, 1000, 2000, 5000, 10000]}>{(ms) => <option value={ms}>{ms < 1000 ? `${ms} ms` : `${ms / 1000} s`}</option>}</For>
+        </select>
+      </Row>
+    </section>
+  );
+}
+
+// --- Consumo y widgets -------------------------------------------------------------------------------
+
+interface StatuslineStatus {
+  current: string | null;
+  ours: boolean;
+  currentExists: boolean | null;
+}
+
+function UsageSection(props: SectionProps) {
+  const u = () => props.s.usage;
+  const set = (f: (x: Settings["usage"]) => void) => props.set((d) => f(d.usage));
+  const [status, { refetch }] = createResource(() => invoke<StatuslineStatus>("usage_statusline_status"));
+  const [msg, setMsg] = createSignal<{ ok: boolean; text: string } | null>(null);
+  const install = async () => {
+    const cur = status()?.current;
+    const ok = confirm(
+      "Esto cambia la statusline de Claude Code (~/.claude/settings.json) por la de NovaTerm, que guarda los límites de 5 h y semana para el footer." +
+        (cur ? `\n\nHoy está configurada: ${cur}` : "") +
+        "\n\nAntes se guarda una copia del archivo (settings.json.antes-de-novaterm). ¿Seguir?",
+    );
+    if (!ok) return;
+    try {
+      const backup = await invoke<string>("usage_statusline_install");
+      setMsg({ ok: true, text: `Listo. Copia del archivo anterior en ${backup}. Se ve en la próxima respuesta de Claude Code.` });
+      void refetch();
+    } catch (e) {
+      setMsg({ ok: false, text: String(e) });
+    }
+  };
+  return (
+    <section>
+      <h2>Consumo y widgets</h2>
+      <Row label="Claude" hint="Porcentaje exacto de 5 h y de la semana, tomado de la statusline de Claude Code. Sin ella, solo una estimación en tokens.">
+        <Toggle checked={u().claude} label={u().claude ? "En el footer" : "Oculto"} onChange={(v) => set((x) => void (x.claude = v))} />
+      </Row>
+      <Row label="Statusline de Claude Code">
+        <Show when={status()} fallback={<span class="muted">Revisando…</span>}>
+          <Show
+            when={status()!.ours}
+            fallback={
+              <>
+                <span class="muted">
+                  {status()!.current
+                    ? `Hoy: ${status()!.current}${status()!.currentExists === false ? " (ese script ya no existe)" : ""}`
+                    : "Claude Code no tiene statusline configurada."}
+                </span>
+                <button class="btn" onClick={() => void install()}>
+                  Usar la statusline de NovaTerm
+                </button>
+              </>
+            }
+          >
+            <span>Conectada (la de NovaTerm).</span>
+          </Show>
+        </Show>
+        <Show when={msg()}>
+          <div class="banner" classList={{ ok: msg()!.ok }}>
+            {msg()!.text}
+          </div>
+        </Show>
+      </Row>
+      <Row label="Codex" hint="Último dato de límites que dejó Codex en sus sesiones: se actualiza cuando lo usás.">
+        <Toggle checked={u().codex} label={u().codex ? "En el footer" : "Oculto"} onChange={(v) => set((x) => void (x.codex = v))} />
+      </Row>
+      <Row label="Antigravity (agy)" hint="Dato oficial de agy /quota (no gasta cuota). Se corre agy directo, sin shell.">
+        <Toggle checked={u().agy} label={u().agy ? "En el footer" : "Oculto"} onChange={(v) => set((x) => void (x.agy = v))} />
+      </Row>
+      <Row label="Leer Claude y Codex cada">
+        <select class="text" value={String(u().filesEverySec)} onChange={(e) => set((x) => void (x.filesEverySec = Number(e.currentTarget.value)))}>
+          <For each={[15, 30, 60, 300, 900]}>{(v) => <option value={v}>{v < 60 ? `${v} s` : `${v / 60} min`}</option>}</For>
+        </select>
+      </Row>
+      <Row label="Consultar agy cada">
+        <select class="text" value={String(u().agyEveryMin)} onChange={(e) => set((x) => void (x.agyEveryMin = Number(e.currentTarget.value)))}>
+          <For each={[2, 5, 10, 30, 60]}>{(v) => <option value={v}>{v} min</option>}</For>
+        </select>
+      </Row>
+      <Row label="Widget de CPU y RAM" hint="En la barra de pestañas; clic para ver los procesos y lo que consume cada pestaña.">
+        <Toggle checked={props.s.sysmon.enabled} label={props.s.sysmon.enabled ? "Visible" : "Oculto"} onChange={(v) => props.set((d) => void (d.sysmon.enabled = v))} />
+      </Row>
+      <Row label="Actualizar CPU y RAM cada">
+        <select class="text" value={String(props.s.sysmon.everyMs)} onChange={(e) => props.set((d) => void (d.sysmon.everyMs = Number(e.currentTarget.value)))}>
+          <For each={[500, 1000, 2000, 5000]}>{(v) => <option value={v}>{v < 1000 ? `${v} ms` : `${v / 1000} s`}</option>}</For>
         </select>
       </Row>
     </section>
