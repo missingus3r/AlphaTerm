@@ -1,4 +1,4 @@
-//! Configuración en `%APPDATA%\NovaTerm\settings.json`.
+//! Configuración en `%APPDATA%\AlphaTerm\settings.json`.
 //!
 //! El backend no conoce el esquema (lo define y normaliza el frontend): guarda un objeto JSON,
 //! lo escribe de forma atómica, avisa a todas las ventanas cuando cambia y detecta ediciones
@@ -16,10 +16,37 @@ pub const EVENT: &str = "settings-changed";
 const POLL: Duration = Duration::from_millis(1000);
 const MAX_IMAGE: usize = 25 * 1024 * 1024;
 
-/// Carpeta de datos de la app (`%APPDATA%\NovaTerm`).
+/// Carpeta de datos de la app (`%APPDATA%\AlphaTerm`).
 pub fn data_dir() -> PathBuf {
     let base = std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
-    base.join("NovaTerm")
+    base.join("AlphaTerm")
+}
+
+/// La app se llamaba NovaTerm: la primera vez se copia `%APPDATA%\NovaTerm` a `%APPDATA%\AlphaTerm`
+/// (sin borrar la vieja). Devuelve si copió algo.
+pub fn migrate_from_novaterm() -> bool {
+    let Some(base) = std::env::var_os("APPDATA").map(PathBuf::from) else { return false };
+    migrate_dir(&base.join("NovaTerm"), &data_dir())
+}
+
+pub fn migrate_dir(old: &Path, new: &Path) -> bool {
+    if new.exists() || !old.is_dir() {
+        return false;
+    }
+    fn copy(from: &Path, to: &Path) -> std::io::Result<()> {
+        fs::create_dir_all(to)?;
+        for e in fs::read_dir(from)? {
+            let e = e?;
+            let dest = to.join(e.file_name());
+            if e.file_type()?.is_dir() {
+                copy(&e.path(), &dest)?;
+            } else {
+                fs::copy(e.path(), dest)?;
+            }
+        }
+        Ok(())
+    }
+    copy(old, new).is_ok()
 }
 
 /// Huella del archivo para saber si cambió (fecha de modificación + tamaño).
@@ -169,7 +196,7 @@ pub async fn settings_open(app: AppHandle) -> Result<(), String> {
         return w.set_focus().map_err(|e| e.to_string());
     }
     WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("index.html".into()))
-        .title("Configuración — NovaTerm")
+        .title("Configuración — AlphaTerm")
         .inner_size(920.0, 680.0)
         .min_inner_size(640.0, 420.0)
         .background_color(tauri::webview::Color(13, 16, 23, 255))
@@ -198,7 +225,7 @@ pub fn safe_image_name(name: &str) -> Option<String> {
     Some(clean)
 }
 
-/// Guarda una copia de la imagen elegida en `%APPDATA%\NovaTerm\fondos` (así sigue andando
+/// Guarda una copia de la imagen elegida en `%APPDATA%\AlphaTerm\fondos` (así sigue andando
 /// aunque el original se mueva). Recibe los bytes crudos y el nombre en el header `x-name`.
 #[tauri::command]
 pub fn background_store(request: tauri::ipc::Request) -> Result<String, String> {
@@ -224,7 +251,7 @@ pub fn background_read(path: String) -> Result<tauri::ipc::Response, String> {
     let dir = fs::canonicalize(backgrounds_dir()).map_err(|_| "No hay imágenes de fondo guardadas".to_string())?;
     let file = fs::canonicalize(&path).map_err(|_| format!("No existe {path}"))?;
     if !file.starts_with(&dir) {
-        return Err("La imagen tiene que estar en la carpeta de fondos de NovaTerm".into());
+        return Err("La imagen tiene que estar en la carpeta de fondos de AlphaTerm".into());
     }
     let bytes = fs::read(&file).map_err(|e| e.to_string())?;
     Ok(tauri::ipc::Response::new(bytes))
@@ -254,10 +281,24 @@ mod tests {
     use serde_json::json;
 
     fn tmp_dir(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("novaterm-test-{name}-{}", std::process::id()));
+        let d = std::env::temp_dir().join(format!("alphaterm-test-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&d);
         fs::create_dir_all(&d).unwrap();
         d
+    }
+
+    #[test]
+    fn migra_la_carpeta_vieja_una_sola_vez() {
+        let d = tmp_dir("migrate");
+        let old = d.join("NovaTerm");
+        let new = d.join("AlphaTerm");
+        fs::create_dir_all(old.join("fondos")).unwrap();
+        fs::write(old.join("settings.json"), "{}").unwrap();
+        fs::write(old.join("fondos").join("a.png"), "x").unwrap();
+        assert!(migrate_dir(&old, &new));
+        assert!(new.join("fondos").join("a.png").exists());
+        assert!(old.join("settings.json").exists(), "la vieja no se borra");
+        assert!(!migrate_dir(&old, &new), "si ya existe la nueva, no se toca");
     }
 
     #[test]

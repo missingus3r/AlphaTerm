@@ -18,13 +18,13 @@ interface Props {
   onFocus: (tabId: string, paneId: string) => void;
 }
 
-const FILTER_PREF = "novaterm.servers.filter";
-type Filter = "all" | "novaterm";
+const FILTER_PREF = "alphaterm.servers.filter";
+type Filter = "all" | "alphaterm";
 
 export default function ServersPanel(props: Props) {
   const readFilter = (): Filter => {
     try {
-      return localStorage.getItem(FILTER_PREF) === "novaterm" ? "novaterm" : "all";
+      return localStorage.getItem(FILTER_PREF) === "alphaterm" ? "alphaterm" : "all";
     } catch {
       return "all";
     }
@@ -43,7 +43,7 @@ export default function ServersPanel(props: Props) {
   const [editing, setEditing] = createSignal<string | null>(null);
 
   const visible = createMemo(() =>
-    props.servers.filter((s) => (filter() === "novaterm" ? s.shellPid !== null : showSystem() || !s.system || s.shellPid !== null)),
+    props.servers.filter((s) => (filter() === "alphaterm" ? s.shellPid !== null : showSystem() || !s.system || s.shellPid !== null)),
   );
   const hiddenSystem = () => props.servers.filter((s) => s.system && s.shellPid === null).length;
 
@@ -52,7 +52,7 @@ export default function ServersPanel(props: Props) {
     const what = `${s.name} (PID ${s.pid}, puerto ${s.ports.join(", ")})`;
     const question = ours
       ? `¿Detener ${what}? Se corta ese proceso y lo que cuelga de él.`
-      : `${what} no lo lanzó NovaTerm.\n\n¿Detenerlo igual? Se corta ese proceso y lo que cuelga de él; si es de otro programa, ese programa puede fallar.`;
+      : `${what} no lo lanzó AlphaTerm.\n\n¿Detenerlo igual? Se corta ese proceso y lo que cuelga de él; si es de otro programa, ese programa puede fallar.`;
     if (!confirm(question)) return;
     try {
       await invoke<string>("ports_kill", { pid: s.pid });
@@ -90,8 +90,8 @@ export default function ServersPanel(props: Props) {
         <button classList={{ on: filter() === "all" }} onClick={() => setFilter("all")}>
           Todos
         </button>
-        <button classList={{ on: filter() === "novaterm" }} onClick={() => setFilter("novaterm")}>
-          De NovaTerm
+        <button classList={{ on: filter() === "alphaterm" }} onClick={() => setFilter("alphaterm")}>
+          De AlphaTerm
         </button>
       </div>
       <Show when={msg()}>
@@ -124,8 +124,8 @@ export default function ServersPanel(props: Props) {
                     {s.name}
                   </b>
                   <Show when={s.shellPid !== null}>
-                    <span class="badge nt" title="Nació en una pestaña de NovaTerm">
-                      NovaTerm
+                    <span class="badge nt" title="Nació en una pestaña de AlphaTerm">
+                      AlphaTerm
                     </span>
                   </Show>
                 </div>

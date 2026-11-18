@@ -24,7 +24,7 @@ export interface SettingsStore {
 
 const SAVE_DELAY_MS = 150;
 // Preferencia de F2 (antes de que existiera settings.json).
-const OLD_VERTICAL_PREF = "novaterm.tabbar.vertical";
+const OLD_VERTICAL_PREF = "alphaterm.tabbar.vertical";
 
 let pending: Promise<SettingsStore> | null = null;
 

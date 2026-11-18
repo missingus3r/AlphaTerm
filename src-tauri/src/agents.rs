@@ -1,7 +1,7 @@
 //! Agentes: dónde está instalado cada uno.
 //!
 //! Se busca el primer token del comando en el PATH del proceso, en el PATH del registro (por si
-//! se instaló algo después de abrir NovaTerm) y en las carpetas donde se suelen instalar.
+//! se instaló algo después de abrir AlphaTerm) y en las carpetas donde se suelen instalar.
 //! No se ejecuta nada: solo se mira si el archivo existe.
 
 use serde::Serialize;
@@ -154,7 +154,7 @@ pub fn agents_detect(commands: Vec<String>) -> Vec<Detected> {
 }
 
 /// PATH completo (proceso + registro + carpetas de agentes), para las pestañas de agentes:
-/// así encuentran programas instalados después de abrir NovaTerm.
+/// así encuentran programas instalados después de abrir AlphaTerm.
 #[tauri::command]
 pub fn agents_path_env() -> String {
     std::env::join_paths(search_dirs()).map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
@@ -180,7 +180,7 @@ mod tests {
 
     #[test]
     fn resuelve_con_extensiones() {
-        let d = std::env::temp_dir().join(format!("novaterm-agents-{}", std::process::id()));
+        let d = std::env::temp_dir().join(format!("alphaterm-agents-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         std::fs::write(d.join("miagente.cmd"), "@echo hola").unwrap();

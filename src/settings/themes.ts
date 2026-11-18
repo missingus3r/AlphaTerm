@@ -44,11 +44,11 @@ function make(
 }
 
 export const BUILTIN_THEMES: Theme[] = [
-  make("nova-dark", "Nova oscuro", "#0d1017", "#d6deeb",
+  make("nova-dark", "Alpha oscuro", "#0d1017", "#d6deeb",
     ["#1b2230", "#ef6b73", "#8bd49c", "#e5c07b", "#60a5fa", "#c792ea", "#5fd7d7", "#d6deeb"],
     ["#5c6a82", "#ff8a91", "#a8e6b5", "#f2d59b", "#93c5fd", "#ddb6f2", "#8ff0f0", "#ffffff"],
     { cursor: "#60a5fa", selection: "#2563eb66" }),
-  make("nova-light", "Nova claro", "#f7f8fa", "#24292f",
+  make("nova-light", "Alpha claro", "#f7f8fa", "#24292f",
     ["#24292f", "#cf222e", "#116329", "#9a6700", "#0969da", "#8250df", "#1b7c83", "#6e7781"],
     ["#57606a", "#a40e26", "#1a7f37", "#633c01", "#218bff", "#a475f9", "#3192aa", "#8c959f"],
     { cursor: "#0969da", selection: "#0969da33" }),

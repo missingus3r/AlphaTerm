@@ -76,7 +76,7 @@ pub struct Server {
     pub cwd: Option<String>,
     /// Segundos desde que arrancó.
     pub uptime: u64,
-    /// PID de la shell de NovaTerm de la que desciende (si nació en una pestaña).
+    /// PID de la shell de AlphaTerm de la que desciende (si nació en una pestaña).
     pub shell_pid: Option<u32>,
     /// Proceso del sistema (no conviene tocarlo).
     pub system: bool,
@@ -181,7 +181,7 @@ mod tests {
     fn agrupa_y_encuentra_la_shell() {
         let l = |port, pid, addr: &str| Listen { port, pid, addr: addr.into() };
         let listens = vec![l(5173, 30, "127.0.0.1"), l(5173, 30, "[::1]"), l(24678, 30, "127.0.0.1"), l(135, 900, "0.0.0.0")];
-        // 10 = shell de NovaTerm → 20 (npm) → 30 (node)
+        // 10 = shell de AlphaTerm → 20 (npm) → 30 (node)
         let parents: HashMap<u32, Option<u32>> = [(10, Some(1)), (20, Some(10)), (30, Some(20)), (900, Some(5))].into_iter().collect();
         let g = group(&listens, &parents, &[10]);
         assert_eq!(g[0], (900, vec![135], vec!["0.0.0.0".to_string()], None));

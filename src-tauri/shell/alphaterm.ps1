@@ -1,8 +1,8 @@
-# NovaTerm: shell integration para Windows PowerShell 5.1 y PowerShell 7.
+# AlphaTerm: shell integration para Windows PowerShell 5.1 y PowerShell 7.
 # Se pasa con -EncodedCommand (no es un archivo .ps1, así que no lo frena la política de ejecución).
 # Emite OSC 133 (prompt/comando/fin con código), OSC 633;E (texto del comando) y OSC 7 (carpeta).
-if ($global:__NovaTermLoaded) { return }
-$global:__NovaTermLoaded = $true
+if ($global:__AlphaTermLoaded) { return }
+$global:__AlphaTermLoaded = $true
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch {}
 $global:__ntRan = $false
 $global:__ntOrigPrompt = $function:prompt

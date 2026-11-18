@@ -187,7 +187,7 @@ pub fn spawn_env(
     cmd.cwd(dir);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
-    cmd.env("TERM_PROGRAM", "NovaTerm");
+    cmd.env("TERM_PROGRAM", "AlphaTerm");
     cmd.env("TERM_PROGRAM_VERSION", env!("CARGO_PKG_VERSION"));
     for (k, v) in extra_env {
         if !k.is_empty() && !k.contains('=') {

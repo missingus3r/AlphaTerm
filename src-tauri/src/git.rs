@@ -229,7 +229,7 @@ pub async fn git_commit(root: String, message: String) -> Result<String, String>
         return Err("El mensaje del commit está vacío".into());
     }
     blocking(move || {
-        let tmp = std::env::temp_dir().join(format!("novaterm-commit-{}.txt", std::process::id()));
+        let tmp = std::env::temp_dir().join(format!("alphaterm-commit-{}.txt", std::process::id()));
         std::fs::write(&tmp, &message).map_err(|e| e.to_string())?;
         let r = ok(Path::new(&root), &["commit", "-F", &tmp.display().to_string()], NET);
         let _ = std::fs::remove_file(&tmp);
@@ -473,7 +473,7 @@ u UU N... 100644 100644 100644 100644 f1 f2 f3 conflicto.rs\0\
 
     #[test]
     fn ciclo_real_en_un_repo_temporal() {
-        let d = std::env::temp_dir().join(format!("novaterm-git-{}", std::process::id()));
+        let d = std::env::temp_dir().join(format!("alphaterm-git-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         let rt = |f: std::pin::Pin<Box<dyn std::future::Future<Output = Result<String, String>>>>| tauri::async_runtime::block_on(f);

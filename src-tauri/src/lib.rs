@@ -22,7 +22,10 @@ pub fn run() {
         .manage(procinfo::ProcState::default())
         .manage(sysmon::SysState::default())
         .manage(projects::WatchState::default())
-        .manage(settings::SettingsState::new(settings::data_dir().join("settings.json")))
+        .manage({
+            settings::migrate_from_novaterm();
+            settings::SettingsState::new(settings::data_dir().join("settings.json"))
+        })
         .setup(|app| {
             settings::SettingsState::watch(app.handle().clone());
             Ok(())
@@ -93,5 +96,5 @@ pub fn run() {
             fonts::font_file,
         ])
         .run(tauri::generate_context!())
-        .expect("no se pudo iniciar NovaTerm");
+        .expect("no se pudo iniciar AlphaTerm");
 }

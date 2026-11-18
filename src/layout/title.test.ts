@@ -25,7 +25,7 @@ describe("título de pestaña", () => {
     expect(commandLabel("C:\\tools\\node.exe server.js --port 3000")).toBe("node server.js --port");
     expect(commandLabel('& "C:\\Program Files\\Git\\usr\\bin\\vim.exe" a.txt')).toBe("vim a.txt");
     expect(commandLabel("  ")).toBe("");
-    expect(commandLabel("cd C:\\Users\\Br1\\Desktop\\NovaTerm; ping -n 6 127.0.0.1")).toBe("ping -n 6");
+    expect(commandLabel("cd C:\\Users\\Br1\\Desktop\\AlphaTerm; ping -n 6 127.0.0.1")).toBe("ping -n 6");
     expect(commandLabel("npm ci && npm run dev")).toBe("npm run dev");
     expect(commandLabel("git log --oneline | less")).toBe("git log --oneline");
     expect(commandLabel("x".repeat(50))).toHaveLength(32);
@@ -35,9 +35,9 @@ describe("título de pestaña", () => {
     expect(cmdRunningCommand("C:\\WINDOWS\\system32\\cmd.exe - ping -n 8 127.0.0.1")).toBe("ping -n 8 127.0.0.1");
     expect(cmdRunningCommand("C:\\WINDOWS\\system32\\cmd.exe")).toBeNull();
     expect(cmdRunningCommand("✳ Refactor - login")).toBeNull();
-    const p: PaneInfo = { ...base, integrated: false, cwd: "C:\\x\\NovaTerm", branch: "main", lastCommand: "ping -n 8 127.0.0.1" };
-    expect(heuristicTitle({ ...p, fgProcess: "PING" })).toBe("ping -n 8 · NovaTerm (main)");
-    expect(heuristicTitle({ ...p, fgProcess: "node" })).toBe("node · NovaTerm (main)");
+    const p: PaneInfo = { ...base, integrated: false, cwd: "C:\\x\\AlphaTerm", branch: "main", lastCommand: "ping -n 8 127.0.0.1" };
+    expect(heuristicTitle({ ...p, fgProcess: "PING" })).toBe("ping -n 8 · AlphaTerm (main)");
+    expect(heuristicTitle({ ...p, fgProcess: "node" })).toBe("node · AlphaTerm (main)");
   });
 
   it("carpeta", () => {

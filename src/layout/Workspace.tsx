@@ -23,8 +23,8 @@ const AgentsPanel = lazy(() => import("../panels/AgentsPanel"));
 const ServersPanel = lazy(() => import("../panels/ServersPanel"));
 const ProjectsPanel = lazy(() => import("../panels/ProjectsPanel"));
 const GitPanel = lazy(() => import("../panels/GitPanel"));
-const PANEL_WIDTH_PREF = "novaterm.panel.width";
-const PANEL_PREF = "novaterm.panel";
+const PANEL_WIDTH_PREF = "alphaterm.panel.width";
+const PANEL_PREF = "alphaterm.panel";
 
 /** Estado vivo de cada panel (clave: id del panel). */
 interface PaneState extends PaneInfo {
@@ -136,7 +136,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   // Título de la ventana = título de la pestaña activa.
   createEffect(() => {
     const t = active();
-    const title = t ? `${titleOf(t)} — NovaTerm` : "NovaTerm";
+    const title = t ? `${titleOf(t)} — AlphaTerm` : "AlphaTerm";
     document.title = title;
     void getCurrentWindow().setTitle(title).catch(() => {});
   });
@@ -283,7 +283,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   };
 
   // PATH completo (proceso + registro + carpetas de agentes): un agente instalado después de
-  // abrir NovaTerm igual se encuentra.
+  // abrir AlphaTerm igual se encuentra.
   const [pathEnv] = createResource(() => invoke<string>("agents_path_env").catch(() => ""));
 
   // --- Servidores ------------------------------------------------------------------------------

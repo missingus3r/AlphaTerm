@@ -1,11 +1,11 @@
 [package]
-name = "novaterm"
+name = "alphaterm"
 version = "0.1.0"
-description = "NovaTerm: terminal liviana para trabajar con agentes de IA"
+description = "AlphaTerm: terminal liviana para trabajar con agentes de IA"
 edition = "2021"
 
 [lib]
-name = "novaterm_lib"
+name = "alphaterm_lib"
 crate-type = ["rlib"]
 
 [build-dependencies]

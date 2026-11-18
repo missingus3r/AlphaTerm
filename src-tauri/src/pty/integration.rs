@@ -8,8 +8,8 @@
 use base64::Engine;
 use std::path::PathBuf;
 
-const PS_SCRIPT: &str = include_str!("../../shell/novaterm.ps1");
-const BASH_SCRIPT: &str = include_str!("../../shell/novaterm.bash");
+const PS_SCRIPT: &str = include_str!("../../shell/alphaterm.ps1");
+const BASH_SCRIPT: &str = include_str!("../../shell/alphaterm.bash");
 
 /// PROMPT de cmd: `$e` es ESC y las OSC terminan con ST (`ESC \`).
 /// 133;D sin código (cmd no lo expone), 9;9 con la carpeta, 133;A/B alrededor del prompt.
@@ -30,9 +30,9 @@ pub fn powershell_encoded() -> String {
 /// Escribe el script de bash con finales LF (git puede haberlo convertido a CRLF) y devuelve
 /// la ruta con barras normales, que bash entiende.
 fn bash_init_file() -> std::io::Result<String> {
-    let dir = std::env::temp_dir().join("NovaTerm");
+    let dir = std::env::temp_dir().join("AlphaTerm");
     std::fs::create_dir_all(&dir)?;
-    let path: PathBuf = dir.join("novaterm.bash");
+    let path: PathBuf = dir.join("alphaterm.bash");
     let body = BASH_SCRIPT.replace("\r\n", "\n");
     if std::fs::read_to_string(&path).ok().as_deref() != Some(body.as_str()) {
         std::fs::write(&path, body)?;

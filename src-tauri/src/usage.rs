@@ -64,7 +64,7 @@ fn win(label: impl Into<String>, used: f64, resets: Option<i64>, now: i64) -> Us
 
 // --- Claude --------------------------------------------------------------------------------------
 
-/// Archivos donde una statusline deja el JSON de Claude Code (el de NovaTerm y el del Control Panel).
+/// Archivos donde una statusline deja el JSON de Claude Code (el de AlphaTerm y el del Control Panel).
 pub fn claude_statusline_files() -> Vec<PathBuf> {
     vec![crate::settings::data_dir().join("claude-statusline.json"), home().join(".claude").join("control-panel").join("statusline.json")]
 }
@@ -393,10 +393,10 @@ pub async fn usage_get(provider: String, force: Option<bool>) -> Result<Usage, S
     Ok(u)
 }
 
-// --- Statusline de NovaTerm para Claude Code ---------------------------------------------------------
+// --- Statusline de AlphaTerm para Claude Code ---------------------------------------------------------
 
-const STATUSLINE_JS: &str = r#"// Statusline de NovaTerm para Claude Code: guarda los límites que Claude Code le pasa
-// (para el footer de consumo de NovaTerm) y muestra una línea corta. Sin dependencias.
+const STATUSLINE_JS: &str = r#"// Statusline de AlphaTerm para Claude Code: guarda los límites que Claude Code le pasa
+// (para el footer de consumo de AlphaTerm) y muestra una línea corta. Sin dependencias.
 const fs = require("fs");
 const path = require("path");
 let raw = "";
@@ -405,7 +405,7 @@ process.stdin.on("end", () => {
   let data = {};
   try { data = JSON.parse(raw); } catch {}
   try {
-    const dir = path.join(process.env.APPDATA || "", "NovaTerm");
+    const dir = path.join(process.env.APPDATA || "", "AlphaTerm");
     fs.mkdirSync(dir, { recursive: true });
     const file = path.join(dir, "claude-statusline.json");
     fs.writeFileSync(file + ".tmp", JSON.stringify({ ...data, _capturedAt: Date.now() }));
@@ -424,7 +424,7 @@ process.stdin.on("end", () => {
 pub struct StatuslineStatus {
     /// Comando configurado hoy en ~/.claude/settings.json (si hay).
     current: Option<String>,
-    /// El configurado es el de NovaTerm.
+    /// El configurado es el de AlphaTerm.
     ours: bool,
     /// El script del comando configurado existe (si se pudo saber).
     current_exists: Option<bool>,
@@ -451,12 +451,12 @@ pub fn usage_statusline_status() -> StatuslineStatus {
         .ok()
         .and_then(|t| serde_json::from_str::<Value>(&t).ok())
         .and_then(|v| v.pointer("/statusLine/command").and_then(Value::as_str).map(str::to_string));
-    let ours = current.as_deref().is_some_and(|c| c.contains("NovaTerm") && c.contains("statusline.js"));
+    let ours = current.as_deref().is_some_and(|c| c.contains("AlphaTerm") && c.contains("statusline.js"));
     let current_exists = current.as_deref().and_then(quoted_path).map(|p| p.exists());
     StatuslineStatus { current, ours, current_exists }
 }
 
-/// Instala la statusline de NovaTerm en Claude Code. Solo se llama cuando el usuario toca el botón.
+/// Instala la statusline de AlphaTerm en Claude Code. Solo se llama cuando el usuario toca el botón.
 /// Guarda una copia de ~/.claude/settings.json antes de cambiarlo y conserva el resto del archivo.
 #[tauri::command]
 pub fn usage_statusline_install() -> Result<String, String> {
@@ -466,7 +466,7 @@ pub fn usage_statusline_install() -> Result<String, String> {
     let path = claude_settings();
     let text = std::fs::read_to_string(&path).unwrap_or_else(|_| "{}".into());
     let mut v: Value = serde_json::from_str(&text).map_err(|e| format!("~/.claude/settings.json no es JSON válido: {e}"))?;
-    let backup = path.with_extension("json.antes-de-novaterm");
+    let backup = path.with_extension("json.antes-de-alphaterm");
     std::fs::write(&backup, &text).map_err(|e| e.to_string())?;
     let cmd = format!("node \"{}\"", script.display().to_string().replace('\\', "/"));
     v.as_object_mut().ok_or("settings.json no es un objeto")?.insert("statusLine".into(), serde_json::json!({ "type": "command", "command": cmd }));

@@ -1,4 +1,4 @@
-# NovaTerm: shell integration para bash (Git Bash). Se carga con --init-file.
+# AlphaTerm: shell integration para bash (Git Bash). Se carga con --init-file.
 # Emite OSC 133 (prompt/comando/fin con código), OSC 633;E (texto del comando) y OSC 7 (carpeta).
 if [ -z "$__NT_INIT" ]; then
   __NT_INIT=1

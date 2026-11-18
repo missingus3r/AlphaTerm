@@ -18,7 +18,7 @@ describe("lista de proyectos", () => {
   });
 
   it("nombre del proyecto", () => {
-    expect(projectName("C:\\Users\\yo\\NovaTerm\\")).toBe("NovaTerm");
+    expect(projectName("C:\\Users\\yo\\AlphaTerm\\")).toBe("AlphaTerm");
     expect(projectName("C:\\")).toBe("C:");
   });
 });

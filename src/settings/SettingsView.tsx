@@ -19,7 +19,7 @@ const SECTIONS: [Section, string][] = [
   ["atajos", "Atajos de teclado"],
   ["proximo", "Próximas fases"],
 ];
-const SECTION_PREF = "novaterm.settings.section";
+const SECTION_PREF = "alphaterm.settings.section";
 
 const COLOR_LABELS: Record<ColorKey, string> = {
   background: "Fondo", foreground: "Texto", cursor: "Cursor", cursorAccent: "Texto bajo el cursor",
@@ -111,7 +111,7 @@ export default function SettingsView(props: { info: TermInfo; store: SettingsSto
   const s = () => props.store.settings();
   const set = (f: (d: Settings) => void) => props.store.update(f);
   const osDark = createOsDark();
-  document.title = "Configuración — NovaTerm";
+  document.title = "Configuración — AlphaTerm";
   const readSection = (): Section => {
     try {
       const v = localStorage.getItem(SECTION_PREF) as Section | null;
@@ -243,7 +243,7 @@ function ThemeSection(props: SectionProps & { osDark: boolean }) {
         ok: true,
         text:
           `Se importó ${added.length === 1 ? `"${added[0].name}"` : `${added.length} temas`}.` +
-          (incomplete.length ? ` A ${incomplete.length === 1 ? "uno" : incomplete.length} le faltaban colores y se completaron con Nova oscuro.` : ""),
+          (incomplete.length ? ` A ${incomplete.length === 1 ? "uno" : incomplete.length} le faltaban colores y se completaron con Alpha oscuro.` : ""),
       });
     } catch (e) {
       setMessage({ ok: false, text: `No se pudo importar ${file.name}: ${(e as Error).message}` });
@@ -367,7 +367,7 @@ function ThemeSection(props: SectionProps & { osDark: boolean }) {
 
 // --- Fuente y cursor -------------------------------------------------------------------------------
 
-const SAMPLE = ["PS C:\\NovaTerm> git log --oneline -3", "c91ef04 F2: pestañas, splits y shell integration", "=> != === <= >= -> |> :: www 0O1lI ñ á"];
+const SAMPLE = ["PS C:\\AlphaTerm> git log --oneline -3", "c91ef04 F2: pestañas, splits y shell integration", "=> != === <= >= -> |> :: www 0O1lI ñ á"];
 
 function FontSection(props: SectionProps & { theme: Theme }) {
   const [fonts] = createResource(monospaceFonts);
@@ -483,7 +483,7 @@ function BackgroundSection(props: SectionProps) {
       <Row label="Opacidad del fondo" hint="Por debajo de 100 % se ve el efecto (o el escritorio, si no hay efecto).">
         <Slider value={b().opacity} range={LIMITS.opacity} step={0.01} format={pct} onChange={(v) => set((x) => void (x.opacity = v))} />
       </Row>
-      <Row label="Imagen" hint="Se guarda una copia en %APPDATA%\NovaTerm\fondos, así sigue andando si movés el original.">
+      <Row label="Imagen" hint="Se guarda una copia en %APPDATA%\AlphaTerm\fondos, así sigue andando si movés el original.">
         <div class="actions tight">
           <button class="btn" onClick={() => fileInput.click()}>
             {b().image ? "Cambiar imagen…" : "Elegir imagen…"}
@@ -598,9 +598,9 @@ function UsageSection(props: SectionProps) {
   const install = async () => {
     const cur = status()?.current;
     const ok = confirm(
-      "Esto cambia la statusline de Claude Code (~/.claude/settings.json) por la de NovaTerm, que guarda los límites de 5 h y semana para el footer." +
+      "Esto cambia la statusline de Claude Code (~/.claude/settings.json) por la de AlphaTerm, que guarda los límites de 5 h y semana para el footer." +
         (cur ? `\n\nHoy está configurada: ${cur}` : "") +
-        "\n\nAntes se guarda una copia del archivo (settings.json.antes-de-novaterm). ¿Seguir?",
+        "\n\nAntes se guarda una copia del archivo (settings.json.antes-de-alphaterm). ¿Seguir?",
     );
     if (!ok) return;
     try {
@@ -629,12 +629,12 @@ function UsageSection(props: SectionProps) {
                     : "Claude Code no tiene statusline configurada."}
                 </span>
                 <button class="btn" onClick={() => void install()}>
-                  Usar la statusline de NovaTerm
+                  Usar la statusline de AlphaTerm
                 </button>
               </>
             }
           >
-            <span>Conectada (la de NovaTerm).</span>
+            <span>Conectada (la de AlphaTerm).</span>
           </Show>
         </Show>
         <Show when={msg()}>

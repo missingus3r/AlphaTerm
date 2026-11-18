@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    novaterm_lib::run()
+    alphaterm_lib::run()
 }

@@ -1,6 +1,6 @@
 /**
  * Servidores: lo que devuelve el backend y las "recetas" para volver a iniciarlos.
- * Una receta se guarda sola cuando un servidor nace en una pestaña de NovaTerm (se conoce el
+ * Una receta se guarda sola cuando un servidor nace en una pestaña de AlphaTerm (se conoce el
  * comando por la integración de la shell y la carpeta); también se pueden escribir a mano.
  */
 import type { Recipe } from "../settings/schema";

@@ -1,5 +1,5 @@
 /**
- * Esquema de `%APPDATA%\NovaTerm\settings.json`.
+ * Esquema de `%APPDATA%\AlphaTerm\settings.json`.
  * `normalize` acepta cualquier cosa (un archivo editado a mano, de una versión vieja o roto)
  * y devuelve una configuración completa y válida, sin perder claves que no conoce.
  */
@@ -70,7 +70,7 @@ export interface Settings {
     effect: Effect;
     /** Opacidad del color de fondo (1 = opaco). Con efecto, deja ver el Mica/Acrylic. */
     opacity: number;
-    /** Ruta de la copia en %APPDATA%\NovaTerm\fondos, o "" sin imagen. */
+    /** Ruta de la copia en %APPDATA%\AlphaTerm\fondos, o "" sin imagen. */
     image: string;
     imageOpacity: number;
     imageFit: ImageFit;

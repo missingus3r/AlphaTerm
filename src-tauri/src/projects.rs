@@ -316,7 +316,7 @@ mod tests {
 
     #[test]
     fn el_arbol_respeta_gitignore() {
-        let d = std::env::temp_dir().join(format!("novaterm-tree-{}", std::process::id()));
+        let d = std::env::temp_dir().join(format!("alphaterm-tree-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(d.join("src")).unwrap();
         std::fs::create_dir_all(d.join("node_modules").join("x")).unwrap();
