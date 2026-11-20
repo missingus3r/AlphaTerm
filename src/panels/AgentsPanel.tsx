@@ -2,7 +2,9 @@ import { createResource, createSignal, For, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { AgentDef, Settings } from "../settings/schema";
-import { AGENT_STATE_LABEL, envToText, parseEnvText, type AgentState } from "./agentState";
+import { AGENT_STATE_LABEL, type AgentState } from "./agentState";
+import { AgentOptions } from "./AgentOptions";
+import { buildCommand, launchSummary, type ShellKind } from "./agentLaunch";
 import { providerFor } from "../widgets/usage";
 import { listenUsage, loadUsage } from "../widgets/usageStore";
 import { UsageDetail } from "../widgets/UsageDetail";
@@ -34,6 +36,8 @@ interface Props {
   activeCwd?: string;
   recentDirs: string[];
   onLaunch: (agent: AgentDef, cwd: string | undefined) => void;
+  /** Shell de las pestañas nuevas (para mostrar el comando con sus comillas). */
+  shell: ShellKind;
   onFocus: (tabId: string, paneId: string) => void;
   update: (f: (d: Settings) => void) => void;
 }
@@ -131,96 +135,96 @@ export default function AgentsPanel(props: Props) {
       </div>
 
       <ul class="agent-list">
-        <For each={props.agents}>
-          {(a, i) => (
-            <Show when={!a.hidden || showHidden()}>
-              <li class="agent" classList={{ missing: detected.state === "ready" && !pathOf(i()), hidden: a.hidden }}>
-                <span class="avatar" style={{ background: colorOf(a.id) }}>
-                  {initials(a.name)}
-                </span>
-                <div class="agent-info">
-                  <b>{a.name}</b>
-                  <small title={pathOf(i()) ?? ""}>
-                    {detected.loading ? "buscando…" : pathOf(i()) ? a.command : `${a.command} · no detectado`}
-                  </small>
-                </div>
-                <button
-                  class="btn launch"
-                  disabled={!pathOf(i())}
-                  title={pathOf(i()) ? `Abrir una pestaña con ${a.name} en ${cwd() ?? "la carpeta de inicio"}` : "No está instalado (o no está en el PATH)"}
-                  onClick={() => props.onLaunch(a, cwd())}
-                >
-                  Lanzar
-                </button>
-                <Show when={providerOf(a)}>
-                  <button
-                    class="icon-btn"
-                    title={folded().includes(a.id) ? "Ver el consumo" : "Ocultar el consumo"}
-                    aria-expanded={!folded().includes(a.id)}
-                    onClick={() => toggleFold(a.id)}
-                  >
-                    {folded().includes(a.id) ? "▸" : "▾"}
-                  </button>
-                </Show>
-                <button class="icon-btn" title="Editar" onClick={() => setEditing(editing() === a.id ? null : a.id)}>
-                  ✎
-                </button>
-              </li>
-              <Show when={providerOf(a) && !folded().includes(a.id)}>
-                <li class="agent-usage">
-                  <UsageDetail id={providerOf(a)!} compact />
-                </li>
-              </Show>
-              <Show when={editing() === a.id}>
-                <li class="agent-edit">
-                  <label>
-                    Nombre
-                    <input class="text" value={a.name} onChange={(e) => setAgent(a.id, (x) => void (x.name = e.currentTarget.value))} />
-                  </label>
-                  <label>
-                    Comando
-                    <input
-                      class="text mono"
-                      value={a.command}
-                      spellcheck={false}
-                      onChange={(e) => setAgent(a.id, (x) => void (x.command = e.currentTarget.value))}
-                    />
-                  </label>
-                  <label>
-                    Variables de entorno (CLAVE=valor, una por línea)
-                    <textarea
-                      class="text mono"
-                      rows={3}
-                      spellcheck={false}
-                      value={envToText(a.env)}
-                      onChange={(e) => setAgent(a.id, (x) => void (x.env = parseEnvText(e.currentTarget.value)))}
-                    />
-                  </label>
-                  <div class="row-actions">
-                    <label class="check">
-                      <input type="checkbox" checked={a.hidden} onChange={(e) => setAgent(a.id, (x) => void (x.hidden = e.currentTarget.checked))} />
-                      Ocultar
-                    </label>
-                    <Show when={!a.builtin}>
-                      <button
-                        class="link danger"
-                        onClick={() => {
-                          if (!confirm(`¿Borrar "${a.name}" del catálogo?`)) return;
-                          props.update((s) => void (s.agents = s.agents.filter((x) => x.id !== a.id)));
-                          setEditing(null);
-                        }}
-                      >
-                        Borrar
-                      </button>
+        {/* Por id, no por objeto: cada cambio de la configuración trae objetos nuevos y la fila
+            entera (con las opciones abiertas y lo que se está escribiendo) se volvería a crear. */}
+        <For each={props.agents.map((x) => x.id)}>
+          {(id) => {
+            const i = () => props.agents.findIndex((x) => x.id === id);
+            return (
+              <Show when={props.agents[i()]}>
+                {(ag) => {
+                  const a = () => ag();
+                  return (
+                    <Show when={!a().hidden || showHidden()}>
+                      <li class="agent" classList={{ missing: detected.state === "ready" && !pathOf(i()), hidden: a().hidden }}>
+                        <span class="avatar" style={{ background: colorOf(id) }}>
+                          {initials(a().name)}
+                        </span>
+                        <div class="agent-info">
+                          <b>{a().name}</b>
+                          <small title={[pathOf(i()), launchSummary(a())].filter(Boolean).join("\n")}>
+                            {detected.loading ? "buscando…" : pathOf(i()) ? launchSummary(a()) || a().command : `${a().command} · no detectado`}
+                          </small>
+                        </div>
+                        <button
+                          class="btn launch"
+                          disabled={!pathOf(i())}
+                          title={
+                            pathOf(i())
+                              ? `Abrir una pestaña con ${a().name} en ${cwd() ?? "la carpeta de inicio"}\n${buildCommand(a(), props.shell)}`
+                              : "No está instalado (o no está en el PATH)"
+                          }
+                          onClick={() => props.onLaunch(a(), cwd())}
+                        >
+                          Lanzar
+                        </button>
+                        <Show when={providerOf(a())}>
+                          <button
+                            class="icon-btn"
+                            title={folded().includes(id) ? "Ver el consumo" : "Ocultar el consumo"}
+                            aria-expanded={!folded().includes(id)}
+                            onClick={() => toggleFold(id)}
+                          >
+                            {folded().includes(id) ? "▸" : "▾"}
+                          </button>
+                        </Show>
+                        <button
+                          class="icon-btn"
+                          classList={{ on: editing() === id || !!launchSummary(a()) }}
+                          title="Opciones de arranque: modelo, esfuerzo, permisos…"
+                          aria-expanded={editing() === id}
+                          onClick={() => setEditing(editing() === id ? null : id)}
+                        >
+                          {/* Deslizadores: las opciones se eligen antes de lanzar. */}
+                          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+                            <path d="M2 4h12M2 8h12M2 12h12" opacity=".55" />
+                            <circle cx="5" cy="4" r="1.8" fill="currentColor" stroke="none" />
+                            <circle cx="11" cy="8" r="1.8" fill="currentColor" stroke="none" />
+                            <circle cx="7" cy="12" r="1.8" fill="currentColor" stroke="none" />
+                          </svg>
+                        </button>
+                      </li>
+                      {/* Las opciones van pegadas a la fila, antes del consumo (que es largo). */}
+                      <Show when={editing() === id}>
+                        <AgentOptions
+                          agent={a()}
+                          shell={props.shell}
+                          set={(f) => setAgent(id, f)}
+                          canLaunch={!!pathOf(i())}
+                          onLaunch={() => props.onLaunch(a(), cwd())}
+                          onClose={() => setEditing(null)}
+                          onDelete={
+                            a().builtin
+                              ? undefined
+                              : () => {
+                                  if (!confirm(`¿Borrar "${a().name}" del catálogo?`)) return;
+                                  props.update((s) => void (s.agents = s.agents.filter((x) => x.id !== id)));
+                                  setEditing(null);
+                                }
+                          }
+                        />
+                      </Show>
+                      <Show when={providerOf(a()) && !folded().includes(id)}>
+                        <li class="agent-usage">
+                          <UsageDetail id={providerOf(a())!} compact />
+                        </li>
+                      </Show>
                     </Show>
-                    <button class="link" onClick={() => setEditing(null)}>
-                      Listo
-                    </button>
-                  </div>
-                </li>
+                  );
+                }}
               </Show>
-            </Show>
-          )}
+            );
+          }}
         </For>
       </ul>
       <div class="panel-actions">

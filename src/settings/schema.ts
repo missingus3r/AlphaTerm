@@ -26,13 +26,15 @@ export interface AgentDef {
   /** Oculto del panel (sin borrarlo). */
   hidden: boolean;
   builtin: boolean;
+  /** Opciones de arranque elegidas en el panel (modelo, esfuerzo, permisos…): ver `panels/agentLaunch.ts`. */
+  launch?: Record<string, string | boolean>;
 }
 
 export const BUILTIN_AGENTS: AgentDef[] = [
-  { id: "claude", name: "Claude Code", command: "claude", env: {}, hidden: false, builtin: true },
-  { id: "codex", name: "Codex", command: "codex", env: {}, hidden: false, builtin: true },
-  { id: "agy", name: "Antigravity (agy)", command: "agy", env: {}, hidden: false, builtin: true },
-  { id: "opencode", name: "OpenCode", command: "opencode", env: {}, hidden: false, builtin: true },
+  { id: "claude", name: "Claude Code", command: "claude", env: {}, hidden: false, builtin: true, launch: {} },
+  { id: "codex", name: "Codex", command: "codex", env: {}, hidden: false, builtin: true, launch: {} },
+  { id: "agy", name: "Antigravity (agy)", command: "agy", env: {}, hidden: false, builtin: true, launch: {} },
+  { id: "opencode", name: "OpenCode", command: "opencode", env: {}, hidden: false, builtin: true, launch: {} },
 ];
 
 /** Cómo volver a iniciar un servidor. */
@@ -86,8 +88,9 @@ export interface Settings {
     imageFit: ImageFit;
   };
   customThemes: CustomTheme[];
-  /** `collapsed`: la barra vertical queda angosta (solo el estado de cada pestaña). */
-  tabBar: { position: "top" | "left"; collapsed: boolean };
+  /** `collapsed`: la barra vertical queda angosta (solo el estado de cada pestaña).
+   *  `width`: ancho en px de la barra vertical desplegada (se arrastra su borde derecho). */
+  tabBar: { position: "top" | "left"; collapsed: boolean; width: number };
   terminal: {
     /** "" = el que detecta el backend (PowerShell 5.1 en esta PC). */
     defaultProfile: string;
@@ -152,7 +155,7 @@ export const DEFAULTS: Settings = {
   },
   background: { effect: "none", opacity: 1, image: "", imageOpacity: 0.25, imageFit: "cover" },
   customThemes: [],
-  tabBar: { position: "top", collapsed: false },
+  tabBar: { position: "top", collapsed: false, width: 220 },
   terminal: { defaultProfile: "", scrollback: 10_000 },
   behavior: { foregroundPollMs: 2000 },
   shortcuts: {},
@@ -181,6 +184,7 @@ export const LIMITS = {
   filesEverySec: [15, 3600],
   liveEveryMin: [5, 240],
   sysmonMs: [500, 10_000],
+  tabBarWidth: [160, 480],
 } as const satisfies Record<string, readonly [number, number]>;
 
 type Obj = Record<string, unknown>;
@@ -245,6 +249,16 @@ function normalizeEnv(v: unknown): Record<string, string> {
 }
 
 /** Los de fábrica siempre están (con lo que se les haya cambiado); los propios se agregan al final. */
+/** Opciones de arranque: solo textos y booleanos, con claves cortas. */
+function normalizeLaunch(v: unknown): Record<string, string | boolean> {
+  const out: Record<string, string | boolean> = {};
+  for (const [k, x] of Object.entries(obj(v))) {
+    if (k.length > 40) continue;
+    if (typeof x === "boolean" || (typeof x === "string" && x.length <= 20_000)) out[k] = x;
+  }
+  return out;
+}
+
 export function normalizeAgents(v: unknown): AgentDef[] {
   const list = Array.isArray(v) ? v.filter(isObj) : [];
   const byId = new Map(list.map((a) => [str(a.id, ""), a] as const));
@@ -255,6 +269,7 @@ export function normalizeAgents(v: unknown): AgentDef[] {
     env: normalizeEnv(a.env),
     hidden: bool(a.hidden, false),
     builtin: base.builtin,
+    launch: normalizeLaunch(a.launch),
   });
   const out = BUILTIN_AGENTS.map((b) => fix(byId.get(b.id) ?? {}, b));
   const seen = new Set(out.map((a) => a.id));
@@ -335,7 +350,11 @@ export function normalize(raw: unknown, baseColors: ThemeColors): Settings {
       imageFit: oneOf(b.imageFit, ["cover", "contain", "tile"], D.background.imageFit),
     },
     customThemes: normalizeThemes(r.customThemes, baseColors),
-    tabBar: { position: oneOf(obj(r.tabBar).position, ["top", "left"], D.tabBar.position), collapsed: bool(obj(r.tabBar).collapsed, D.tabBar.collapsed) },
+    tabBar: {
+      position: oneOf(obj(r.tabBar).position, ["top", "left"], D.tabBar.position),
+      collapsed: bool(obj(r.tabBar).collapsed, D.tabBar.collapsed),
+      width: Math.round(num(obj(r.tabBar).width, D.tabBar.width, LIMITS.tabBarWidth)),
+    },
     terminal: {
       defaultProfile: typeof obj(r.terminal).defaultProfile === "string" ? (obj(r.terminal).defaultProfile as string) : "",
       scrollback: Math.round(num(obj(r.terminal).scrollback, D.terminal.scrollback, LIMITS.scrollback)),

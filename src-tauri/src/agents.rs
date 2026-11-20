@@ -3,6 +3,9 @@
 //! Se busca el primer token del comando en el PATH del proceso, en el PATH del registro (por si
 //! se instaló algo después de abrir AlphaTerm) y en las carpetas donde se suelen instalar.
 //! No se ejecuta nada: solo se mira si el archivo existe.
+//!
+//! Aparte, `agent_models` lista los modelos que ofrece cada agente leyéndolos de él mismo
+//! (Codex los deja en su caché; agy y OpenCode los listan con `models`).
 
 use serde::Serialize;
 use std::collections::HashSet;
@@ -160,9 +163,155 @@ pub fn agents_path_env() -> String {
     std::env::join_paths(search_dirs()).map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
+// --- Modelos de cada agente ------------------------------------------------------------------
+
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelInfo {
+    pub id: String,
+    /// Nombre para mostrar ("" si el agente no da uno).
+    pub label: String,
+    /// Niveles de esfuerzo que acepta (vacío = no se sabe).
+    pub efforts: Vec<String>,
+    pub default_effort: Option<String>,
+}
+
+/// `models_cache.json` de Codex: solo los modelos visibles en su selector, en su orden.
+pub fn parse_codex_cache(json: &str) -> Vec<ModelInfo> {
+    let v: serde_json::Value = match serde_json::from_str(json) {
+        Ok(v) => v,
+        Err(_) => return Vec::new(),
+    };
+    let mut list: Vec<(i64, ModelInfo)> = v["models"]
+        .as_array()
+        .map(|a| a.as_slice())
+        .unwrap_or(&[])
+        .iter()
+        .filter(|m| m["visibility"].as_str().unwrap_or("list") == "list")
+        .filter_map(|m| {
+            let id = m["slug"].as_str()?.to_string();
+            let efforts = m["supported_reasoning_levels"]
+                .as_array()
+                .map(|l| l.iter().filter_map(|x| x["effort"].as_str().map(String::from)).collect())
+                .unwrap_or_default();
+            let info = ModelInfo {
+                label: m["display_name"].as_str().unwrap_or("").to_string(),
+                efforts,
+                default_effort: m["default_reasoning_level"].as_str().map(String::from),
+                id,
+            };
+            Some((m["priority"].as_i64().unwrap_or(i64::MAX), info))
+        })
+        .collect();
+    list.sort_by_key(|(p, _)| *p);
+    list.into_iter().map(|(_, m)| m).collect()
+}
+
+/// Salida de `agy models`: "id<TAB>Nombre" por línea (la primera es "Fetching…").
+pub fn parse_agy_models(out: &str) -> Vec<ModelInfo> {
+    out.lines()
+        .filter_map(|l| {
+            let (id, label) = l.split_once('\t')?;
+            let id = id.trim();
+            (!id.is_empty() && !id.contains(' ')).then(|| ModelInfo { id: id.into(), label: label.trim().into(), efforts: vec![], default_effort: None })
+        })
+        .collect()
+}
+
+/// Salida de `opencode models`: "proveedor/modelo" por línea.
+pub fn parse_opencode_models(out: &str) -> Vec<ModelInfo> {
+    out.lines()
+        .map(str::trim)
+        .filter(|l| l.contains('/') && !l.contains(' '))
+        .map(|l| ModelInfo { id: l.into(), label: String::new(), efforts: vec![], default_effort: None })
+        .collect()
+}
+
+/// Corre un programa sin ventana y devuelve su salida estándar (con tiempo límite).
+fn run_hidden(exe: &Path, args: &[&str], limit: std::time::Duration) -> Result<String, String> {
+    use std::process::{Command, Stdio};
+    let mut c = Command::new(exe);
+    c.args(args)
+        .env("AGY_CLI_DISABLE_AUTO_UPDATE", "true")
+        .env("NO_COLOR", "1")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    let mut child = c.spawn().map_err(|e| e.to_string())?;
+    let mut so = child.stdout.take().unwrap();
+    let reader = std::thread::spawn(move || {
+        let mut b = Vec::new();
+        let _ = std::io::Read::read_to_end(&mut so, &mut b);
+        b
+    });
+    let start = std::time::Instant::now();
+    loop {
+        if child.try_wait().map_err(|e| e.to_string())?.is_some() {
+            break;
+        }
+        if start.elapsed() > limit {
+            let _ = child.kill();
+            return Err("tardó demasiado".into());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    Ok(String::from_utf8_lossy(&reader.join().unwrap_or_default()).into_owned())
+}
+
+fn models_for(kind: &str, command: &str) -> Result<Vec<ModelInfo>, String> {
+    let limit = std::time::Duration::from_secs(25);
+    let exe = || resolve_in(&first_token(command), &search_dirs()).ok_or_else(|| format!("no se encontró {}", first_token(command)));
+    match kind {
+        "codex" => {
+            let home = std::env::var_os("CODEX_HOME")
+                .map(PathBuf::from)
+                .or_else(|| std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join(".codex")))
+                .ok_or("no se encontró la carpeta de Codex")?;
+            let json = std::fs::read_to_string(home.join("models_cache.json"))
+                .map_err(|_| "Codex todavía no guardó su lista de modelos (la baja al abrirlo)".to_string())?;
+            Ok(parse_codex_cache(&json))
+        }
+        "agy" => run_hidden(&exe()?, &["models"], limit).map(|o| parse_agy_models(&o)),
+        "opencode" => run_hidden(&exe()?, &["models"], limit).map(|o| parse_opencode_models(&o)),
+        _ => Ok(Vec::new()),
+    }
+}
+
+/// Modelos que ofrece un agente (`kind`: codex, agy u opencode; los demás, lista vacía).
+#[tauri::command]
+pub async fn agent_models(kind: String, command: String) -> Result<Vec<ModelInfo>, String> {
+    tauri::async_runtime::spawn_blocking(move || models_for(&kind, &command)).await.map_err(|e| e.to_string())?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn modelos_de_codex() {
+        let j = r#"{"models":[
+            {"slug":"b","display_name":"B","priority":2,"visibility":"list","default_reasoning_level":"medium","supported_reasoning_levels":[{"effort":"low"},{"effort":"high"}]},
+            {"slug":"oculto","priority":0,"visibility":"hide"},
+            {"slug":"a","display_name":"A","priority":1,"visibility":"list"}]}"#;
+        let m = parse_codex_cache(j);
+        assert_eq!(m.iter().map(|x| x.id.as_str()).collect::<Vec<_>>(), ["a", "b"]);
+        assert_eq!(m[1].efforts, ["low", "high"]);
+        assert_eq!(m[1].default_effort.as_deref(), Some("medium"));
+        assert!(parse_codex_cache("no es json").is_empty());
+    }
+
+    #[test]
+    fn modelos_de_agy_y_opencode() {
+        let a = parse_agy_models("Fetching available models...\ngemini-4-neon-high\tGemini 4 Neon (High)\n\n");
+        assert_eq!(a, [ModelInfo { id: "gemini-4-neon-high".into(), label: "Gemini 4 Neon (High)".into(), efforts: vec![], default_effort: None }]);
+        let o = parse_opencode_models("opencode/big-pickle\r\ngoogle/gemini-2.5-pro\nError: algo\n");
+        assert_eq!(o.iter().map(|x| x.id.as_str()).collect::<Vec<_>>(), ["opencode/big-pickle", "google/gemini-2.5-pro"]);
+    }
 
     #[test]
     fn primer_token() {

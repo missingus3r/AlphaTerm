@@ -130,6 +130,7 @@ pub fn run() {
             fonts::fonts_list,
             agents::agents_detect,
             agents::agents_path_env,
+            agents::agent_models,
             sysmon::sys_stats,
             sysmon::sys_top,
             usage::usage_get,

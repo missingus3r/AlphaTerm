@@ -593,3 +593,56 @@ necesita los controles comunes v6); el manifiesto ahora lo incrusta el linker pa
 - Tests: Rust 72 (+6 ignorados: consultas reales a Claude, Codex y agy), Vitest 104. Todos en verde.
 - Binario release: alphaterm.exe 17,4 MB (+ conpty.dll y OpenConsole.exe). Versión 0.2.0.
 
+
+## Barra vertical ajustable y opciones de arranque de los agentes (20/11/2026, tarde)
+
+1. **Botón de plegar la barra vertical**: el `«`/`»` pasa a ser un ícono de barra lateral dibujado
+   (marco redondeado con una rayita a la izquierda, el mismo en los dos estados).
+2. **Ancho de la barra vertical**: se arrastra su borde derecho (160 a 480 px, y deja al menos 360 px
+   a las terminales). Se guarda al soltar en `tabBar.width`; doble clic vuelve a 220 px. Plegada
+   sigue en 48 px y al desplegar recupera el ancho elegido.
+3. **Opciones de arranque de los agentes** (en lugar del botón de editar del panel de agentes): un
+   botón con deslizadores abre, pegado a la fila del agente, modelo (lista que se filtra escribiendo),
+   esfuerzo (deslizador; la primera posición es "por defecto"), permisos y modos, casillas de sesión
+   (continuar, retomar, worktree, primer mensaje) y "Más opciones" (carpetas extra, system prompt,
+   herramientas, Chrome, debug, etc.), con la línea de comando que va a correr. Lo de antes (nombre,
+   comando, variables, ocultar, borrar) quedó en "Avanzado".
+   - Catálogo en `src/panels/agentLaunch.ts`, relevado del `--help` de las versiones instaladas
+     (Claude Code 2.1.329, Codex 0.170.0, agy 1.5.13, OpenCode 1.19.1) y de la documentación oficial.
+     OpenCode 2.x cambió los flags de su interfaz (sin --model ni --agent): el catálogo es el de la 1.x.
+   - Modelos en vivo: comando `agent_models` (Rust). Codex desde `~/.codex/models_cache.json` (con
+     los niveles de razonamiento de cada modelo: el deslizador cambia según el modelo), agy con
+     `agy models` y OpenCode con `opencode models`, sin ventana y una vez por sesión (↻ para releer).
+     Claude no tiene lista: va fija (alias y nombres completos).
+   - Opciones que chocan (ej. Codex `--approve-for-me` con `--sandbox`, Claude
+     `--dangerously-skip-permissions` con `--permission-mode`): la que queda afuera se ve gris, con
+     "No se usa junto con …", y no se manda. Las peligrosas, en rojo.
+   - Comillas según la shell del perfil (PowerShell 5.1, pwsh, cmd, bash). En PowerShell 5.1 las
+     comillas dobles internas van como `\"` (si no, se pierden al pasarle el argumento al .exe).
+   - El primer mensaje va primero (antes de flags como `--add-dir`, que se comen lo que sigue). En
+     Codex, retomar es el subcomando `resume`, que va antes de todo.
+   - Se guardan por agente en `agents[].launch` y valen para cada "Lanzar" (panel, Proyectos y al
+     reabrir la sesión; al reabrir no se repiten las de sesión, porque ya se retoma).
+   - Codex: si las opciones ya dicen cómo aprobar, AlphaTerm no le suma `-s read-only -a on-request`.
+4. **Bug encontrado y corregido**: el panel de agentes iteraba objetos y cada cambio de la
+   configuración rearmaba la fila (se perdía el foco y lo abierto). Ahora itera ids.
+
+### Prueba en la app (release aparte con datos propios, CDP + API de control de la de prueba)
+- Ícono igual al pedido; arrastre a 331 px guardado, límites 160 y 480, doble clic a 220, plegar y
+  desplegar.
+- Claude: opus + high + plan → la línea, el resumen bajo el nombre y lo guardado coinciden; lanzado,
+  muestra "Opus 5.5 with high effort" y "plan mode on". Saltar permisos deja gris lo que choca.
+- Codex: 10 modelos de la caché; con gpt-6-luna el deslizador pierde "ultra". Lanzado con
+  `-c model_reasoning_effort=xhigh --approve-for-me --search`: arranca sin error y sin el `-s` del
+  guardián.
+- agy: 23 modelos (2 s). Lanzado con `--model gemini-4-neon --effort xhigh --mode auto --sandbox
+  --settings '{\"toolPermission\":\"proceed-in-sandbox\"}'` en PowerShell 5.1: muestra "Gemini 4 Neon
+  (XHigh)" y "Auto mode".
+- OpenCode: 121 modelos (2 s). No se lanzó.
+
+### Pendiente / no verificado
+- OpenCode lanzado con opciones; el primer mensaje (no se mandó para no gastar); comillas en cmd y
+  Git Bash (tienen test, no prueba en la app).
+
+### Stats
+- Tests: Rust 74 (+6 ignorados), Vitest 111. Todos en verde.

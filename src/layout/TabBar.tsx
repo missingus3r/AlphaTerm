@@ -2,6 +2,7 @@ import { createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { Marquee } from "./Marquee";
 import type { Profile } from "../terminal/pty";
 import type { Group } from "./model";
+import { DEFAULTS, LIMITS } from "../settings/schema";
 
 /** Colores para pestañas y carpetas (se ven bien en temas claros y oscuros). */
 export const TAB_COLORS = ["#ef6b73", "#f2a65a", "#e5c07b", "#8bd49c", "#5fd7d7", "#60a5fa", "#a78bfa", "#f472b6"];
@@ -27,6 +28,9 @@ interface Props {
   /** Barra vertical plegada: angosta, con el estado y la inicial de cada pestaña. */
   collapsed?: boolean;
   onCollapse?: () => void;
+  /** Ancho en px de la barra vertical desplegada; `onWidth` se llama al soltar el borde arrastrado. */
+  width?: number;
+  onWidth?: (width: number) => void;
   /** Atajos para el tooltip del botón "?". */
   help: [string, string][];
   editingId: string | null;
@@ -71,6 +75,29 @@ export const tabInitial = (title: string) => (title.match(/[\p{L}\p{N}]/u)?.[0] 
 export function TabBar(props: Props) {
   const [dragId, setDragId] = createSignal<string | null>(null);
   const compact = () => props.vertical && !!props.collapsed;
+  // Ancho de la barra vertical: mientras se arrastra el borde vive acá; al soltar se guarda.
+  const [dragW, setDragW] = createSignal<number | null>(null);
+  const barWidth = () => dragW() ?? props.width ?? DEFAULTS.tabBar.width;
+  const startResize = (e: PointerEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = barWidth();
+    const [lo, hi] = LIMITS.tabBarWidth;
+    // Deja al menos 360 px para las terminales.
+    const clamp = (w: number) => Math.round(Math.max(lo, Math.min(hi, window.innerWidth - 360, w)));
+    document.body.classList.add("resizing", "resizing-row");
+    const move = (ev: PointerEvent) => setDragW(clamp(startW + ev.clientX - startX));
+    const up = () => {
+      document.body.classList.remove("resizing", "resizing-row");
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      const w = dragW();
+      if (w !== null && w !== props.width) props.onWidth?.(w);
+      setDragW(null);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
   const help = () => props.help.map(([k, v]) => `${k}: ${v}`).join("\n");
   const [menu, setMenu] = createSignal<Menu>(null);
   const groupOf = (id?: string) => (id ? props.groups.find((g) => g.id === id) : undefined);
@@ -105,7 +132,20 @@ export function TabBar(props: Props) {
   };
 
   return (
-    <nav class="tabbar" classList={{ vertical: props.vertical, collapsed: compact() }} aria-label="Pestañas">
+    <nav
+      class="tabbar"
+      classList={{ vertical: props.vertical, collapsed: compact() }}
+      style={{ width: props.vertical && !compact() ? `${barWidth()}px` : undefined }}
+      aria-label="Pestañas"
+    >
+      <Show when={props.vertical && !compact() && props.onWidth}>
+        <div
+          class="tabbar-resize"
+          title="Arrastrar para cambiar el ancho (doble clic: ancho normal)"
+          onPointerDown={startResize}
+          onDblClick={() => props.onWidth?.(DEFAULTS.tabBar.width)}
+        />
+      </Show>
       <Show when={props.vertical && props.onCollapse}>
         <button
           class="btn collapse-bar"
@@ -113,7 +153,11 @@ export function TabBar(props: Props) {
           aria-expanded={!compact()}
           onClick={() => props.onCollapse?.()}
         >
-          {compact() ? "»" : "«"}
+          {/* Ícono de barra lateral: marco redondeado con una rayita a la izquierda (igual en los dos estados). */}
+          <svg width="17" height="14" viewBox="0 0 17 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+            <rect x="0.8" y="0.8" width="15.4" height="12.4" rx="3" />
+            <path d="M4.4 4.4v5.2" />
+          </svg>
         </button>
       </Show>
       <div class="tabs" role="tablist" aria-orientation={props.vertical ? "vertical" : "horizontal"}>

@@ -12,6 +12,7 @@ import type { TermLook } from "../settings/apply";
 import { openSettings, type SettingsStore } from "../settings/store";
 import type { AgentDef } from "../settings/schema";
 import { agentRunning, agentState, pushRecent } from "../panels/agentState";
+import { agentKind, buildCommand, launchParts, shellKindOf } from "../panels/agentLaunch";
 import type { RunningAgent } from "../panels/AgentsPanel";
 import { ActivityBar, PANELS, type PanelId } from "../panels/ActivityBar";
 import * as D from "../panels/dock";
@@ -474,9 +475,12 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   };
   // Archivos para lanzar Claude Code con el MCP de AlphaTerm y el hook del guardián.
   const [controlFiles] = createResource(() => invoke<{ claudeSettings: string; claudeMcp: string; mcpScript: string }>("control_files").catch(() => null));
-  /** Comando con el que arranca un agente: Claude y Codex suman el guardián y la API de control. */
-  const agentCommand = (agent: AgentDef) => {
-    const first = agent.command.trim().split(/\s+/)[0].split(/[\\/]/).pop()!.toLowerCase().replace(/\.(exe|cmd)$/, "");
+  /**
+   * Comando con el que arranca un agente: el suyo, las opciones elegidas en el panel (con las
+   * comillas de la shell del perfil) y, en Claude y Codex, el guardián y la API de control.
+   */
+  const agentCommand = (agent: AgentDef, profileId: string) => {
+    const first = agentKind(agent.command);
     const s = settings();
     const extra: string[] = [];
     const f = controlFiles();
@@ -485,15 +489,18 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
       // El mismo archivo trae el hook del guardián y el que registra las modificaciones.
       if ((s.guardian.enabled && s.guardian.claude) || (s.changes.enabled && s.changes.claude)) extra.push(`--settings "${f.claudeSettings}"`);
     }
-    if (first === "codex" && s.guardian.enabled && s.guardian.codex && !/(\s|^)(-s|--sandbox|-a|--ask-for-approval)(\s|=)/.test(agent.command)) {
-      // Codex no tiene hooks: se usa su propio modo de aprobación (pide permiso para escribir).
+    // Codex no tiene hooks: se usa su propio modo de aprobación (pide permiso para escribir), salvo
+    // que el comando o las opciones ya digan cómo aprobar (si no, choca con lo elegido).
+    const chosen = [agent.command, ...launchParts(agent).flag].join(" ");
+    if (first === "codex" && s.guardian.enabled && s.guardian.codex && !/(\s|^)(-s|--sandbox|-a|--ask-for-approval|--approve-for-me|--dangerously-bypass-approvals-and-sandbox)(\s|=|$)/.test(chosen)) {
       extra.push("-s read-only -a on-request");
     }
-    return [agent.command, ...extra].join(" ");
+    return buildCommand(agent, shellKindOf(profileId), extra);
   };
   const launchAgent = (agent: AgentDef, cwd: string | undefined) => {
     const env: Record<string, string> = { ...(pathEnv() ? { PATH: pathEnv()! } : {}), ...agent.env };
-    update((x) => M.addTab(x, M.newTab(defaultProfile(), cwd, { command: agentCommand(agent), env, agentId: agent.id })));
+    const profile = defaultProfile();
+    update((x) => M.addTab(x, M.newTab(profile, cwd, { command: agentCommand(agent, profile), env, agentId: agent.id })));
     if (cwd) props.store.update((d) => void (d.recentDirs = pushRecent(d.recentDirs, cwd)));
   };
   // --- Modificaciones: se vigila la carpeta de cada panel con un agente andando -----------------
@@ -722,6 +729,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                 activeCwd={activeCwd()}
                 recentDirs={settings().recentDirs}
                 onLaunch={launchAgent}
+                shell={shellKindOf(defaultProfile())}
                 onFocus={focusPane}
                 update={props.store.update}
               />
@@ -738,6 +746,8 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
         vertical={vertical()}
         collapsed={settings().tabBar.collapsed}
         onCollapse={() => props.store.update((d) => void (d.tabBar.collapsed = !d.tabBar.collapsed))}
+        width={settings().tabBar.width}
+        onWidth={(w) => props.store.update((d) => void (d.tabBar.width = w))}
         help={shortcutHelp(settings().shortcuts)}
         editingId={editingId()}
         profiles={props.info.profiles}

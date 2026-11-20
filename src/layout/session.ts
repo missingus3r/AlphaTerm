@@ -4,6 +4,7 @@
  */
 import type { AgentDef } from "../settings/schema";
 import * as M from "./model";
+import { buildCommand, shellKindOf } from "../panels/agentLaunch";
 
 export interface SavedWindow {
   version: 1;
@@ -58,7 +59,11 @@ export function restore(
     }
     const startup =
       opts.relaunch && agent
-        ? { command: [agent.command, RESUME_ARGS[agent.id]].filter(Boolean).join(" "), env: { ...opts.env, ...agent.env }, agentId: agent.id }
+        ? {
+            command: buildCommand(agent, shellKindOf(profileId), [], { resuming: true, resumeArgs: RESUME_ARGS[agent.id] }),
+            env: { ...opts.env, ...agent.env },
+            agentId: agent.id,
+          }
         : undefined;
     return { kind: "leaf", id: leaf.id, profileId, cwd: leaf.cwd, ...(startup ? { startup } : {}) };
   };

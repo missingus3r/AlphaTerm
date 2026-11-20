@@ -5,15 +5,16 @@ El plan está en `Plan_Terminal_NovaTerm.txt` (con adendas al final: entorno de 
 la guía de código en `Documentacion\Guia_de_codigo.txt` (y su PDF); el registro de cada fase en
 `Documentacion\Informe_Proceso_y_Stats.md`.
 
-## Estado al 18/11/2026
+## Estado
 - F0 a F9 terminadas, más los extras pedidos (API de control para agentes + MCP, Docker, guardián,
   paneles en mosaico, historial, sesión, rutas con vista previa, carpetas y color de pestañas…).
 - Renombrada a AlphaTerm: binario `alphaterm.exe`, identificador `uy.alphaterm.app`, datos en
   `%APPDATA%\AlphaTerm` (se copia la de NovaTerm la primera vez). La carpeta del proyecto es
   `Desktop\AlphaTerm` (renombrada el 18/11/2026; antes `Desktop\NovaTerm`).
-- Pendiente: decidir empaquetado (exe suelto o instalador NSIS); probar Docker con un contenedor
-  real y Claude Code con una tarea real pasando por el guardián; metas de RAM (<120 MB) y arranque
-  (<500 ms) no se cumplen (~225 MB y 1,2–1,4 s, dominados por WebView2).
+- Pendiente: decidir si además de la instalación por versión (`compilar-version.bat`) hace falta un
+  instalador NSIS; probar Docker con un contenedor real y Claude Code con una tarea real pasando por
+  el guardián; metas de RAM (<120 MB) y arranque (<500 ms) no se cumplen (~225 MB y 1,2–1,4 s,
+  dominados por WebView2).
 
 ## Correr y probar
 - Desarrollo: `npx tauri dev`. Release: `npx tauri build --no-bundle` → `src-tauri\target\release\alphaterm.exe`.
@@ -58,9 +59,15 @@ la guía de código en `Documentacion\Guia_de_codigo.txt` (y su PDF); el registr
   nueva re-monta todo y se pierde lo que se está editando).
 - Pegar imágenes (`clip.rs`): sin texto en el portapapeles, la imagen se guarda como PNG en
   `%TEMP%\AlphaTerm\pegadas` y se pega su ruta (Claude Code y Codex la adjuntan).
-- Probar una versión nueva con otra AlphaTerm abierta: compilar con
-  `CARGO_TARGET_DIR=src-tauri\target\prueba` y abrirla con `ALPHATERM_DATA_DIR` y
-  `WEBVIEW2_USER_DATA_FOLDER` propios (no toca la sesión ni la configuración de la abierta).
+- Probar una versión nueva con otra AlphaTerm abierta: compilar con `CARGO_TARGET_DIR=target\prueba`
+  (cargo lo toma relativo a `src-tauri`, así que queda en `src-tauri\target\prueba`; o una ruta
+  absoluta) y abrirla con `ALPHATERM_DATA_DIR` y `WEBVIEW2_USER_DATA_FOLDER` propios (no toca la
+  sesión ni la configuración de la abierta).
+- `alphaterm-mcp.mjs` lee `%APPDATA%\AlphaTerm\control.json` aunque haya `ALPHATERM_DATA_DIR`: para
+  hablarle a una AlphaTerm de prueba, pasarle `ALPHATERM_CONTROL_URL` y `ALPHATERM_CONTROL_TOKEN` del
+  `control.json` de su carpeta de datos (si no, se le habla a la de Bruno).
+- Opciones de arranque de agentes: catálogo en `src/panels/agentLaunch.ts` (relevado de los `--help`;
+  revisarlo cuando se actualice un agente). Listas de modelos en vivo: `agent_models` en `agents.rs`.
 - computer use: el escritorio a veces queda al frente y bloquea clics; usar CDP para la interfaz.
 - Las shells no heredan el entorno de quien abrió AlphaTerm (`src-tauri/src/pty/env.rs`): Claude Code
   le pone NO_COLOR=1 y decenas de CLAUDE_CODE_* (con tokens) a sus herramientas. Se respetan si están
