@@ -397,9 +397,12 @@ export function TerminalView(props: Props) {
       if (sel) void writeText(sel);
       term.clearSelection();
     };
+    // Texto, o una imagen: se guarda como PNG y se pega su ruta (Claude Code y Codex la adjuntan).
     const paste = async () => {
       const text = await readText().catch(() => "");
-      if (text) term.paste(text);
+      if (text) return term.paste(text);
+      const img = await invoke<string | null>("clipboard_image_to_file").catch(() => null);
+      if (img) term.paste(/\s/.test(img) ? `"${img}"` : img);
     };
     term.attachCustomKeyEventHandler((e) => {
       const action = props.match(e);

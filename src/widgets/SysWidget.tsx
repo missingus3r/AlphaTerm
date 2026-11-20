@@ -76,24 +76,43 @@ export function SysWidget(props: { everyMs: number; tabs: TabProcs[]; vertical: 
   });
 
   const memPct = () => (stats() ? (stats()!.memUsed / stats()!.memTotal) * 100 : 0);
+  /** Parte de la RAM total que usa algo (para pestañas y procesos). */
+  const ofTotal = (bytes: number) => (stats()?.memTotal ? fmtPct((bytes / stats()!.memTotal) * 100) : "");
 
   return (
     <div class="sys-widget" classList={{ vertical: props.vertical }} ref={root}>
-      <button class="sys-btn" onClick={() => setOpen(!open())} title="CPU y RAM (clic: procesos)">
-        <span class={`sys-val lv-${level(stats()?.cpu ?? 0)}`}>CPU {fmtPct(stats()?.cpu ?? 0)}</span>
-        <svg class="spark" width="48" height="16" viewBox="0 0 48 16" aria-hidden="true">
-          <polyline points={sparkPoints(cpuHist(), 48, 16)} />
-        </svg>
-        <span class={`sys-val lv-${level(memPct())}`}>RAM {stats() ? `${fmtBytes(stats()!.memUsed)}` : "–"}</span>
-        <svg class="spark mem" width="48" height="16" viewBox="0 0 48 16" aria-hidden="true">
-          <polyline points={sparkPoints(memHist(), 48, 16)} />
-        </svg>
+      <button
+        class="sys-btn"
+        onClick={() => setOpen(!open())}
+        title={`CPU ${fmtPct(stats()?.cpu ?? 0)} · RAM ${stats() ? `${fmtBytes(stats()!.memUsed)} de ${fmtBytes(stats()!.memTotal)} (${fmtPct(memPct())})` : "–"}
+Clic: procesos`}
+      >
+        {/* Cada medida es un bloque (texto + gráfica): en la barra vertical la gráfica va abajo y
+            plegada quedan solo los números. */}
+        <span class="sys-metric">
+          <span class={`sys-val lv-${level(stats()?.cpu ?? 0)}`}>
+            <span class="sys-name">CPU </span>
+            {fmtPct(stats()?.cpu ?? 0)}
+          </span>
+          <svg class="spark" width="48" height="16" viewBox="0 0 48 16" preserveAspectRatio="none" aria-hidden="true">
+            <polyline points={sparkPoints(cpuHist(), 48, 16)} />
+          </svg>
+        </span>
+        <span class="sys-metric">
+          <span class={`sys-val lv-${level(memPct())}`}>
+            <span class="sys-name">RAM </span>
+            {stats() ? (props.vertical ? fmtPct(memPct()) : `${fmtBytes(stats()!.memUsed)} · ${fmtPct(memPct())}`) : "–"}
+          </span>
+          <svg class="spark mem" width="48" height="16" viewBox="0 0 48 16" preserveAspectRatio="none" aria-hidden="true">
+            <polyline points={sparkPoints(memHist(), 48, 16)} />
+          </svg>
+        </span>
       </button>
       <Show when={open()}>
         <div class="sys-pop" role="dialog" aria-label="Procesos">
           <div class="sys-head">
             <b>CPU {fmtPct(stats()?.cpu ?? 0)}</b> de {stats()?.cores ?? "?"} núcleos ·{" "}
-            <b>RAM {stats() ? `${fmtBytes(stats()!.memUsed)} de ${fmtBytes(stats()!.memTotal)}` : "–"}</b>
+            <b>RAM {stats() ? `${fmtBytes(stats()!.memUsed)} de ${fmtBytes(stats()!.memTotal)} (${fmtPct(memPct())})` : "–"}</b>
           </div>
           <h4>Pestañas de esta ventana</h4>
           <table>
@@ -108,6 +127,7 @@ export function SysWidget(props: { everyMs: number; tabs: TabProcs[]; vertical: 
                       </td>
                       <td>{u() ? fmtPct(u()!.cpu) : "…"}</td>
                       <td>{u() ? fmtBytes(u()!.mem) : ""}</td>
+                      <td class="muted">{u() ? ofTotal(u()!.mem) : ""}</td>
                       <td class="muted">{u() ? `${u()!.count} proc.` : ""}</td>
                     </tr>
                   );
@@ -140,6 +160,7 @@ export function SysWidget(props: { everyMs: number; tabs: TabProcs[]; vertical: 
                       <tr title={`PID ${p.pid}`}>
                         <td class="name">{p.name}</td>
                         <td>{fmtBytes(p.mem)}</td>
+                        <td class="muted">{ofTotal(p.mem)}</td>
                       </tr>
                     )}
                   </For>

@@ -1,8 +1,10 @@
 #!/usr/bin/env node
-// Hook PreToolUse de Claude Code (lo instala AlphaTerm con --settings al lanzar Claude Code).
-// Le pregunta al guardián de AlphaTerm antes de editar, crear o borrar archivos. Si el usuario
-// no lo permite, Claude Code recibe "deny" con el motivo. Si AlphaTerm no responde, no frena
-// (Claude Code sigue con sus propios permisos).
+// Hook de Claude Code (lo instala AlphaTerm con --settings al lanzar Claude Code).
+// - PreToolUse: AlphaTerm copia cómo está el archivo (para el panel de modificaciones) y el
+//   guardián pregunta antes de editar, crear o borrar archivos. Si el usuario no lo permite,
+//   Claude Code recibe "deny" con el motivo.
+// - PostToolUse: AlphaTerm anota cómo quedó el archivo.
+// Si AlphaTerm no responde, no frena (Claude Code sigue con sus propios permisos).
 import fs from "node:fs";
 import path from "node:path";
 
@@ -30,6 +32,10 @@ process.stdin.on("end", async () => {
   try {
     const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
     if (process.env.ALPHATERM_PANE) headers["X-AlphaTerm-Pane"] = process.env.ALPHATERM_PANE;
+    if (input.hook_event_name === "PostToolUse") {
+      await fetch(`${url}/v1/changes_post`, { method: "POST", headers, body: JSON.stringify(input), signal: AbortSignal.timeout(20_000) });
+      process.exit(0);
+    }
     const r = await fetch(`${url}/v1/guardian`, { method: "POST", headers, body: JSON.stringify(input), signal: AbortSignal.timeout(595_000) });
     const data = await r.json();
     if (data.decision === "deny") {

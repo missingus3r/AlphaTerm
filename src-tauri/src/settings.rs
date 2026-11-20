@@ -16,8 +16,12 @@ pub const EVENT: &str = "settings-changed";
 const POLL: Duration = Duration::from_millis(1000);
 const MAX_IMAGE: usize = 25 * 1024 * 1024;
 
-/// Carpeta de datos de la app (`%APPDATA%\AlphaTerm`).
+/// Carpeta de datos de la app (`%APPDATA%\AlphaTerm`). Con ALPHATERM_DATA_DIR se usa otra (para
+/// probar una versión nueva al lado de la que está abierta sin tocar su sesión ni su configuración).
 pub fn data_dir() -> PathBuf {
+    if let Some(d) = std::env::var_os("ALPHATERM_DATA_DIR").filter(|d| !d.is_empty()) {
+        return PathBuf::from(d);
+    }
     let base = std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
     base.join("AlphaTerm")
 }
@@ -25,6 +29,9 @@ pub fn data_dir() -> PathBuf {
 /// La app se llamaba NovaTerm: la primera vez se copia `%APPDATA%\NovaTerm` a `%APPDATA%\AlphaTerm`
 /// (sin borrar la vieja). Devuelve si copió algo.
 pub fn migrate_from_novaterm() -> bool {
+    if std::env::var_os("ALPHATERM_DATA_DIR").is_some() {
+        return false;
+    }
     let Some(base) = std::env::var_os("APPDATA").map(PathBuf::from) else { return false };
     migrate_dir(&base.join("NovaTerm"), &data_dir())
 }

@@ -6,6 +6,7 @@ import { activeTheme, createOsDark, fontStack, storeBackground } from "./apply";
 import { monospaceFonts } from "./fonts";
 import { COLOR_KEYS, DEFAULT_FONT, LIMITS, type ColorKey, type Effect, type Settings } from "./schema";
 import { revealSettings, type SettingsStore } from "./store";
+import { appInfo, versionTooltip } from "../widgets/appInfo";
 import { allThemes, findTheme, importThemes, themeId, type Theme } from "./themes";
 import "./settings.css";
 
@@ -654,6 +655,30 @@ function AgentsSection(props: SectionProps) {
           </For>
         </ul>
       </Row>
+      <h3>Modificaciones de archivos</h3>
+      <Row
+        label="Panel de modificaciones"
+        hint="Muestra lo que cambian los agentes en los archivos (de texto, de código y PDF por su texto), también fuera de git, con lo agregado y lo borrado. Se puede editar y guardar desde ahí."
+      >
+        <Toggle checked={props.s.changes.enabled} label={props.s.changes.enabled ? "Prendido" : "Apagado"} onChange={(v) => props.set((d) => void (d.changes.enabled = v))} />
+      </Row>
+      <Show when={props.s.changes.enabled}>
+        <Row label="De dónde salen">
+          <Toggle
+            checked={props.s.changes.claude}
+            label="Claude Code lanzado desde AlphaTerm (hook antes y después de cada edición: exacto)"
+            onChange={(v) => props.set((d) => void (d.changes.claude = v))}
+          />
+          <Toggle
+            checked={props.s.changes.folders}
+            label="La carpeta de cualquier pestaña con un agente andando (se copia al arrancar y se compara)"
+            onChange={(v) => props.set((d) => void (d.changes.folders = v))}
+          />
+          <small class="muted">
+            De la copia de la carpeta quedan afuera lo que ignora git, las carpetas ocultas, node_modules y target, y los archivos de más de 2 MB; para esos se compara con el último commit o se muestra el archivo entero. No se vigilan la carpeta del usuario ni la raíz de un disco.
+          </small>
+        </Row>
+      </Show>
       <h3>Resumen de pestañas con un modelo</h3>
       <Row label="Resumir con un modelo" hint="Opcional: cada cierto tiempo se le pasan las últimas líneas de las pestañas con actividad a un modelo (Ollama, vLLM, LM Studio…) y su respuesta es el nombre de la pestaña. El título que pone un programa (Claude Code) y el nombre a mano siguen mandando.">
         <Toggle checked={props.s.llm.enabled} label={props.s.llm.enabled ? "Prendido" : "Apagado"} onChange={(v) => props.set((d) => void (d.llm.enabled = v))} />
@@ -717,7 +742,15 @@ function UsageSection(props: SectionProps) {
   return (
     <section>
       <h2>Consumo y widgets</h2>
-      <Row label="Claude" hint="Porcentaje exacto de 5 h y de la semana, tomado de la statusline de Claude Code. Sin ella, solo una estimación en tokens.">
+      <Row
+        label="Consulta en vivo"
+        hint="Como el System dashboard: al abrir AlphaTerm y cada tantos minutos se abre cada agente escondido (sin ventana) y se le pregunta su consumo: claude /usage, codex /status y agy /quota. No hace falta haberlos usado y no gasta cuota. Claude tarda unos 10 s."
+      >
+        <select class="text" value={String(u().liveEveryMin)} onChange={(e) => set((x) => void (x.liveEveryMin = Number(e.currentTarget.value)))}>
+          <For each={[5, 10, 15, 30, 60, 120]}>{(v) => <option value={v}>{v < 60 ? `cada ${v} min` : `cada ${v / 60} h`}</option>}</For>
+        </select>
+      </Row>
+      <Row label="Claude" hint="Sesión de 5 h, semana, semana por modelo, uso extra, plan y modelo (consulta en vivo). Entre consultas, la statusline de Claude Code lo actualiza mientras lo usás.">
         <Toggle checked={u().claude} label={u().claude ? "En el footer" : "Oculto"} onChange={(v) => set((x) => void (x.claude = v))} />
       </Row>
       <Row label="Statusline de Claude Code">
@@ -746,20 +779,15 @@ function UsageSection(props: SectionProps) {
           </div>
         </Show>
       </Row>
-      <Row label="Codex" hint="Último dato de límites que dejó Codex en sus sesiones: se actualiza cuando lo usás.">
+      <Row label="Codex" hint="Límites de 5 h y semanal, plan y modelo (consulta en vivo). Entre consultas, lo que deja Codex en sus sesiones mientras lo usás.">
         <Toggle checked={u().codex} label={u().codex ? "En el footer" : "Oculto"} onChange={(v) => set((x) => void (x.codex = v))} />
       </Row>
-      <Row label="Antigravity (agy)" hint="Dato oficial de agy /quota (no gasta cuota). Se corre agy directo, sin shell.">
+      <Row label="Antigravity (agy)" hint="Dato oficial de agy /quota por grupo de modelos (no gasta cuota). Se corre con su actualizador apagado: si no, abría una ventana de cmd un instante.">
         <Toggle checked={u().agy} label={u().agy ? "En el footer" : "Oculto"} onChange={(v) => set((x) => void (x.agy = v))} />
       </Row>
-      <Row label="Leer Claude y Codex cada">
+      <Row label="Releer los archivos de Claude y Codex cada">
         <select class="text" value={String(u().filesEverySec)} onChange={(e) => set((x) => void (x.filesEverySec = Number(e.currentTarget.value)))}>
           <For each={[15, 30, 60, 300, 900]}>{(v) => <option value={v}>{v < 60 ? `${v} s` : `${v / 60} min`}</option>}</For>
-        </select>
-      </Row>
-      <Row label="Consultar agy cada">
-        <select class="text" value={String(u().agyEveryMin)} onChange={(e) => set((x) => void (x.agyEveryMin = Number(e.currentTarget.value)))}>
-          <For each={[2, 5, 10, 30, 60]}>{(v) => <option value={v}>{v} min</option>}</For>
         </select>
       </Row>
       <Row label="Widget de CPU y RAM" hint="En la barra de pestañas; clic para ver los procesos y lo que consume cada pestaña.">
@@ -899,12 +927,19 @@ function ShortcutSection(props: SectionProps) {
 // --- Acerca y límites ---------------------------------------------------------------------------------
 
 function AboutSection(props: { path: string }) {
+  const [info] = createResource(appInfo);
   return (
     <section>
       <h2>Acerca y límites</h2>
       <p>
         <b>AlphaTerm</b> (antes NovaTerm): terminal para trabajar con agentes de IA. Tauri 2 + Rust, SolidJS y xterm.js.
       </p>
+      <Show when={info()}>
+        <p>
+          Versión <b>{info()!.version}</b>
+          <span class="muted"> · {versionTooltip(info()!).split("\n").slice(1).join(" · ")}</span>
+        </p>
+      </Show>
       <p class="muted">Configuración: {props.path}</p>
       <h3>Lo que no hace (y por qué)</h3>
       <ul class="next">
@@ -913,11 +948,13 @@ function AboutSection(props: { path: string }) {
           No puede frenar a cualquier programa: Windows no lo permite sin un driver de sistema de archivos.
         </li>
         <li>
-          <b>Consumo de Claude</b>: el porcentaje exacto sale de la statusline de Claude Code (hay que conectarla en «Consumo y widgets»).
-          No se leen las credenciales de Claude ni se llama a su servidor.
+          <b>Consumo</b>: al abrir AlphaTerm y cada tantos minutos se le pregunta a cada agente, abierto escondido (claude /usage, codex
+          /status, agy /quota), como el System dashboard. No se leen credenciales ni se llama a sus servidores. Entre consultas, lo
+          actualizan la statusline de Claude Code y las sesiones de Codex.
         </li>
         <li>
-          <b>Consumo de Codex</b>: es el último dato que Codex dejó en sus sesiones; si hace días que no se usa, está viejo (se avisa).
+          <b>Modificaciones</b>: de Claude Code lanzado desde AlphaTerm se sabe exactamente qué cambió; de otros agentes, se compara con
+          una copia de la carpeta tomada al arrancar (sin lo que ignora git ni archivos de más de 2 MB).
         </li>
         <li>
           <b>Integración de la shell</b>: PowerShell, Git Bash y cmd. WSL no, y en cmd no se sabe el código de salida.

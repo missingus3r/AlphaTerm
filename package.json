@@ -1,14 +1,16 @@
 {
   "name": "alphaterm",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "release": "node scripts/release.mjs",
+    "instalar": "node scripts/instalar.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.5",

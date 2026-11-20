@@ -516,3 +516,80 @@ Bajar de ahí pediría otro motor de interfaz: no se hizo.
   script compilado): ahora la lee al correr.
 - Tests: Rust 56 (+3 ignorados), Vitest 96.
 
+---
+
+## Consumo en vivo, modificaciones de archivos y ajustes (20/11/2026)
+
+Pedidos de Bruno, en orden:
+
+1. **Ventana de cmd que aparecía y se iba cada tantos minutos.** Causa: `agy -p /quota` (la consulta
+   de cuota del footer, cada 10 min) lanzaba el actualizador de agy ("Spawned background update
+   process", en su log) fuera de la consola escondida. El System dashboard ya lo evitaba con
+   `AGY_CLI_DISABLE_AUTO_UPDATE=true` (agy solo acepta "true"); AlphaTerm hace lo mismo. Verificado
+   con un vigía de procesos y ventanas sobre la AlphaTerm nueva: 0 ventanas de consola en 3 minutos
+   con una ronda completa de consultas (Claude, Codex y agy).
+2. **Consumo como el System dashboard, sin tener que usar el agente.** `usage_live.rs`: al abrir
+   AlphaTerm y cada N minutos (Configuración, 15 por defecto) se abre `claude` y `codex` en una ConPTY
+   sin ventana, se escribe `/usage` o `/status` y se lee la pantalla con `vt100`; agy sigue con su
+   `/quota` en JSON. Gana el dato más nuevo entre la consulta y los archivos (statusline, sesiones de
+   Codex). Claude va con `--strict-mcp-config` y `disableAllHooks` (no levanta servidores MCP ni hooks).
+   Tropiezo: contestar `ESC[6n` (dónde está el cursor) hacía que Codex recibiera la respuesta como
+   texto tipeado; sin contestar anda, como en el dashboard. Tiempos medidos: Claude 9 s, Codex 16 s,
+   agy 5 s. No quedan procesos colgados.
+3. **Panel de modificaciones** (Ctrl+Shift+M, `changes.rs` + `ChangesPanel.tsx`): lo que cambian los
+   agentes en archivos de texto, código y PDF (por su texto), con o sin git (etiqueta "en git"),
+   lado a lado o unificado, abrir uno o todos, colapsar todos. Fuentes: hook Pre/PostToolUse de
+   Claude Code lanzado desde AlphaTerm (exacto) y, para cualquier agente, la carpeta de su pestaña
+   (copia al arrancar + vigía). Lo que no entró en la copia se compara con el último commit o se
+   muestra entero. Se guarda 7 días en `changes.json`.
+4. **Editar y guardar desde ese panel**: respeta codificación (UTF-8 con o sin BOM, UTF-16, ANSI) y
+   fin de línea, y no guarda si el archivo cambió desde que se abrió.
+5. **RAM en porcentaje** (botón, detalle, y por pestaña y proceso).
+6. **Consumo detallado en el panel de agentes**: debajo de cada agente, plan, modelo, cada ventana
+   con su reinicio (cuenta regresiva y hora), por modelo (Claude: semana por modelo y "qué más
+   consume"; agy: grupos con sus modelos), uso extra y previsión semanal al ritmo de ahora.
+7. **Barra de pestañas vertical plegable** (queda el estado y la inicial de cada pestaña).
+8. **CPU y RAM en la barra vertical**: la gráfica va abajo de cada número; con la barra plegada
+   quedan solo los números (antes el widget se escondía al plegar).
+9. **Versión en el footer** (`v0.2.0`; tooltip con commit, fecha de compilación y ruta del exe) y en
+   Configuración → Acerca. La versión pasa a 0.2.0.
+10. **Instalar por versión y actualizar el acceso directo**: `npm run release` compila y corre
+    `scripts/instalar.mjs`, que copia a `%LOCALAPPDATA%\AlphaTerm\versiones\<versión>` y apunta ahí el
+    acceso directo del escritorio y el anclado en la barra de tareas. Antes apuntaban a
+    `target\release\alphaterm.exe`, que no se puede pisar mientras AlphaTerm está abierta.
+11. **`compilar-version.bat`** en la carpeta del proyecto (doble clic): compila (en `target\prueba`
+    si `target\release\alphaterm.exe` está abierto) e instala, dejando en el escritorio el acceso
+    directo «AlphaTerm <versión>» (renombra el anterior). Con CRLF.
+12. **Pegar imágenes**: Ctrl+V (o clic derecho) con una imagen en el portapapeles y sin texto la
+    guarda como PNG en `%TEMP%\AlphaTerm\pegadas` y pega su ruta; Claude Code y Codex la adjuntan.
+
+Otros: los binarios de test de Rust no arrancaban (STATUS_ENTRYPOINT_NOT_FOUND: TaskDialogIndirect
+necesita los controles comunes v6); el manifiesto ahora lo incrusta el linker para todos los binarios.
+`ALPHATERM_DATA_DIR` permite abrir una versión nueva al lado de la que está en uso.
+
+### Prueba en la app (release aparte, CDP)
+- Footer con datos en vivo al abrir (Claude 5 h y semana, Codex semana, agy). Panel de agentes con
+  el detalle de los tres. Sin ventanas de consola.
+- Hook: el script real (`guardian-hook.mjs`) con la entrada de Claude Code: Edit de un `.md` (+2 −1),
+  Write de un archivo nuevo ("nuevo") y de un PDF (−"Total: 100", +"Total: 250"). Abrir todos, diff.
+- Edición: Ctrl+S guarda en disco ("editado a mano"); si el archivo cambia mientras se edita, no
+  guarda y lo explica.
+- Bug encontrado en la prueba: no se vigilaban carpetas dentro de AppData (excluía todo AppData, y el
+  proyecto de prueba estaba en Temp). Ahora se excluyen solo las raíces (usuario, AppData, Temp).
+- Vigía de carpetas, ya corregido: con Codex abierto en el proyecto, `plan.txt` nuevo (+3) y
+  `compras.txt` (+2 −1) quedan a nombre de Codex; `node_modules` y un temporal se ignoran; borrar
+  `plan.txt` se registra.
+- CPU/RAM: en la barra vertical, la gráfica abajo del número; plegada, solo los números.
+- `compilar-version.bat` de punta a punta: compiló en `target\prueba` (la vieja estaba abierta),
+  instaló 0.2.0, renombró el acceso directo a «AlphaTerm 0.2.0» y actualizó el anclado. La versión
+  instalada muestra «v0.2.0+» en el footer.
+
+### Pendiente / no verificado
+- Pegar una imagen con una captura real (no se tocó el portapapeles de Bruno; el guardado del PNG
+  tiene test).
+- El hook con una sesión real de Claude Code editando (se probó con el script real y la misma entrada).
+
+### Stats
+- Tests: Rust 72 (+6 ignorados: consultas reales a Claude, Codex y agy), Vitest 104. Todos en verde.
+- Binario release: alphaterm.exe 17,4 MB (+ conpty.dll y OpenConsole.exe). Versión 0.2.0.
+

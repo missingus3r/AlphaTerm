@@ -30,6 +30,7 @@ const ProjectsPanel = lazy(() => import("../panels/ProjectsPanel"));
 const GitPanel = lazy(() => import("../panels/GitPanel"));
 const HistoryPanel = lazy(() => import("../panels/HistoryPanel"));
 const DockerPanel = lazy(() => import("../panels/DockerPanel"));
+const ChangesPanel = lazy(() => import("../panels/ChangesPanel"));
 const DOCK_PREF = "alphaterm.dock";
 
 /** Estado vivo de cada panel (clave: id del panel). */
@@ -481,7 +482,8 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     const f = controlFiles();
     if (first === "claude" && f) {
       if (s.control.enabled) extra.push(`--mcp-config "${f.claudeMcp}"`);
-      if (s.guardian.enabled && s.guardian.claude) extra.push(`--settings "${f.claudeSettings}"`);
+      // El mismo archivo trae el hook del guardián y el que registra las modificaciones.
+      if ((s.guardian.enabled && s.guardian.claude) || (s.changes.enabled && s.changes.claude)) extra.push(`--settings "${f.claudeSettings}"`);
     }
     if (first === "codex" && s.guardian.enabled && s.guardian.codex && !/(\s|^)(-s|--sandbox|-a|--ask-for-approval)(\s|=)/.test(agent.command)) {
       // Codex no tiene hooks: se usa su propio modo de aprobación (pide permiso para escribir).
@@ -494,6 +496,38 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     update((x) => M.addTab(x, M.newTab(defaultProfile(), cwd, { command: agentCommand(agent), env, agentId: agent.id })));
     if (cwd) props.store.update((d) => void (d.recentDirs = pushRecent(d.recentDirs, cwd)));
   };
+  // --- Modificaciones: se vigila la carpeta de cada panel con un agente andando -----------------
+  // (el backend copia la carpeta al empezar y compara cada cambio con esa copia).
+  const watching = new Map<string, string>(); // panel → carpeta
+  createEffect(() => {
+    const c = settings().changes;
+    const agents = settings().agents;
+    const want = new Map<string, { dir: string; agent: string }>();
+    if (c.enabled && c.folders) {
+      for (const [id, p] of Object.entries(panes)) {
+        const prov = providerFor(p.agentId, p.running ? p.lastCommand : undefined, p.fgProcess);
+        if (!p.cwd || !((p.agentId && agentRunning(p)) || prov)) continue;
+        const def = agents.find((a) => a.id === (p.agentId ?? prov));
+        want.set(id, { dir: p.cwd, agent: def?.name ?? prov ?? "Agente" });
+      }
+    }
+    untrack(() => {
+      for (const [id, dir] of [...watching]) {
+        if (want.get(id)?.dir === dir) continue;
+        watching.delete(id);
+        void invoke("changes_unwatch", { pane: id }).catch(() => {});
+      }
+      for (const [id, w] of want) {
+        if (watching.has(id)) continue;
+        watching.set(id, w.dir);
+        void invoke("changes_watch", { pane: id, dir: w.dir, agent: w.agent }).catch(() => {});
+      }
+    });
+  });
+  onCleanup(() => {
+    for (const id of watching.keys()) void invoke("changes_unwatch", { pane: id }).catch(() => {});
+  });
+
   // Shells de esta ventana (para el consumo por pestaña del widget de CPU/RAM).
   const tabProcs = createMemo<TabProcs[]>(() =>
     layout().tabs.flatMap((t) =>
@@ -620,7 +654,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     window.addEventListener("pointerup", up);
   };
 
-  const PANEL_LABEL: Record<PanelId, string> = { agents: "Agentes", servers: "Servidores", projects: "Proyectos", git: "Git", history: "Historial", docker: "Docker" };
+  const PANEL_LABEL: Record<PanelId, string> = { agents: "Agentes", servers: "Servidores", projects: "Proyectos", git: "Git", history: "Historial", docker: "Docker", changes: "Modificaciones" };
   const renderPanel = (id: PanelId) => {
     switch (id) {
       case "servers":
@@ -674,6 +708,8 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                 }
               />
         );
+      case "changes":
+        return <ChangesPanel />;
       case "history":
         return (
               <HistoryPanel onUse={useCommand} version={historyVersion()} />
@@ -700,6 +736,8 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
         tabs={tabItems()}
         activeId={layout().activeTab}
         vertical={vertical()}
+        collapsed={settings().tabBar.collapsed}
+        onCollapse={() => props.store.update((d) => void (d.tabBar.collapsed = !d.tabBar.collapsed))}
         help={shortcutHelp(settings().shortcuts)}
         editingId={editingId()}
         profiles={props.info.profiles}

@@ -17,6 +17,13 @@ la guía de código en `Documentacion\Guia_de_codigo.txt` (y su PDF); el registr
 
 ## Correr y probar
 - Desarrollo: `npx tauri dev`. Release: `npx tauri build --no-bundle` → `src-tauri\target\release\alphaterm.exe`.
+- Versión nueva: subir `version` en `package.json`, `src-tauri/Cargo.toml` y `src-tauri/tauri.conf.json`,
+  y doble clic en `compilar-version.bat` (o `npm run release`, que es `scripts/release.mjs`): compila
+  (en `target\prueba` si `target\release\alphaterm.exe` está abierto) y `scripts/instalar.mjs` copia a
+  `%LOCALAPPDATA%\AlphaTerm\versiones\<v>`, deja en el escritorio el acceso directo «AlphaTerm <v>»
+  (renombra el anterior) y apunta ahí el anclado en la barra de tareas. Se puede con AlphaTerm
+  abierta. `npm run instalar -- --desde <carpeta>` instala un build ya hecho. Los .bat, con CRLF. El footer muestra la versión (tooltip: commit, "+" si había cambios
+  sin commitear, fecha y ruta del exe).
 - Tests: `cargo test` en `src-tauri` (anteponer `~/.cargo/bin` al PATH), `npx vitest run`, `npx tsc --noEmit`.
 - Inspeccionar el WebView: `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333`
   antes de abrir la app y hablarle por CDP (Runtime.evaluate, Input.dispatchMouseEvent). Si ya hay
@@ -36,7 +43,24 @@ la guía de código en `Documentacion\Guia_de_codigo.txt` (y su PDF); el registr
 - El esquema de settings vive en `src/settings/schema.ts`; el backend guarda JSON opaco.
 - Ventanas transparentes: el fondo lo pinta el body; xterm con viewport transparente por CSS.
 - Codex guarda sesiones como `.jsonl.zst`. agy: nunca desde Git Bash (MSYS convierte `/quota`).
-- Claude: el consumo exacto sale de la statusline (no se leen credenciales).
+- agy siempre con `AGY_CLI_DISABLE_AUTO_UPDATE=true` (exactamente "true"): si no, cada consulta puede
+  lanzar su actualizador fuera de la consola escondida y aparece una ventana de cmd un instante.
+- Consumo en vivo (`usage_live.rs`, como el System dashboard): claude `/usage` y codex `/status` se
+  leen abriéndolos en una ConPTY sin ventana + `vt100`. No contestar `ESC[6n`: con el modo de entrada
+  de ConPTY la respuesta le llega al programa como texto tipeado. Claude va con `--strict-mcp-config`
+  y `disableAllHooks`. `ALPHATERM_PROBE_DUMP=<carpeta>` guarda las pantallas leídas.
+- Claude: entre consultas en vivo, el consumo sale de la statusline (no se leen credenciales).
+- Tests de Rust: el manifiesto de Windows (controles comunes v6) lo incrusta el linker
+  (`build.rs` + `windows-app-manifest.xml`), no tauri-build: sin él el binario de test no arranca
+  (STATUS_ENTRYPOINT_NOT_FOUND, TaskDialogIndirect).
+- Panel de modificaciones (`changes.rs`): hook Pre/PostToolUse de Claude + copia y vigía de la
+  carpeta de cada pestaña con un agente. En Solid, las tarjetas se iteran por id (si no, una lista
+  nueva re-monta todo y se pierde lo que se está editando).
+- Pegar imágenes (`clip.rs`): sin texto en el portapapeles, la imagen se guarda como PNG en
+  `%TEMP%\AlphaTerm\pegadas` y se pega su ruta (Claude Code y Codex la adjuntan).
+- Probar una versión nueva con otra AlphaTerm abierta: compilar con
+  `CARGO_TARGET_DIR=src-tauri\target\prueba` y abrirla con `ALPHATERM_DATA_DIR` y
+  `WEBVIEW2_USER_DATA_FOLDER` propios (no toca la sesión ni la configuración de la abierta).
 - computer use: el escritorio a veces queda al frente y bloquea clics; usar CDP para la interfaz.
 - Las shells no heredan el entorno de quien abrió AlphaTerm (`src-tauri/src/pty/env.rs`): Claude Code
   le pone NO_COLOR=1 y decenas de CLAUDE_CODE_* (con tokens) a sus herramientas. Se respetan si están

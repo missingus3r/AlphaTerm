@@ -86,7 +86,8 @@ export interface Settings {
     imageFit: ImageFit;
   };
   customThemes: CustomTheme[];
-  tabBar: { position: "top" | "left" };
+  /** `collapsed`: la barra vertical queda angosta (solo el estado de cada pestaña). */
+  tabBar: { position: "top" | "left"; collapsed: boolean };
   terminal: {
     /** "" = el que detecta el backend (PowerShell 5.1 en esta PC). */
     defaultProfile: string;
@@ -107,11 +108,14 @@ export interface Settings {
     claude: boolean;
     codex: boolean;
     agy: boolean;
-    /** Claude y Codex se leen de archivos locales: es barato. */
+    /** Claude y Codex también se leen de archivos locales (barato): cada cuánto. */
     filesEverySec: number;
-    /** agy ejecuta `agy -p /quota` (no gasta cuota, pero tarda unos segundos). */
-    agyEveryMin: number;
+    /** Consulta en vivo (como el System dashboard: claude /usage, codex /status, agy /quota) al
+     * abrir AlphaTerm y cada tantos minutos. */
+    liveEveryMin: number;
   };
+  /** Panel de modificaciones: lo que cambian los agentes en los archivos (con o sin git). */
+  changes: { enabled: boolean; claude: boolean; folders: boolean };
   /** Widget de CPU y RAM. */
   sysmon: { enabled: boolean; everyMs: number };
   /** Recetas para iniciar servidores. */
@@ -148,13 +152,14 @@ export const DEFAULTS: Settings = {
   },
   background: { effect: "none", opacity: 1, image: "", imageOpacity: 0.25, imageFit: "cover" },
   customThemes: [],
-  tabBar: { position: "top" },
+  tabBar: { position: "top", collapsed: false },
   terminal: { defaultProfile: "", scrollback: 10_000 },
   behavior: { foregroundPollMs: 2000 },
   shortcuts: {},
   agents: BUILTIN_AGENTS,
   recentDirs: [],
-  usage: { claude: true, codex: true, agy: true, filesEverySec: 60, agyEveryMin: 10 },
+  usage: { claude: true, codex: true, agy: true, filesEverySec: 60, liveEveryMin: 15 },
+  changes: { enabled: true, claude: true, folders: true },
   sysmon: { enabled: true, everyMs: 1000 },
   recipes: [],
   projects: { manual: [], hidden: [] },
@@ -174,7 +179,7 @@ export const LIMITS = {
   scrollback: [500, 200_000],
   foregroundPollMs: [500, 10_000],
   filesEverySec: [15, 3600],
-  agyEveryMin: [2, 240],
+  liveEveryMin: [5, 240],
   sysmonMs: [500, 10_000],
 } as const satisfies Record<string, readonly [number, number]>;
 
@@ -330,7 +335,7 @@ export function normalize(raw: unknown, baseColors: ThemeColors): Settings {
       imageFit: oneOf(b.imageFit, ["cover", "contain", "tile"], D.background.imageFit),
     },
     customThemes: normalizeThemes(r.customThemes, baseColors),
-    tabBar: { position: oneOf(obj(r.tabBar).position, ["top", "left"], D.tabBar.position) },
+    tabBar: { position: oneOf(obj(r.tabBar).position, ["top", "left"], D.tabBar.position), collapsed: bool(obj(r.tabBar).collapsed, D.tabBar.collapsed) },
     terminal: {
       defaultProfile: typeof obj(r.terminal).defaultProfile === "string" ? (obj(r.terminal).defaultProfile as string) : "",
       scrollback: Math.round(num(obj(r.terminal).scrollback, D.terminal.scrollback, LIMITS.scrollback)),
@@ -351,9 +356,14 @@ export function normalize(raw: unknown, baseColors: ThemeColors): Settings {
         codex: bool(u.codex, D.codex),
         agy: bool(u.agy, D.agy),
         filesEverySec: Math.round(num(u.filesEverySec, D.filesEverySec, LIMITS.filesEverySec)),
-        agyEveryMin: Math.round(num(u.agyEveryMin, D.agyEveryMin, LIMITS.agyEveryMin)),
+        liveEveryMin: Math.round(num(u.liveEveryMin, D.liveEveryMin, LIMITS.liveEveryMin)),
       };
     })(),
+    changes: {
+      enabled: bool(obj(r.changes).enabled, DEFAULTS.changes.enabled),
+      claude: bool(obj(r.changes).claude, DEFAULTS.changes.claude),
+      folders: bool(obj(r.changes).folders, DEFAULTS.changes.folders),
+    },
     recipes: normalizeRecipes(r.recipes),
     control: { enabled: bool(obj(r.control).enabled, DEFAULTS.control.enabled) },
     guardian: {

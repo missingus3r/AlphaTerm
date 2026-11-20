@@ -480,8 +480,8 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 /* --- Barra vertical: CPU y RAM en una fila, debajo de los íconos --- */
 .tabbar.vertical .bar-actions { flex-wrap: wrap; justify-content: center; gap: 6px; }
 .tabbar.vertical .bar-actions .sys-widget { order: 2; flex-basis: 100%; justify-content: center; }
-.tabbar.vertical .sys-btn { flex-wrap: nowrap; height: 24px; padding: 0 4px; gap: 4px; font-size: 11px; }
-.tabbar.vertical .sys-btn .spark { width: 30px; }
+.tabbar.vertical .sys-btn { flex-wrap: nowrap; height: auto; padding: 3px 4px; gap: 14px; font-size: 11px; }
+.tabbar.vertical .sys-btn .spark { width: 64px; height: 14px; }
 
 /* --- Saltar al principio / al final --- */
 .jumps { position: absolute; right: 16px; bottom: 10px; display: flex; flex-direction: column; gap: 6px; z-index: 6; pointer-events: none; }
@@ -518,3 +518,85 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .dock-drop { width: 0; flex: none; transition: width .1s; }
 .dock.dragging .dock-drop { width: 18px; background: repeating-linear-gradient(90deg, transparent 0 7px, color-mix(in srgb, var(--accent) 35%, transparent) 7px 11px, transparent 11px); }
 .dock.dragging .dock-drop:hover { background: color-mix(in srgb, var(--accent) 40%, transparent); }
+
+/* --- Barra de pestañas vertical plegada --- */
+.tabbar .collapse-bar { align-self: flex-end; height: 22px; min-width: 26px; padding: 0 6px; font-size: 12px; margin-bottom: 4px; }
+.tabbar.vertical.collapsed { width: 48px; padding: 6px 4px; }
+.tabbar.collapsed .collapse-bar { align-self: center; }
+.tabbar.collapsed .tab { min-width: 0; justify-content: center; gap: 4px; padding: 0 2px; }
+.tabbar.collapsed .tab .close, .tabbar.collapsed .tab .changes, .tabbar.collapsed .tab .panes, .tabbar.collapsed .tab-group .panes,
+.tabbar.collapsed .tab-group .caret, .tabbar.collapsed .new-tab .profile, .tabbar.collapsed .bar-actions .help { display: none; }
+.tabbar.collapsed .tab.grouped { margin-left: 0; width: 100%; }
+.tabbar.collapsed .tab-group { justify-content: center; padding: 0; }
+.tabbar.collapsed .bar-actions { flex-direction: column; }
+.tabbar.collapsed .new-tab { justify-content: center; }
+.tab-initial { font-weight: 700; font-size: 12px; width: 16px; text-align: center; }
+
+/* --- Detalle de consumo (footer y panel de agentes) --- */
+.usage-detail { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.usage-detail table { width: 100%; border-collapse: collapse; }
+.usage-detail td { padding: 2px 4px; white-space: nowrap; }
+.usage-detail td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.usage-detail td.name { max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
+.usage-detail tr.stale { opacity: .55; }
+.usage-detail p { margin: 4px 0 0; line-height: 1.4; }
+.ud-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 2px; }
+.ud-head .grow, .change-meta .grow, .changes-bar .grow, .change-edit-bar .grow { flex: 1; }
+.chip { border-radius: 10px; padding: 0 7px; font-size: 11px; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.chip.model { background: var(--tab-hover); color: var(--text); }
+.ud-group { margin-top: 6px; font-weight: 600; font-size: 11.5px; }
+.ud-group small { font-weight: 400; }
+.ud-extras { margin: 4px 0 0; padding-left: 16px; color: var(--muted); }
+.usage-forecast { margin-top: 4px; padding: 5px 7px; border-radius: 6px; background: color-mix(in srgb, var(--ok) 9%, transparent); line-height: 1.4; }
+.usage-forecast.bad { background: color-mix(in srgb, var(--err) 12%, transparent); }
+.usage-detail.compact td { padding: 1px 3px; }
+.usage-detail.compact .usage-bar.wide { width: 70px; }
+.agent-usage { padding: 6px 8px 8px; margin: -2px 0 6px 37px; border-left: 2px solid var(--line); }
+
+/* --- Panel de modificaciones --- */
+.changes-tools { display: flex; gap: 6px; margin-bottom: 6px; }
+.changes-tools input { flex: 1; min-width: 0; }
+.changes-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.changes-bar .add, .change .add { color: var(--ok); }
+.changes-bar .del, .change .del { color: var(--err); }
+.changes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.changes-empty { padding: 8px 4px; line-height: 1.45; }
+.change { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.change.open { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.change-head { display: flex; align-items: center; gap: 7px; padding: 5px 8px; cursor: pointer; background: var(--bg-solid); }
+.change-head:hover { background: var(--tab-hover); }
+.change-head .chev { width: 10px; color: var(--muted); }
+.change-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.change-name small { color: var(--muted); }
+.change.deleted .change-name b { text-decoration: line-through; }
+.change-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 3px 8px 5px 25px; }
+.badge.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
+.badge.bad { color: var(--err); border-color: color-mix(in srgb, var(--err) 50%, transparent); }
+.change > .banner { margin: 0 8px 6px; }
+.change-body { border-top: 1px solid var(--line); }
+.change-body .diff { max-height: 60vh; }
+.change-note { margin: 0; padding: 5px 8px; }
+.change-edit { border-top: 1px solid var(--line); display: flex; flex-direction: column; }
+.change-edit textarea {
+  width: 100%; box-sizing: border-box; border: 0; border-radius: 0; resize: vertical; min-height: 140px; max-height: 70vh;
+  font: 12px/1.45 "Cascadia Mono", Consolas, monospace; tab-size: 4; white-space: pre; overflow: auto;
+}
+.change-edit-bar { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-top: 1px solid var(--line); background: var(--bg-solid); }
+.change-edit-bar .btn.commit { align-self: auto; }
+.usage-detail.compact td.muted { white-space: normal; font-size: 11px; line-height: 1.3; }
+.usage-detail.compact td:first-child { white-space: normal; }
+.sys-val { white-space: nowrap; }
+.dock-body .agents-panel { overflow-x: hidden; }
+.changes-tools input.text { flex: 1 1 auto; width: auto; min-width: 0; }
+.changes-tools select.text { flex: none; width: auto; }
+
+/* Widget CPU/RAM: cada medida es texto + gráfica. En la barra vertical la gráfica va abajo del texto;
+   con la barra plegada quedan solo los números, uno abajo del otro. */
+.sys-metric { display: inline-flex; align-items: center; gap: 5px; }
+.tabbar.vertical .sys-metric { flex-direction: column; align-items: center; gap: 2px; }
+.tabbar.collapsed .bar-actions .sys-widget { order: 0; flex-basis: auto; }
+.tabbar.collapsed .sys-btn { flex-direction: column; gap: 4px; padding: 4px 2px; font-size: 10.5px; }
+.tabbar.collapsed .sys-btn .spark, .tabbar.collapsed .sys-name { display: none; }
+.app-version { background: none; border: 0; color: var(--muted); font: inherit; font-size: 11px; padding: 1px 4px; border-radius: 4px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.app-version:hover { color: var(--text); background: var(--tab-hover); }
+.app-version .dirty { color: #e5b44f; }

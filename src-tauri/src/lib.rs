@@ -1,4 +1,6 @@
 pub mod agents;
+pub mod changes;
+pub mod clip;
 pub mod control;
 pub mod docker;
 pub mod fonts;
@@ -14,6 +16,7 @@ pub mod session;
 pub mod settings;
 pub mod sysmon;
 pub mod usage;
+pub mod usage_live;
 pub mod windows;
 
 use std::sync::Arc;
@@ -36,6 +39,29 @@ fn bench_mark(webview: tauri::Webview, name: String) -> u128 {
     ms
 }
 
+/// Versión de esta compilación (para el footer y "Acerca").
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppInfo {
+    version: &'static str,
+    /// Commit corto; con "+" si había cambios sin commitear al compilar.
+    commit: &'static str,
+    /// Cuándo se compiló (unix, segundos).
+    built: u64,
+    /// Dónde está el ejecutable que corre.
+    exe: String,
+}
+
+#[tauri::command]
+fn app_info() -> AppInfo {
+    AppInfo {
+        version: env!("CARGO_PKG_VERSION"),
+        commit: env!("ALPHATERM_COMMIT"),
+        built: env!("ALPHATERM_BUILT").parse().unwrap_or(0),
+        exe: std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_default(),
+    }
+}
+
 pub fn run() {
     STARTED.get_or_init(std::time::Instant::now);
     tauri::Builder::default()
@@ -50,6 +76,7 @@ pub fn run() {
         .manage(history::HistoryState::default())
         .manage(guardian::GuardianState::default())
         .manage(control::ControlState::default())
+        .manage(changes::ChangesState::new(settings::data_dir().join("changes.json")))
         .manage({
             settings::migrate_from_novaterm();
             settings::SettingsState::new(settings::data_dir().join("settings.json"))
@@ -57,6 +84,7 @@ pub fn run() {
         .setup(|app| {
             settings::SettingsState::watch(app.handle().clone());
             control::start(app.handle().clone());
+            app.state::<changes::ChangesState>().start(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -64,6 +92,7 @@ pub fn run() {
                 // Al cerrarse una ventana, sus shells mueren con ella (las otras ventanas siguen).
                 window.state::<Arc<pty::PtyState>>().kill_owner(window.label());
                 projects::unwatch_window(&window.state::<projects::WatchState>(), window.label());
+                changes::unwatch_owner(&window.state::<changes::ChangesState>(), window.label());
                 // Si ya no queda ninguna terminal, la configuración no se queda sola abierta.
                 let app = window.app_handle();
                 let terminals = app
@@ -104,6 +133,15 @@ pub fn run() {
             sysmon::sys_stats,
             sysmon::sys_top,
             usage::usage_get,
+            usage::usage_config,
+            changes::changes_list,
+            changes::changes_diff,
+            changes::changes_remove,
+            changes::changes_config,
+            changes::changes_watch,
+            changes::changes_unwatch,
+            changes::changes_read,
+            changes::changes_save,
             ports::ports_list,
             ports::ports_kill,
             projects::projects_discover,
@@ -127,6 +165,8 @@ pub fn run() {
             control::control_files,
             llm::llm_summarize,
             bench_mark,
+            app_info,
+            clip::clipboard_image_to_file,
             guardian::guardian_open,
             guardian::guardian_log,
             history::history_search,

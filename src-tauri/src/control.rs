@@ -88,7 +88,10 @@ fn write_files(url: &str, token: &str) {
     let hook_cmd = format!("node \"{}\"", fwd(dir.join("guardian-hook.mjs")));
     let _ = crate::settings::save_to(
         &dir.join("claude-guardian.json"),
-        &json!({ "hooks": { "PreToolUse": [ { "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell", "hooks": [ { "type": "command", "command": hook_cmd, "timeout": 600 } ] } ] } }),
+        &json!({ "hooks": {
+            "PreToolUse": [ { "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell", "hooks": [ { "type": "command", "command": hook_cmd, "timeout": 600 } ] } ],
+            "PostToolUse": [ { "matcher": "Write|Edit|MultiEdit|NotebookEdit", "hooks": [ { "type": "command", "command": hook_cmd, "timeout": 30 } ] } ]
+        } }),
     );
     let _ = crate::settings::save_to(
         &dir.join("claude-mcp.json"),
@@ -187,12 +190,22 @@ pub fn dispatch(app: &AppHandle, method: &str, p: Value, caller: Option<String>)
         }
         // --- Guardián (lo llama el hook de Claude Code) ---
         "guardian" => {
+            // Copia de cómo estaba el archivo, para el panel de modificaciones.
+            crate::changes::hook_pre(&app.state::<crate::changes::ChangesState>().0, &p);
+            if !app.state::<guardian::GuardianState>().claude.load(Ordering::SeqCst) {
+                return Ok(json!({ "decision": "allow", "reason": "el guardián no vigila a Claude Code" }));
+            }
             let Some(mut ask) = guardian::from_claude_hook(&p) else { return Ok(json!({ "decision": "allow", "reason": "no hace falta preguntar" })) };
             if let Some(c) = &caller {
                 ask.agent = format!("{} (panel {c})", ask.agent);
             }
             let d = guardian::ask(app, ask, Duration::from_secs(590));
             Ok(json!({ "decision": if d == Decision::Deny { "deny" } else { "allow" } }))
+        }
+        // PostToolUse del hook: cómo quedó el archivo.
+        "changes_post" => {
+            crate::changes::hook_post(&app.state::<crate::changes::ChangesState>().0, &p);
+            Ok(json!({ "ok": true }))
         }
         // --- Lo que maneja el frontend ---
         "run" | "send" => {
@@ -298,11 +311,13 @@ pub fn control_config(
     enabled: bool,
     guardian_on: bool,
     guardian_modify: bool,
+    guardian_claude: Option<bool>,
     presets: Vec<crate::docker::Preset>,
 ) {
     state.enabled.store(enabled, Ordering::SeqCst);
     guard.enabled.store(guardian_on, Ordering::SeqCst);
     guard.watch_modify.store(guardian_modify, Ordering::SeqCst);
+    guard.claude.store(guardian_claude.unwrap_or(true), Ordering::SeqCst);
     *state.presets.lock().unwrap() = presets;
 }
 

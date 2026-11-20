@@ -19,7 +19,7 @@ export type Action =
   | { type: "copyLastOutput" }
   | { type: "openSettings" }
   | { type: "renameWindow" }
-  | { type: "togglePanel"; panel: "agents" | "servers" | "projects" | "git" | "history" | "docker" };
+  | { type: "togglePanel"; panel: "agents" | "servers" | "projects" | "git" | "history" | "docker" | "changes" };
 
 export interface Command {
   id: string;
@@ -55,6 +55,7 @@ export const COMMANDS: Command[] = [
   { id: "panelGit", label: "Panel de git", action: { type: "togglePanel", panel: "git" }, defaults: ["Ctrl+Shift+G"] },
   { id: "panelHistory", label: "Panel de historial", action: { type: "togglePanel", panel: "history" }, defaults: ["Ctrl+Shift+H"] },
   { id: "panelDocker", label: "Panel de docker", action: { type: "togglePanel", panel: "docker" }, defaults: ["Ctrl+Shift+K"] },
+  { id: "panelChanges", label: "Panel de modificaciones", action: { type: "togglePanel", panel: "changes" }, defaults: ["Ctrl+Shift+M"] },
 ];
 
 /** Ctrl+1…8 van a esa pestaña y Ctrl+9 a la última. No se cambian. */

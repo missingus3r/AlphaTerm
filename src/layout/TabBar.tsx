@@ -24,6 +24,9 @@ interface Props {
   tabs: TabItem[];
   activeId: string;
   vertical: boolean;
+  /** Barra vertical plegada: angosta, con el estado y la inicial de cada pestaña. */
+  collapsed?: boolean;
+  onCollapse?: () => void;
   /** Atajos para el tooltip del botón "?". */
   help: [string, string][];
   editingId: string | null;
@@ -62,8 +65,12 @@ const STATUS_LABEL: Record<TabStatus, string> = {
   exited: "La shell terminó",
 };
 
+/** Inicial para la barra plegada (la primera letra o número del título). */
+export const tabInitial = (title: string) => (title.match(/[\p{L}\p{N}]/u)?.[0] ?? "·").toUpperCase();
+
 export function TabBar(props: Props) {
   const [dragId, setDragId] = createSignal<string | null>(null);
+  const compact = () => props.vertical && !!props.collapsed;
   const help = () => props.help.map(([k, v]) => `${k}: ${v}`).join("\n");
   const [menu, setMenu] = createSignal<Menu>(null);
   const groupOf = (id?: string) => (id ? props.groups.find((g) => g.id === id) : undefined);
@@ -98,7 +105,17 @@ export function TabBar(props: Props) {
   };
 
   return (
-    <nav class="tabbar" classList={{ vertical: props.vertical }} aria-label="Pestañas">
+    <nav class="tabbar" classList={{ vertical: props.vertical, collapsed: compact() }} aria-label="Pestañas">
+      <Show when={props.vertical && props.onCollapse}>
+        <button
+          class="btn collapse-bar"
+          title={compact() ? "Desplegar la barra de pestañas" : "Plegar la barra de pestañas"}
+          aria-expanded={!compact()}
+          onClick={() => props.onCollapse?.()}
+        >
+          {compact() ? "»" : "«"}
+        </button>
+      </Show>
       <div class="tabs" role="tablist" aria-orientation={props.vertical ? "vertical" : "horizontal"}>
         <For each={props.tabs}>
           {(t, i) => (
@@ -125,7 +142,7 @@ export function TabBar(props: Props) {
                     }}
                   >
                     <span class="caret">{g()?.collapsed ? "▸" : "▾"}</span>
-                    <span class="group-name">{g()?.name ?? "Carpeta"}</span>
+                    <span class="group-name">{compact() ? tabInitial(g()?.name ?? "C") : (g()?.name ?? "Carpeta")}</span>
                     <span class="panes">{count()}</span>
                   </div>
                 );
@@ -163,8 +180,16 @@ export function TabBar(props: Props) {
             >
               <span class={`dot st-${t.status}`} aria-label={STATUS_LABEL[t.status]} />
               <Show
-                when={props.editingId === t.id}
-                fallback={<Marquee class="tab-title" text={t.title} style={t.color ? { color: t.color } : undefined} />}
+                when={props.editingId === t.id && !compact()}
+                fallback={
+                  compact() ? (
+                    <span class="tab-initial" style={t.color ? { color: t.color } : undefined}>
+                      {tabInitial(t.title)}
+                    </span>
+                  ) : (
+                    <Marquee class="tab-title" text={t.title} style={t.color ? { color: t.color } : undefined} />
+                  )
+                }
               >
                 <input
                   class="tab-edit"

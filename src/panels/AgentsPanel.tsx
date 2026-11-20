@@ -1,8 +1,20 @@
-import { createResource, createSignal, For, Show } from "solid-js";
+import { createResource, createSignal, For, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { AgentDef, Settings } from "../settings/schema";
 import { AGENT_STATE_LABEL, envToText, parseEnvText, type AgentState } from "./agentState";
+import { providerFor } from "../widgets/usage";
+import { listenUsage, loadUsage } from "../widgets/usageStore";
+import { UsageDetail } from "../widgets/UsageDetail";
+
+const FOLD_PREF = "alphaterm.agents.usageFolded";
+const readFolded = (): string[] => {
+  try {
+    return JSON.parse(localStorage.getItem(FOLD_PREF) ?? "[]");
+  } catch {
+    return [];
+  }
+};
 
 export interface RunningAgent {
   tabId: string;
@@ -52,6 +64,22 @@ export default function AgentsPanel(props: Props) {
   const cwd = () => dir() ?? props.activeCwd;
   const [editing, setEditing] = createSignal<string | null>(null);
   const [showHidden, setShowHidden] = createSignal(false);
+  // Consumo debajo de cada agente que lo tiene (Claude, Codex, agy): el mismo dato del footer, con detalle.
+  const providerOf = (a: AgentDef) => providerFor(a.id, a.command);
+  const [folded, setFolded] = createSignal<string[]>(readFolded());
+  const toggleFold = (id: string) => {
+    const next = folded().includes(id) ? folded().filter((x) => x !== id) : [...folded(), id];
+    setFolded(next);
+    try {
+      localStorage.setItem(FOLD_PREF, JSON.stringify(next));
+    } catch {
+      /* no importa */
+    }
+  };
+  onMount(() => {
+    listenUsage();
+    for (const p of new Set(props.agents.filter((a) => !a.hidden).map(providerOf))) if (p) void loadUsage(p);
+  });
 
   const pick = async () => {
     const d = await open({ directory: true, defaultPath: cwd(), title: "Carpeta donde lanzar el agente" });
@@ -124,10 +152,25 @@ export default function AgentsPanel(props: Props) {
                 >
                   Lanzar
                 </button>
+                <Show when={providerOf(a)}>
+                  <button
+                    class="icon-btn"
+                    title={folded().includes(a.id) ? "Ver el consumo" : "Ocultar el consumo"}
+                    aria-expanded={!folded().includes(a.id)}
+                    onClick={() => toggleFold(a.id)}
+                  >
+                    {folded().includes(a.id) ? "▸" : "▾"}
+                  </button>
+                </Show>
                 <button class="icon-btn" title="Editar" onClick={() => setEditing(editing() === a.id ? null : a.id)}>
                   ✎
                 </button>
               </li>
+              <Show when={providerOf(a) && !folded().includes(a.id)}>
+                <li class="agent-usage">
+                  <UsageDetail id={providerOf(a)!} compact />
+                </li>
+              </Show>
               <Show when={editing() === a.id}>
                 <li class="agent-edit">
                   <label>

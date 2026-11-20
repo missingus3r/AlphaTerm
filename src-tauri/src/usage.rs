@@ -1,21 +1,23 @@
 //! Consumo por suscripción. Cada proveedor dice de dónde sale el dato y si es exacto.
 //!
-//! - Claude: los límites (5 h y semana) que Claude Code le pasa a su statusline, guardados en un
-//!   JSON. No se lee `.credentials.json` ni se llama a ningún endpoint. Si no hay statusline,
-//!   se estima con los tokens de los transcripts (sin porcentaje).
-//! - Codex: el último evento `rate_limits` de sus sesiones (`.jsonl` o `.jsonl.zst`).
-//! - Antigravity (agy): `agy -p /quota --output-format json`, que es oficial y no gasta cuota.
-//!   Se ejecuta directo (sin shell: desde Git Bash, MSYS convierte "/quota" en una ruta y agy
-//!   lo toma como prompt pagado).
+//! Dos fuentes por proveedor; gana la más nueva:
+//! - En vivo (`usage_live`, como el System dashboard): al abrir AlphaTerm y cada N minutos se abre
+//!   cada CLI escondida y se le pregunta (/usage, /status, agy /quota). Trae también plan, modelo,
+//!   ventanas por modelo y uso extra. No hace falta haber usado el agente.
+//! - Archivos (baratos, se leen seguido): Claude, los límites que Claude Code le pasa a su statusline
+//!   (no se lee `.credentials.json` ni se llama a ningún endpoint; sin statusline, se estima con los
+//!   tokens de los transcripts); Codex, el último evento `rate_limits` de sus sesiones.
 
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tauri::{AppHandle, Emitter};
 
-#[derive(Serialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Debug, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageWindow {
     pub label: String,
@@ -23,11 +25,31 @@ pub struct UsageWindow {
     pub used_pct: f64,
     /// Unix (segundos).
     pub resets_at: Option<i64>,
+    /// Reinicio tal como lo escribe el programa ("3pm (America/Montevideo)"), si no hay hora exacta.
+    pub resets_text: Option<String>,
     /// La ventana ya se reinició después del dato: el porcentaje real es desconocido.
     pub stale: bool,
+    /// Solo para el detalle (ventanas por modelo, uso extra): el footer muestra las principales.
+    pub detail: bool,
 }
 
-#[derive(Serialize, Debug, Clone, PartialEq)]
+/// Tabla del detalle: qué se lleva el consumo (skills, plugins, modelos…), en porcentaje.
+#[derive(Serialize, Debug, Clone, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Table {
+    pub title: String,
+    pub rows: Vec<(String, f64)>,
+}
+
+/// Grupo de modelos que comparten cuota (agy).
+#[derive(Serialize, Debug, Clone, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct Group {
+    pub name: String,
+    pub models: Option<String>,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Usage {
     pub provider: String,
@@ -37,6 +59,15 @@ pub struct Usage {
     pub updated_at: Option<i64>,
     pub windows: Vec<UsageWindow>,
     pub note: Option<String>,
+    /// Hay una consulta en vivo en curso.
+    pub refreshing: bool,
+    pub plan: Option<String>,
+    /// Modelo por defecto (y esfuerzo).
+    pub model: Option<String>,
+    /// Líneas sueltas del detalle (uso extra en dólares, sesiones en paralelo…).
+    pub extras: Vec<String>,
+    pub groups: Vec<Group>,
+    pub tables: Vec<Table>,
 }
 
 fn now_s() -> i64 {
@@ -59,7 +90,7 @@ pub fn window_label(minutes: i64) -> String {
 }
 
 fn win(label: impl Into<String>, used: f64, resets: Option<i64>, now: i64) -> UsageWindow {
-    UsageWindow { label: label.into(), used_pct: used.clamp(0.0, 100.0), resets_at: resets, stale: resets.is_some_and(|r| r <= now) }
+    UsageWindow { label: label.into(), used_pct: used.clamp(0.0, 100.0), resets_at: resets, stale: resets.is_some_and(|r| r <= now), ..Default::default() }
 }
 
 // --- Claude --------------------------------------------------------------------------------------
@@ -73,10 +104,10 @@ pub fn parse_claude_statusline(v: &Value, now: i64) -> Option<(i64, Vec<UsageWin
     let rl = v.get("rate_limits")?;
     let captured = v.get("_capturedAt").and_then(Value::as_i64)?;
     let mut out = Vec::new();
-    for (key, label) in [("five_hour", "5 h"), ("seven_day", "semana"), ("seven_day_opus", "semana (Opus)")] {
+    for (key, label) in [("five_hour", "5 h"), ("seven_day", "semana"), ("seven_day_opus", "semana · Opus")] {
         if let Some(w) = rl.get(key) {
             if let Some(p) = w.get("used_percentage").and_then(Value::as_f64) {
-                out.push(win(label, p, w.get("resets_at").and_then(Value::as_i64), now));
+                out.push(UsageWindow { detail: key == "seven_day_opus", ..win(label, p, w.get("resets_at").and_then(Value::as_i64), now) });
             }
         }
     }
@@ -100,6 +131,7 @@ fn claude() -> Usage {
             updated_at: Some(captured),
             note: (age_h > 1.0).then(|| "Se actualiza cada vez que Claude Code dibuja su statusline.".into()),
             windows,
+            ..Default::default()
         };
     }
     let (t5, t7) = claude_tokens(now);
@@ -109,11 +141,8 @@ fn claude() -> Usage {
         source: "transcripts de ~/.claude (estimado)".into(),
         updated_at: Some(now * 1000),
         windows: vec![],
-        note: Some(format!(
-            "Sin statusline no hay porcentaje: {} tokens en 5 h, {} en 7 días. Conectá la statusline en Configuración para ver el dato exacto.",
-            fmt_tokens(t5),
-            fmt_tokens(t7)
-        )),
+        note: Some(format!("Sin consulta en vivo ni statusline no hay porcentaje: {} tokens en 5 h, {} en 7 días.", fmt_tokens(t5), fmt_tokens(t7))),
+        ..Default::default()
     }
 }
 
@@ -271,10 +300,8 @@ fn codex() -> Usage {
                 source: "sesiones de Codex (~/.codex/sessions)".into(),
                 updated_at: Some(ts),
                 windows,
-                note: Some(format!(
-                    "Dato de la última sesión de Codex{}: se actualiza cuando usás Codex.",
-                    plan.map(|p| format!(" (plan {p})")).unwrap_or_default()
-                )),
+                plan,
+                ..Default::default()
             };
         }
     }
@@ -282,9 +309,8 @@ fn codex() -> Usage {
         provider: "codex".into(),
         exact: false,
         source: "sesiones de Codex".into(),
-        updated_at: None,
-        windows: vec![],
         note: Some("No hay sesiones de Codex con datos de límites.".into()),
+        ..Default::default()
     }
 }
 
@@ -310,38 +336,7 @@ pub fn parse_agy(v: &Value, now: i64) -> Option<Vec<UsageWindow>> {
     Some(out)
 }
 
-fn agy() -> Usage {
-    let fail = |note: String| Usage { provider: "agy".into(), exact: false, source: "agy /quota".into(), updated_at: None, windows: vec![], note: Some(note) };
-    let dirs = crate::agents::search_dirs();
-    let Some(exe) = crate::agents::resolve_in("agy", &dirs) else { return fail("agy no está instalado.".into()) };
-    let mut cmd = std::process::Command::new(&exe);
-    cmd.args(["-p", "/quota", "--output-format", "json"]).stdin(std::process::Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
-    }
-    let out = match run_with_timeout(cmd, Duration::from_secs(45)) {
-        Ok(o) => o,
-        Err(e) => return fail(format!("No se pudo consultar agy: {e}")),
-    };
-    let Ok(v) = serde_json::from_slice::<Value>(&out) else { return fail("agy respondió algo que no es JSON.".into()) };
-    // Defensa: si por algún motivo agy corrió un turno (gastó), se avisa.
-    let tokens = v.pointer("/usage/total_tokens").and_then(Value::as_u64).unwrap_or(0);
-    match parse_agy(&v, now_s()) {
-        Some(windows) if !windows.is_empty() => Usage {
-            provider: "agy".into(),
-            exact: true,
-            source: "agy /quota (oficial)".into(),
-            updated_at: Some(now_s() * 1000),
-            windows,
-            note: (tokens > 0).then(|| format!("Atención: la consulta usó {tokens} tokens.")),
-        },
-        _ => fail("La respuesta de agy no trae grupos de cuota.".into()),
-    }
-}
-
-fn run_with_timeout(mut cmd: std::process::Command, limit: Duration) -> Result<Vec<u8>, String> {
+pub(crate) fn run_with_timeout(mut cmd: std::process::Command, limit: Duration) -> Result<Vec<u8>, String> {
     let mut child = cmd.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::null()).spawn().map_err(|e| e.to_string())?;
     let mut stdout = child.stdout.take().ok_or("sin salida")?;
     let reader = std::thread::spawn(move || {
@@ -349,7 +344,7 @@ fn run_with_timeout(mut cmd: std::process::Command, limit: Duration) -> Result<V
         let _ = stdout.read_to_end(&mut buf);
         buf
     });
-    let start = std::time::Instant::now();
+    let start = Instant::now();
     loop {
         match child.try_wait() {
             Ok(Some(_)) => break,
@@ -364,33 +359,210 @@ fn run_with_timeout(mut cmd: std::process::Command, limit: Duration) -> Result<V
     reader.join().map_err(|_| "error leyendo la salida".to_string())
 }
 
-/// Lo último que se consultó de cada proveedor: varias ventanas comparten el dato.
-static CACHE: std::sync::Mutex<Vec<(String, std::time::Instant, Usage)>> = std::sync::Mutex::new(Vec::new());
+// --- Cuál se muestra: la consulta en vivo o los archivos ----------------------------------------
+
+/// Lo leído de los archivos (barato, pero varias ventanas lo piden seguido).
+static CACHE: Mutex<Vec<(String, Instant, Usage)>> = Mutex::new(Vec::new());
 const CACHE_FOR: Duration = Duration::from_secs(30);
 
-/// `force` (clic en el footer) saltea la caché.
-#[tauri::command]
-pub async fn usage_get(provider: String, force: Option<bool>) -> Result<Usage, String> {
-    if !force.unwrap_or(false) {
-        let cache = CACHE.lock().unwrap();
-        if let Some((_, at, u)) = cache.iter().find(|(p, at, _)| *p == provider && at.elapsed() < CACHE_FOR) {
-            let _ = at;
-            return Ok(u.clone());
+fn passive(provider: &str) -> Option<Usage> {
+    if provider == "agy" {
+        return None;
+    }
+    if let Some((_, _, u)) = CACHE.lock().unwrap().iter().find(|(p, at, _)| p == provider && at.elapsed() < CACHE_FOR) {
+        return Some(u.clone());
+    }
+    let u = match provider {
+        "claude" => claude(),
+        "codex" => codex(),
+        _ => return None,
+    };
+    let mut cache = CACHE.lock().unwrap();
+    cache.retain(|(x, _, _)| x != provider);
+    cache.push((provider.to_string(), Instant::now(), u.clone()));
+    Some(u)
+}
+
+#[derive(Default)]
+struct Live {
+    data: HashMap<String, Usage>,
+    errors: HashMap<String, String>,
+    running: HashSet<String>,
+}
+
+fn live() -> &'static Mutex<Live> {
+    static LIVE: OnceLock<Mutex<Live>> = OnceLock::new();
+    LIVE.get_or_init(Default::default)
+}
+
+static APP: OnceLock<AppHandle> = OnceLock::new();
+
+/// Avisa a las ventanas que cambió algo de la consulta en vivo (empezó o terminó).
+fn emit_live() {
+    if let Some(a) = APP.get() {
+        let _ = a.emit("usage-live", ());
+    }
+}
+
+/// Una consulta en vivo a la vez por proveedor.
+static LOCK_CLAUDE: Mutex<()> = Mutex::new(());
+static LOCK_CODEX: Mutex<()> = Mutex::new(());
+static LOCK_AGY: Mutex<()> = Mutex::new(());
+
+/// Consulta en vivo (bloquea: Claude tarda 10–20 s). Si había otra en curso, se espera esa y
+/// alcanza con su resultado. Los errores quedan anotados y se muestran en la nota.
+pub fn probe(provider: &str) -> Result<(), String> {
+    let lock = match provider {
+        "claude" => &LOCK_CLAUDE,
+        "codex" => &LOCK_CODEX,
+        "agy" => &LOCK_AGY,
+        other => return Err(format!("proveedor desconocido: {other}")),
+    };
+    let asked = Instant::now();
+    let _g = lock.lock().unwrap_or_else(|e| e.into_inner());
+    if asked.elapsed() > Duration::from_millis(300) {
+        let fresh = live().lock().unwrap().data.get(provider).and_then(|u| u.updated_at).is_some_and(|t| now_s() * 1000 - t < 60_000);
+        if fresh {
+            return Ok(());
         }
     }
-    let p = provider.clone();
-    let u = tauri::async_runtime::spawn_blocking(move || match p.as_str() {
-        "claude" => Ok(claude()),
-        "codex" => Ok(codex()),
-        "agy" => Ok(agy()),
-        other => Err(format!("proveedor desconocido: {other}")),
+    live().lock().unwrap().running.insert(provider.to_string());
+    emit_live();
+    let r = match provider {
+        "claude" => crate::usage_live::claude_live(),
+        "codex" => crate::usage_live::codex_live(),
+        _ => crate::usage_live::agy_live(),
+    };
+    {
+        let mut l = live().lock().unwrap();
+        l.running.remove(provider);
+        match r {
+            Ok(u) => {
+                l.data.insert(provider.to_string(), u);
+                l.errors.remove(provider);
+            }
+            Err(e) => {
+                l.errors.insert(provider.to_string(), e);
+            }
+        }
+    }
+    emit_live();
+    Ok(())
+}
+
+/// Junta la consulta en vivo con lo de los archivos: gana el dato más nuevo. Si los archivos son
+/// más nuevos (se usó el agente después de la consulta), mandan sus ventanas y se suma lo que solo
+/// trae la consulta (plan, modelo, ventanas por modelo, uso extra).
+pub fn merge(lv: Option<Usage>, pas: Option<Usage>, provider: &str) -> Usage {
+    match (lv, pas) {
+        (Some(l), Some(p)) if p.exact && p.updated_at.unwrap_or(0) > l.updated_at.unwrap_or(0) => {
+            let mut out = p;
+            for w in l.windows {
+                if !out.windows.iter().any(|x| x.label == w.label) {
+                    out.windows.push(w);
+                }
+            }
+            out.plan = out.plan.or(l.plan);
+            out.model = l.model;
+            out.extras = l.extras;
+            out.groups = l.groups;
+            out.tables = l.tables;
+            out
+        }
+        (Some(l), _) => l,
+        (None, Some(p)) => p,
+        (None, None) => Usage { provider: provider.into(), source: "consulta en vivo".into(), note: Some("Todavía no hay datos.".into()), ..Default::default() },
+    }
+}
+
+pub fn best(provider: &str) -> Usage {
+    let (lv, err, running) = {
+        let l = live().lock().unwrap();
+        (l.data.get(provider).cloned(), l.errors.get(provider).cloned(), l.running.contains(provider))
+    };
+    let had_live = lv.is_some();
+    let mut u = merge(lv, passive(provider), provider);
+    u.refreshing = running;
+    if running && !had_live && u.windows.is_empty() {
+        u.note = Some("Consultando…".into());
+    } else if let Some(e) = err {
+        u.note = Some(match u.note {
+            Some(n) => format!("{n} · Consulta en vivo: {e}"),
+            None => format!("Consulta en vivo: {e}"),
+        });
+    }
+    let now = now_s();
+    for w in &mut u.windows {
+        if let Some(r) = w.resets_at {
+            w.stale = r <= now;
+        }
+    }
+    u
+}
+
+/// `force` (Actualizar): consulta en vivo ahora (o espera la que está en curso).
+#[tauri::command]
+pub async fn usage_get(provider: String, force: Option<bool>) -> Result<Usage, String> {
+    if !["claude", "codex", "agy"].contains(&provider.as_str()) {
+        return Err(format!("proveedor desconocido: {provider}"));
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        if force.unwrap_or(false) {
+            probe(&provider)?;
+            CACHE.lock().unwrap().retain(|(x, _, _)| *x != provider);
+        }
+        Ok(best(&provider))
     })
     .await
-    .map_err(|e| e.to_string())??;
-    let mut cache = CACHE.lock().unwrap();
-    cache.retain(|(x, _, _)| *x != provider);
-    cache.push((provider, std::time::Instant::now(), u.clone()));
-    Ok(u)
+    .map_err(|e| e.to_string())?
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct LiveConfig {
+    claude: bool,
+    codex: bool,
+    agy: bool,
+    every_min: u64,
+}
+
+static CONFIG: Mutex<Option<LiveConfig>> = Mutex::new(None);
+
+/// Lo manda el frontend al arrancar y cuando cambia la configuración: qué proveedores consultar en
+/// vivo y cada cuánto. La primera vez arranca las rondas (la primera, enseguida: al abrir AlphaTerm).
+#[tauri::command]
+pub fn usage_config(app: AppHandle, claude: bool, codex: bool, agy: bool, every_min: u64) {
+    let _ = APP.set(app);
+    let cfg = LiveConfig { claude, codex, agy, every_min: every_min.clamp(5, 240) };
+    let first = {
+        let mut c = CONFIG.lock().unwrap();
+        let first = c.is_none();
+        *c = Some(cfg);
+        first
+    };
+    if first {
+        let _ = std::thread::Builder::new().name("consumo-en-vivo".into()).spawn(rounds);
+    }
+}
+
+fn rounds() {
+    std::thread::sleep(Duration::from_millis(1500));
+    loop {
+        let Some(cfg) = *CONFIG.lock().unwrap() else { return };
+        let list = [("claude", cfg.claude), ("codex", cfg.codex), ("agy", cfg.agy)];
+        let handles: Vec<_> = list.into_iter().filter(|(_, on)| *on).map(|(p, _)| std::thread::spawn(move || drop(probe(p)))).collect();
+        for h in handles {
+            let _ = h.join();
+        }
+        let done = Instant::now();
+        // Hasta la próxima ronda (si cambia el intervalo, vale el nuevo).
+        loop {
+            std::thread::sleep(Duration::from_secs(5));
+            let every = CONFIG.lock().unwrap().map(|c| c.every_min).unwrap_or(15);
+            if done.elapsed() >= Duration::from_secs(every * 60) {
+                break;
+            }
+        }
+    }
 }
 
 // --- Statusline de AlphaTerm para Claude Code ---------------------------------------------------------
@@ -501,7 +673,7 @@ mod tests {
         let v = json!({"_capturedAt": 1_000_000_000, "rate_limits": {"five_hour": {"used_percentage": 28, "resets_at": 2000}, "seven_day": {"used_percentage": 18.5, "resets_at": 500}}});
         let (c, w) = parse_claude_statusline(&v, 1000).unwrap();
         assert_eq!(c, 1_000_000_000);
-        assert_eq!(w[0], UsageWindow { label: "5 h".into(), used_pct: 28.0, resets_at: Some(2000), stale: false });
+        assert_eq!(w[0], UsageWindow { label: "5 h".into(), used_pct: 28.0, resets_at: Some(2000), ..Default::default() });
         assert!(w[1].stale, "la semana ya se reinició");
         assert!(parse_claude_statusline(&json!({"rate_limits": {}}), 0).is_none());
     }
@@ -513,7 +685,7 @@ mod tests {
             "secondary": null, "plan_type": "plus"}}});
         let (ts, w, plan) = parse_codex_line(&v, 1793049372).unwrap();
         assert_eq!(ts, 1793049372000);
-        assert_eq!(w, vec![UsageWindow { label: "semana".into(), used_pct: 12.5, resets_at: Some(1793650834), stale: false }]);
+        assert_eq!(w, vec![UsageWindow { label: "semana".into(), used_pct: 12.5, resets_at: Some(1793650834), ..Default::default() }]);
         assert_eq!(plan.as_deref(), Some("plus"));
         assert!(parse_codex_line(&json!({"timestamp": "2026-10-26T21:16:12Z", "payload": {"rate_limits": null}}), 0).is_none());
     }
@@ -535,6 +707,24 @@ mod tests {
         assert_eq!(quoted_path("node \"C:/x/statusline.js\""), Some(PathBuf::from("C:/x/statusline.js")));
         assert_eq!(quoted_path("node x.js"), None);
         assert_eq!(fmt_tokens(1_234_567), "1.2 M");
+    }
+
+    #[test]
+    fn gana_el_dato_mas_nuevo() {
+        let w = |l: &str, p: f64| UsageWindow { label: l.into(), used_pct: p, ..Default::default() };
+        let live = Usage { provider: "claude".into(), exact: true, updated_at: Some(1000), plan: Some("Max".into()), model: Some("Opus 5.5".into()),
+            windows: vec![w("5 h", 10.0), w("semana", 30.0), UsageWindow { detail: true, ..w("semana · Sonnet", 4.0) }], ..Default::default() };
+        let files_new = Usage { provider: "claude".into(), exact: true, updated_at: Some(2000), windows: vec![w("5 h", 12.0), w("semana", 31.0)], ..Default::default() };
+        let m = merge(Some(live.clone()), Some(files_new.clone()), "claude");
+        assert_eq!(m.windows.iter().map(|x| (x.label.as_str(), x.used_pct)).collect::<Vec<_>>(), vec![("5 h", 12.0), ("semana", 31.0), ("semana · Sonnet", 4.0)]);
+        assert_eq!(m.plan.as_deref(), Some("Max"));
+        assert_eq!(m.model.as_deref(), Some("Opus 5.5"));
+        // Archivos más viejos (o estimados): manda la consulta en vivo.
+        let files_old = Usage { updated_at: Some(500), ..files_new.clone() };
+        assert_eq!(merge(Some(live.clone()), Some(files_old), "claude"), live);
+        let estimate = Usage { exact: false, updated_at: Some(9000), ..files_new };
+        assert_eq!(merge(Some(live.clone()), Some(estimate), "claude"), live);
+        assert_eq!(merge(None, None, "agy").note.as_deref(), Some("Todavía no hay datos."));
     }
 
     #[test]

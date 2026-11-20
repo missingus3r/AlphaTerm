@@ -3,7 +3,7 @@
  * apila paneles. Abrir uno lo pone debajo (si la última columna tiene lugar) o en una columna
  * nueva al costado. Se puede cambiar el ancho de cada columna, el alto de cada panel y moverlos.
  */
-export type DockPanelId = "agents" | "servers" | "projects" | "git" | "history" | "docker";
+export type DockPanelId = "agents" | "servers" | "projects" | "git" | "history" | "docker" | "changes";
 
 export interface DockPanel {
   id: DockPanelId;
@@ -100,7 +100,7 @@ export function movePanel(d: Dock, p: DockPanelId, to: DropTarget): Dock {
 
 /** Acepta lo guardado (sesión o preferencia) y lo deja válido. */
 export function normalizeDock(v: unknown): Dock {
-  const ids: DockPanelId[] = ["agents", "servers", "projects", "git", "history", "docker"];
+  const ids: DockPanelId[] = ["agents", "servers", "projects", "git", "history", "docker", "changes"];
   const seen = new Set<string>();
   const cols: DockCol[] = [];
   const raw = (v as { cols?: unknown })?.cols;

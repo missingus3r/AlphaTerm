@@ -25,7 +25,36 @@ fn copy_conpty() {
     }
 }
 
+/// Commit y fecha de compilación, para mostrar la versión en el footer ("0.2.0 · 60d56fe+").
+/// El "+" marca que había cambios sin commitear al compilar.
+fn build_info() {
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let repo = Path::new(&manifest).parent().unwrap().to_path_buf();
+    let git = |args: &[&str]| {
+        std::process::Command::new("git").current_dir(&repo).args(args).output().ok().filter(|o| o.status.success()).map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+    };
+    let commit = git(&["describe", "--always", "--dirty=+", "--exclude=*"]).unwrap_or_default();
+    let built = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    println!("cargo:rustc-env=ALPHATERM_COMMIT={commit}");
+    println!("cargo:rustc-env=ALPHATERM_BUILT={built}");
+    for f in [".git/HEAD", ".git/index"] {
+        println!("cargo:rerun-if-changed={}", repo.join(f).display());
+    }
+}
+
 fn main() {
     copy_conpty();
-    tauri_build::build()
+    build_info();
+    // El manifiesto de Windows (controles comunes v6) lo incrusta el linker y no el recurso de
+    // tauri-build: así también lo tienen los binarios de test. Sin él no arrancan
+    // (STATUS_ENTRYPOINT_NOT_FOUND: TaskDialogIndirect solo existe en los controles v6).
+    let manifest = Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("windows-app-manifest.xml");
+    println!("cargo:rerun-if-changed=windows-app-manifest.xml");
+    let mut attrs = tauri_build::Attributes::new();
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        attrs = attrs.windows_attributes(tauri_build::WindowsAttributes::new_without_app_manifest());
+        println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
+        println!("cargo:rustc-link-arg=/MANIFESTINPUT:{}", manifest.display());
+    }
+    tauri_build::try_build(attrs).expect("tauri-build");
 }

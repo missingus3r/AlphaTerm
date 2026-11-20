@@ -150,6 +150,8 @@ pub struct LogEntry {
 pub struct GuardianState {
     pub enabled: std::sync::atomic::AtomicBool,
     pub watch_modify: std::sync::atomic::AtomicBool,
+    /// Preguntar por lo que hace Claude Code (el hook también está para registrar cambios).
+    pub claude: std::sync::atomic::AtomicBool,
     pending: Mutex<HashMap<u64, Sender<Decision>>>,
     open: Mutex<Vec<Ask>>,
     /// (sesión, tipo) → permitido hasta.

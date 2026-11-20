@@ -42,8 +42,19 @@ function Themed(props: { store: SettingsStore }) {
       enabled: s.control.enabled,
       guardianOn: s.guardian.enabled,
       guardianModify: s.guardian.modify,
+      guardianClaude: s.guardian.claude,
       presets: s.docker.presets,
     }).catch(() => {});
+  });
+  // Consumo en vivo (como el System dashboard): qué consultar y cada cuánto. La primera vez el
+  // backend consulta enseguida.
+  createEffect(() => {
+    const u = props.store.settings().usage;
+    void invoke("usage_config", { claude: u.claude, codex: u.codex, agy: u.agy, everyMin: u.liveEveryMin }).catch(() => {});
+  });
+  createEffect(() => {
+    const c = props.store.settings().changes;
+    void invoke("changes_config", { enabled: c.enabled, claude: c.claude, folders: c.folders }).catch(() => {});
   });
   return (
     <>

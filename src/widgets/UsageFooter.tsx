@@ -1,35 +1,27 @@
-import { createEffect, createSignal, For, onCleanup, onMount, Show, untrack } from "solid-js";
+import { createEffect, createResource, For, onCleanup, onMount, Show, createSignal, untrack } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type { Settings } from "../settings/schema";
-import { ago, fmtPct, level, until } from "./format";
+import { ago, fmtPct, level } from "./format";
 
-import { headline, type ProviderId, type Usage } from "./usage";
+import { headline, PROVIDER_NAMES, type ProviderId } from "./usage";
+import { listenUsage, loadUsage, usageBusy, usageError, usageOf } from "./usageStore";
+import { UsageDetail } from "./UsageDetail";
+import { appInfo, versionTooltip } from "./appInfo";
 export { providerFor, type ProviderId } from "./usage";
 
-const NAMES: Record<ProviderId, string> = { claude: "Claude", codex: "Codex", agy: "Antigravity" };
+const NAMES = PROVIDER_NAMES;
 
 function Provider(props: { id: ProviderId; everyMs: number; active: boolean; open: boolean; onOpen: (open: boolean) => void }) {
-  const [u, setU] = createSignal<Usage | null>(null);
-  const [err, setErr] = createSignal<string | null>(null);
-  const [busy, setBusy] = createSignal(false);
-  const load = async (force = false) => {
-    if (busy()) return;
-    setBusy(true);
-    try {
-      setU(await invoke<Usage>("usage_get", { provider: props.id, force }));
-      setErr(null);
-    } catch (e) {
-      setErr(String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const u = () => usageOf(props.id);
+  const err = () => usageError(props.id);
+  const busy = () => usageBusy(props.id);
+  // Lo barato (archivos y lo último de la consulta en vivo) se relee seguido; la consulta en vivo
+  // la hace el backend al abrir AlphaTerm y cada tantos minutos.
   createEffect(() => {
     const ms = props.everyMs;
-    // untrack: load() lee busy(); sin esto el efecto se re-ejecuta en bucle con cada carga.
-    untrack(() => void load());
-    const t = setInterval(() => !document.hidden && void load(), ms);
+    untrack(() => void loadUsage(props.id));
+    const t = setInterval(() => !document.hidden && void loadUsage(props.id), ms);
     onCleanup(() => clearInterval(t));
   });
 
@@ -43,7 +35,7 @@ function Provider(props: { id: ProviderId; everyMs: number; active: boolean; ope
       >
         <b>{NAMES[props.id]}</b>
         <Show when={u()} fallback={<span class="muted">{err() ? "error" : "…"}</span>}>
-          <Show when={headline(u()!).length > 0} fallback={<span class="muted">{u()!.exact ? "sin datos" : "estimado"}</span>}>
+          <Show when={headline(u()!).length > 0} fallback={<span class="muted">{u()!.refreshing ? "consultando…" : u()!.exact ? "sin datos" : "estimado"}</span>}>
             <For each={headline(u()!)}>
               {(w) => (
                 <span class="usage-win" classList={{ stale: w.stale }}>
@@ -66,43 +58,7 @@ function Provider(props: { id: ProviderId; everyMs: number; active: boolean; ope
       </button>
       <Show when={props.open}>
         <div class="usage-pop" role="dialog" aria-label={`Consumo de ${NAMES[props.id]}`}>
-          <div class="up-head">
-            <b>{NAMES[props.id]}</b>
-            <span class="badge">{u()?.exact ? "exacto" : "estimado"}</span>
-            <button class="link small" disabled={busy()} onClick={() => void load(true)}>
-              {busy() ? "Actualizando…" : "Actualizar"}
-            </button>
-          </div>
-          <Show when={err()}>
-            <div class="banner">{err()}</div>
-          </Show>
-          <Show when={u()}>
-            <table>
-              <tbody>
-                <For each={u()!.windows}>
-                  {(w) => (
-                    <tr classList={{ stale: w.stale }}>
-                      <td>{w.label}</td>
-                      <td class="bar-cell">
-                        <span class="usage-bar wide">
-                          <i class={`lv-${level(w.usedPct)}`} style={{ width: `${w.stale ? 0 : Math.max(1, w.usedPct)}%` }} />
-                        </span>
-                      </td>
-                      <td class="num">{w.stale ? "–" : fmtPct(w.usedPct)}</td>
-                      <td class="muted">{w.resetsAt ? `reinicia ${until(w.resetsAt)}` : ""}</td>
-                    </tr>
-                  )}
-                </For>
-              </tbody>
-            </table>
-            <p class="muted small">
-              Fuente: {u()!.source}
-              {u()!.updatedAt ? ` · ${ago(u()!.updatedAt!)}` : ""}
-            </p>
-            <Show when={u()!.note}>
-              <p class="small">{u()!.note}</p>
-            </Show>
-          </Show>
+          <UsageDetail id={props.id} />
         </div>
       </Show>
     </span>
@@ -147,6 +103,21 @@ function Location(props: { cwd?: string; branch?: string }) {
   );
 }
 
+/** Versión que corre (el tooltip trae commit, fecha de compilación y dónde está el ejecutable). */
+function Version(props: { onClick: () => void }) {
+  const [info] = createResource(appInfo);
+  return (
+    <Show when={info()}>
+      <button class="app-version" title={`${versionTooltip(info()!)}\n\nClic: configuración (Acerca y límites)`} onClick={props.onClick}>
+        v{info()!.version}
+        <Show when={info()!.commit.endsWith("+")}>
+          <span class="dirty">+</span>
+        </Show>
+      </button>
+    </Show>
+  );
+}
+
 /** Footer: ubicación del panel activo y consumo (el del agente abierto, primero y resaltado). */
 export function UsageFooter(props: { usage: Settings["usage"]; onSettings: () => void; cwd?: string; branch?: string; activeProvider: ProviderId | null }) {
   const [open, setOpen] = createSignal<ProviderId | null>(null);
@@ -156,6 +127,7 @@ export function UsageFooter(props: { usage: Settings["usage"]; onSettings: () =>
     window.addEventListener("mousedown", away);
     onCleanup(() => window.removeEventListener("mousedown", away));
   });
+  onMount(listenUsage);
   const enabled = () => (["claude", "codex", "agy"] as ProviderId[]).filter((p) => props.usage[p]);
   // El del agente activo va primero (aunque esté apagado en la configuración: es el que se está usando).
   const order = () => {
@@ -171,7 +143,7 @@ export function UsageFooter(props: { usage: Settings["usage"]; onSettings: () =>
           {(p) => (
             <Provider
               id={p}
-              everyMs={p === "agy" ? props.usage.agyEveryMin * 60_000 : props.usage.filesEverySec * 1000}
+              everyMs={props.usage.filesEverySec * 1000}
               active={p === props.activeProvider}
               open={open() === p}
               onOpen={(o) => setOpen(o ? p : null)}
@@ -181,6 +153,7 @@ export function UsageFooter(props: { usage: Settings["usage"]; onSettings: () =>
         <button class="usage-gear" title="Configurar el consumo" onClick={props.onSettings}>
           ⚙
         </button>
+        <Version onClick={props.onSettings} />
       </div>
     </footer>
   );
