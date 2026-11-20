@@ -91,5 +91,13 @@ async function create(): Promise<SettingsStore> {
   };
 }
 
-export const openSettings = () => invoke("settings_open");
+// La configuración se abre dentro de la misma ventana (encima de las pestañas), no en otra.
+const [settingsOpen, setSettingsOpen] = createSignal(false);
+export { settingsOpen };
+export const openSettings = () => {
+  // Que las teclas no sigan yendo a la terminal que tenía el foco.
+  (document.activeElement as HTMLElement | null)?.blur?.();
+  setSettingsOpen(true);
+};
+export const closeSettings = () => setSettingsOpen(false);
 export const revealSettings = () => invoke("settings_reveal");

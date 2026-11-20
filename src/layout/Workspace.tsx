@@ -9,7 +9,7 @@ import { tabTitle, type PaneInfo } from "./title";
 import { TerminalView, type TermHandle, type TermPatch } from "../terminal/TerminalView";
 import { foreground, gitBranch, newWindow, type TermInfo } from "../terminal/pty";
 import type { TermLook } from "../settings/apply";
-import { openSettings, type SettingsStore } from "../settings/store";
+import { closeSettings, openSettings, settingsOpen, type SettingsStore } from "../settings/store";
 import type { AgentDef } from "../settings/schema";
 import { agentRunning, agentState, pushRecent } from "../panels/agentState";
 import { agentKind, buildCommand, launchParts, shellKindOf } from "../panels/agentLaunch";
@@ -33,6 +33,7 @@ const GitPanel = lazy(() => import("../panels/GitPanel"));
 const HistoryPanel = lazy(() => import("../panels/HistoryPanel"));
 const DockerPanel = lazy(() => import("../panels/DockerPanel"));
 const ChangesPanel = lazy(() => import("../panels/ChangesPanel"));
+const SettingsView = lazy(() => import("../settings/SettingsView"));
 const DOCK_PREF = "alphaterm.dock";
 
 /** Estado vivo de cada panel (clave: id del panel). */
@@ -709,6 +710,8 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest?.(".xterm, input, select, textarea")) return;
       const a = match(e);
+      // Con la configuración abierta, los atajos no tocan las pestañas de atrás.
+      if (settingsOpen() && a?.type !== "openSettings") return;
       if (a) {
         e.preventDefault();
         run(a);
@@ -1042,6 +1045,21 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
       </Show>
       <ActivityBar isOpen={panelOpen} onToggle={togglePanel} help={shortcutHelp(settings().shortcuts)} />
       </div>
+      <Show when={settingsOpen()}>
+        <div class="settings-overlay">
+          <Suspense>
+            <SettingsView
+              info={props.info}
+              store={props.store}
+              onClose={() => {
+                closeSettings();
+                const id = activePaneId();
+                if (id) setTimeout(() => handles.get(id)?.focus(), 0);
+              }}
+            />
+          </Suspense>
+        </div>
+      </Show>
     </div>
     <GuardianModal />
     <UsageFooter

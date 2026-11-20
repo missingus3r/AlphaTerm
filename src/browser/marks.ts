@@ -35,7 +35,7 @@ export const intersects = (a: Box, b: Box) => a.left < b.right && b.left < a.rig
  * WebView2 encima de la ventana: nada de la interfaz lo puede tapar, así que mientras algo de esto
  * se superpone, el navegador se esconde.
  */
-export const FLOATING = ".modal-backdrop, .guardian-backdrop, .ctx-menu, .menu, .sys-pop, .usage-pop, .path-preview, .floating";
+export const FLOATING = ".settings-overlay, .modal-backdrop, .guardian-backdrop, .ctx-menu, .menu, .sys-pop, .usage-pop, .path-preview, .floating";
 
 export function coveredBy(area: Box, doc: Pick<Document, "querySelectorAll">): boolean {
   for (const el of doc.querySelectorAll<HTMLElement>(FLOATING)) {

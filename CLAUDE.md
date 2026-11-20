@@ -49,6 +49,9 @@ la guía de código en `Documentacion\Guia_de_codigo.txt` (y su PDF); el registr
   después de cerrar (por eso el menú aplica la acción antes de cerrarse).
 - Enter a la shell: `String.fromCharCode(13)`, nunca un salto de línea literal en una plantilla.
 - Scripts de parches: escribirlos con Write a un .py; los heredoc de bash se comen `\\` y `\n`.
+- La configuración se abre dentro de la misma ventana (`settingsOpen` en `src/settings/store.ts`,
+  `.settings-overlay` encima de `.workspace`); con ella abierta, los atajos no tocan las pestañas.
+  La ventana aparte "settings" (`settings_open`) quedó sin usar.
 - El esquema de settings vive en `src/settings/schema.ts`; el backend guarda JSON opaco.
 - Ventanas transparentes: el fondo lo pinta el body; xterm con viewport transparente por CSS.
 - Codex guarda sesiones como `.jsonl.zst`. agy: nunca desde Git Bash (MSYS convierte `/quota`).

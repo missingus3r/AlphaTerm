@@ -109,11 +109,21 @@ function Swatches(props: { theme: Theme }) {
 
 // --- Ventana -----------------------------------------------------------------------------------
 
-export default function SettingsView(props: { info: TermInfo; store: SettingsStore }) {
+export default function SettingsView(props: { info: TermInfo; store: SettingsStore; onClose?: () => void }) {
   const s = () => props.store.settings();
   const set = (f: (d: Settings) => void) => props.store.update(f);
   const osDark = createOsDark();
-  document.title = "Configuración — AlphaTerm";
+  if (!props.onClose) document.title = "Configuración — AlphaTerm";
+  // Dentro de la ventana de terminal: Esc cierra (salvo que una tecla la esté usando un campo).
+  if (props.onClose) {
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if ((e.target as HTMLElement)?.closest?.("input, textarea, select")) return;
+      props.onClose!();
+    };
+    window.addEventListener("keydown", esc);
+    onCleanup(() => window.removeEventListener("keydown", esc));
+  }
   const readSection = (): Section => {
     try {
       const v = localStorage.getItem(SECTION_PREF) as Section | null;
@@ -135,7 +145,14 @@ export default function SettingsView(props: { info: TermInfo; store: SettingsSto
   return (
     <div class="settings">
       <nav class="settings-nav">
-        <h1>Configuración</h1>
+        <h1>
+          Configuración
+          <Show when={props.onClose}>
+            <button class="icon-btn settings-close" title="Cerrar la configuración (Esc)" onClick={() => props.onClose!()}>
+              ×
+            </button>
+          </Show>
+        </h1>
         <For each={SECTIONS}>
           {([id, label]) => (
             <button classList={{ on: section() === id }} onClick={() => go(id)}>
