@@ -18,13 +18,19 @@ la guía de código en `Documentacion\Guia_de_codigo.txt` (y su PDF); el registr
 
 ## Correr y probar
 - Desarrollo: `npx tauri dev`. Release: `npx tauri build --no-bundle` → `src-tauri\target\release\alphaterm.exe`.
-- Versión nueva: subir `version` en `package.json`, `src-tauri/Cargo.toml` y `src-tauri/tauri.conf.json`,
-  y doble clic en `compilar-version.bat` (o `npm run release`, que es `scripts/release.mjs`): compila
-  (en `target\prueba` si `target\release\alphaterm.exe` está abierto) y `scripts/instalar.mjs` copia a
-  `%LOCALAPPDATA%\AlphaTerm\versiones\<v>`, deja en el escritorio el acceso directo «AlphaTerm <v>»
-  (renombra el anterior) y apunta ahí el anclado en la barra de tareas. Se puede con AlphaTerm
-  abierta. `npm run instalar -- --desde <carpeta>` instala un build ya hecho. Los .bat, con CRLF. El footer muestra la versión (tooltip: commit, "+" si había cambios
-  sin commitear, fecha y ruta del exe).
+- Versión nueva: doble clic en `compilar-version.bat` (o `npm run release`, que es `scripts/release.mjs`).
+  Sube la versión sola (patch por defecto; `--minor`, `--major`, o `--misma` para recompilar sin subir)
+  en `package.json`, `tauri.conf.json`, `Cargo.toml` y `Cargo.lock`, hace el commit «Versión X» y el tag
+  anotado `vX`, compila (en `target\prueba` si `target\release\alphaterm.exe` está abierto) e instala con
+  `scripts/instalar.mjs` en `%LOCALAPPDATA%\AlphaTerm\versiones\<v>` (acceso directo «AlphaTerm <v>» en el
+  escritorio, renombra el anterior, y el anclado de la barra de tareas). Si falla, deshace el commit y el
+  tag. Se puede con AlphaTerm abierta. `npm run instalar -- --desde <carpeta>` instala un build ya hecho.
+  Los .bat, con CRLF. El footer muestra la versión (tooltip: commit, "+" si había cambios sin commitear,
+  fecha y ruta del exe) y el botón «Novedades» (changelog por versión).
+- Changelog: `scripts/changelog.mjs` lo genera desde git (tags `vX.Y.Z`) en `src/generated/changelog.json`
+  (ignorado por git); lo corren `npm run dev`, `build` y `typecheck`. Lógica pura en
+  `scripts/changelog-lib.mjs` (tests en `scripts/changelog.test.mjs`). Los commits de antes de los tags
+  quedan en la versión más vieja (0.1.0 = todo hasta el 18/11/2026).
 - Tests: `cargo test` en `src-tauri` (anteponer `~/.cargo/bin` al PATH), `npx vitest run`, `npx tsc --noEmit`.
 - Inspeccionar el WebView: `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9333`
   antes de abrir la app y hablarle por CDP (Runtime.evaluate, Input.dispatchMouseEvent). Si ya hay

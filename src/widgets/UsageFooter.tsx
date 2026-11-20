@@ -8,6 +8,7 @@ import { headline, PROVIDER_NAMES, type ProviderId } from "./usage";
 import { listenUsage, loadUsage, usageBusy, usageError, usageOf } from "./usageStore";
 import { UsageDetail } from "./UsageDetail";
 import { appInfo, versionTooltip } from "./appInfo";
+import { ChangelogModal } from "./ChangelogModal";
 export { providerFor, type ProviderId } from "./usage";
 
 const NAMES = PROVIDER_NAMES;
@@ -118,6 +119,22 @@ function Version(props: { onClick: () => void }) {
   );
 }
 
+/** Botón "Novedades": changelog entre versiones con sus commits. */
+function Novedades() {
+  const [info] = createResource(appInfo);
+  const [show, setShow] = createSignal(false);
+  return (
+    <>
+      <button class="app-version news" title="Novedades: qué trae cada versión (sus commits)" onClick={() => setShow(true)}>
+        ✦ Novedades
+      </button>
+      <Show when={show()}>
+        <ChangelogModal current={info()?.version} onClose={() => setShow(false)} />
+      </Show>
+    </>
+  );
+}
+
 /** Footer: ubicación del panel activo y consumo (el del agente abierto, primero y resaltado). */
 export function UsageFooter(props: { usage: Settings["usage"]; onSettings: () => void; cwd?: string; branch?: string; activeProvider: ProviderId | null }) {
   const [open, setOpen] = createSignal<ProviderId | null>(null);
@@ -154,6 +171,7 @@ export function UsageFooter(props: { usage: Settings["usage"]; onSettings: () =>
           ⚙
         </button>
         <Version onClick={props.onSettings} />
+        <Novedades />
       </div>
     </footer>
   );
