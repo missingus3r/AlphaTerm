@@ -19,6 +19,7 @@ export type Action =
   | { type: "copyLastOutput" }
   | { type: "openSettings" }
   | { type: "renameWindow" }
+  | { type: "openBrowser" }
   | { type: "togglePanel"; panel: "agents" | "servers" | "projects" | "git" | "history" | "docker" | "changes" };
 
 export interface Command {
@@ -48,6 +49,7 @@ export const COMMANDS: Command[] = [
   { id: "prevPrompt", label: "Ir al comando anterior", action: { type: "jumpPrompt", delta: -1 }, defaults: ["Ctrl+Shift+Up"] },
   { id: "nextPrompt", label: "Ir al comando siguiente", action: { type: "jumpPrompt", delta: 1 }, defaults: ["Ctrl+Shift+Down"] },
   { id: "copyLastOutput", label: "Copiar la salida del último comando", action: { type: "copyLastOutput" }, defaults: ["Ctrl+Shift+O"] },
+  { id: "openBrowser", label: "Abrir el navegador al lado (para ver la app y marcar elementos)", action: { type: "openBrowser" }, defaults: ["Ctrl+Shift+U"] },
   { id: "openSettings", label: "Abrir la configuración", action: { type: "openSettings" }, defaults: ["Ctrl+,"] },
   { id: "panelAgents", label: "Panel de agentes", action: { type: "togglePanel", panel: "agents" }, defaults: ["Ctrl+Shift+A"] },
   { id: "panelServers", label: "Panel de servidores", action: { type: "togglePanel", panel: "servers" }, defaults: ["Ctrl+Shift+P"] },

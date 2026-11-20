@@ -24,6 +24,7 @@ import { restore as restoreSession, serialize, type SavedWindow } from "./sessio
 import { handleControl } from "./control";
 import { GuardianModal } from "../widgets/GuardianModal";
 import { listen } from "@tauri-apps/api/event";
+import { BrowserView, whenReady, type OwnerLive, type Target } from "../browser/BrowserView";
 
 const AgentsPanel = lazy(() => import("../panels/AgentsPanel"));
 const ServersPanel = lazy(() => import("../panels/ServersPanel"));
@@ -98,11 +99,11 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
       });
     }
   };
-  createEffect(() => layout().tabs.forEach((t) => M.leaves(t.root).forEach(ensurePane)));
+  createEffect(() => layout().tabs.forEach((t) => M.leaves(t.root).filter((l) => !l.browser).forEach(ensurePane)));
 
   // Limpia el estado de paneles que ya no existen.
   createEffect(() => {
-    const alive = new Set(layout().tabs.flatMap((t) => M.leaves(t.root).map((l) => l.id)));
+    const alive = new Set(layout().tabs.flatMap((t) => M.leaves(t.root).filter((l) => !l.browser).map((l) => l.id)));
     for (const id of Object.keys(panes)) {
       if (!alive.has(id)) {
         handles.delete(id);
@@ -116,7 +117,12 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     if (layout().tabs.length === 0) void getCurrentWindow().close();
   });
 
-  const titleOf = (t: M.Tab) => tabTitle(t.manualTitle, panes[t.activePane], profileName(M.leaves(t.root)[0]?.profileId ?? ""));
+  // Con el navegador enfocado, el título sale de la terminal de la pestaña (si hay).
+  const titlePane = (t: M.Tab) => panes[t.activePane] ?? panes[M.leaves(t.root).find((l) => !l.browser)?.id ?? ""];
+  const titleOf = (t: M.Tab) => {
+    const first = M.leaves(t.root).find((l) => !l.browser);
+    return tabTitle(t.manualTitle, titlePane(t), first ? profileName(first.profileId) : "Navegador");
+  };
 
   // Un agente "arrancó" cuando su comando empezó a correr (por integración o por proceso).
   createEffect(() => {
@@ -211,6 +217,8 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     const t = active();
     const l = activeLeaf();
     if (!t || !l) return;
+    // Desde un navegador se abre una terminal en la carpeta de su dueño.
+    const base = l.browser ? M.findLeaf(t.root, l.browser.owner ?? "") ?? M.leaves(t.root).find((x) => !x.browser) : l;
     let d: M.SplitDir = dir === "auto" ? "row" : dir;
     if (dir === "auto") {
       const r = M.paneRects(t.root).get(l.id);
@@ -220,7 +228,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
       d = w >= h * 1.6 ? "row" : "column"; // en una terminal el ancho "vale" menos que el alto
     }
     // El panel nuevo hereda perfil y carpeta del actual.
-    update((x) => M.splitPane(x, t.id, l.id, d, M.leaf(l.profileId, panes[l.id]?.cwd ?? l.cwd)));
+    update((x) => M.splitPane(x, t.id, l.id, d, M.leaf(base?.profileId || defaultProfile(), (base && panes[base.id]?.cwd) ?? base?.cwd)));
   };
 
   const closePane = (tabId: string, paneId: string) => update((x) => M.closePane(x, tabId, paneId));
@@ -398,6 +406,11 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
           pane: (id) => panes[id],
           handle: (id) => handles.get(id),
           titleOf,
+          openBrowser: async (o) => {
+            const id = openBrowser(o);
+            if (!id) return undefined;
+            return (await whenReady(id)) ? id : undefined;
+          },
           update,
           defaultProfile,
           env: (): Record<string, string> => (pathEnv() ? { PATH: pathEnv()! } : {}),
@@ -474,7 +487,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     setTimeout(() => void refreshServers(), 4000);
   };
   // Archivos para lanzar Claude Code con el MCP de AlphaTerm y el hook del guardián.
-  const [controlFiles] = createResource(() => invoke<{ claudeSettings: string; claudeMcp: string; mcpScript: string }>("control_files").catch(() => null));
+  const [controlFiles] = createResource(() => invoke<{ claudeSettings: string; claudeStop: string; claudeMcp: string; mcpScript: string }>("control_files").catch(() => null));
   /**
    * Comando con el que arranca un agente: el suyo, las opciones elegidas en el panel (con las
    * comillas de la shell del perfil) y, en Claude y Codex, el guardián y la API de control.
@@ -488,6 +501,8 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
       if (s.control.enabled) extra.push(`--mcp-config "${f.claudeMcp}"`);
       // El mismo archivo trae el hook del guardián y el que registra las modificaciones.
       if ((s.guardian.enabled && s.guardian.claude) || (s.changes.enabled && s.changes.claude)) extra.push(`--settings "${f.claudeSettings}"`);
+      // Solo el hook Stop: el navegador sabe cuándo terminó de contestar ("trabajando… listo").
+      else if (s.control.enabled && f.claudeStop) extra.push(`--settings "${f.claudeStop}"`);
     }
     // Codex no tiene hooks: se usa su propio modo de aprobación (pide permiso para escribir), salvo
     // que el comando o las opciones ya digan cómo aprobar (si no, choca con lo elegido).
@@ -503,6 +518,71 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     update((x) => M.addTab(x, M.newTab(profile, cwd, { command: agentCommand(agent, profile), env, agentId: agent.id })));
     if (cwd) props.store.update((d) => void (d.recentDirs = pushRecent(d.recentDirs, cwd)));
   };
+  // --- Navegador integrado ------------------------------------------------------------------------
+  /** URL probable para un navegador nuevo: el último servidor que nació en esa pestaña. */
+  const guessUrl = (tabId: string) => {
+    const s = [...servers()].reverse().find((x) => paneOf(x.shellPid)?.tabId === tabId && x.ports.length);
+    return s ? `http://localhost:${s.ports[0]}` : undefined;
+  };
+  /**
+   * Abre un navegador al lado de un panel (o reusa el de la pestaña). Devuelve su id. El dueño (a
+   * quién van los pedidos) es la terminal al lado de la que se abre.
+   */
+  const openBrowser = (o: { url?: string; tabId?: string; pane?: string; dir?: M.SplitDir; reuse?: boolean; focus?: boolean }) => {
+    const t = o.tabId ? tabById(o.tabId) : active();
+    if (!t) return undefined;
+    const existing = o.reuse === false ? undefined : M.browserOf(t);
+    if (existing) {
+      if (o.url) void invoke("browser_navigate", { id: existing.id, url: o.url }).catch(() => {});
+      update((x) => M.focusPane(M.selectTab(x, t.id), t.id, existing.id));
+      return existing.id;
+    }
+    const at = o.pane && M.findLeaf(t.root, o.pane) ? o.pane : t.activePane;
+    const atLeaf = M.findLeaf(t.root, at);
+    const owner = atLeaf?.browser ? atLeaf.browser.owner : at;
+    const b = M.browserLeaf(o.url || guessUrl(t.id) || "about:blank", owner);
+    update((x) => {
+      const y = M.splitPane(x, t.id, at, o.dir ?? "row", b);
+      return o.focus === false ? y : M.focusPane(M.selectTab(y, t.id), t.id, b.id);
+    });
+    return b.id;
+  };
+  const askBrowser = () => {
+    const t = active();
+    if (!t) return;
+    if (M.browserOf(t)) return void openBrowser({});
+    const u = prompt("¿Qué dirección abro en el navegador?", guessUrl(t.id) ?? "http://localhost:5173");
+    if (u !== null && u.trim()) openBrowser({ url: u.trim() });
+  };
+  /** Terminales de la pestaña a las que se les puede mandar un pedido. */
+  const targetsOf = (tabId: string): Target[] => {
+    const t = tabById(tabId);
+    if (!t) return [];
+    return M.leaves(t.root)
+      .filter((l) => !l.browser && panes[l.id])
+      .map((l) => {
+        const p = panes[l.id]!;
+        const agent = settings().agents.find((a) => a.id === (p.agentId ?? providerFor(p.agentId, p.running ? p.lastCommand : undefined, p.fgProcess)));
+        const where = p.cwd ? p.cwd.split(/[\\/]/).filter(Boolean).pop() : "";
+        return { id: l.id, label: `${agent?.name ?? p.fgProcess ?? p.shellName}${where ? ` · ${where}` : ""}` };
+      });
+  };
+  const ownerLive = (id: string): OwnerLive | undefined => {
+    const p = panes[id];
+    if (!p) return undefined;
+    const def = settings().agents.find((a) => a.id === p.agentId);
+    // El hook Stop solo lo tiene un Claude Code lanzado por AlphaTerm con la API prendida.
+    const hook = !!def && agentKind(def.command) === "claude" && settings().control.enabled;
+    return { active: p.active, bell: p.bell, hook };
+  };
+  /** Pega el pedido en la terminal del agente y lo manda (Enter aparte: si no, queda en el pegado). */
+  const sendToAgent = (pane: string, message: string) => {
+    const h = handles.get(pane);
+    if (!h || !h.paste(message)) return false;
+    setTimeout(() => h.send("", true), 350);
+    return true;
+  };
+
   // --- Modificaciones: se vigila la carpeta de cada panel con un agente andando -----------------
   // (el backend copia la carpeta al empezar y compara cada cambio con esa copia).
   const watching = new Map<string, string>(); // panel → carpeta
@@ -613,6 +693,9 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
         if (id) handles.get(id)?.jumpPrompt(a.delta);
         break;
       }
+      case "openBrowser":
+        askBrowser();
+        break;
       case "copyLastOutput": {
         const id = activePaneId();
         if (id) void handles.get(id)?.copyLastOutput();
@@ -676,6 +759,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                 onRefresh={() => void refreshServers()}
                 onStart={startRecipe}
                 onFocus={focusPane}
+                onBrowse={(url, pane) => void openBrowser({ url, tabId: pane?.tabId, pane: pane?.paneId })}
               />
         );
       case "projects":
@@ -810,6 +894,36 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                     const leafAt = M.findLeaf(tab()!.root, paneId)!;
                     const r = () => rects().get(paneId) ?? { x: 0, y: 0, w: 1, h: 1 };
                     const focused = () => tab()?.activePane === paneId;
+                    if (leafAt.browser) {
+                      const spec = () => M.findLeaf(tab()!.root, paneId)?.browser ?? leafAt.browser!;
+                      return (
+                        <div
+                          class="pane"
+                          classList={{ focused: focused() && multi() }}
+                          style={{ left: pct(r().x), top: pct(r().y), width: pct(r().w), height: pct(r().h) }}
+                        >
+                          <BrowserView
+                            id={paneId}
+                            url={leafAt.browser.url}
+                            owner={spec().owner}
+                            visible={visible()}
+                            focused={focused()}
+                            targets={targetsOf(tabId)}
+                            ownerLive={ownerLive}
+                            onFocus={() => {
+                              if (tab()?.activePane !== paneId) update((x) => M.focusPane(x, tabId, paneId));
+                            }}
+                            onUrl={(u) => update((x) => M.setBrowser(x, paneId, { url: u }))}
+                            onOwner={(o) => {
+                              update((x) => M.setBrowser(x, paneId, { owner: o }));
+                              void invoke("browser_set_owner", { id: paneId, owner: o ?? null }).catch(() => {});
+                            }}
+                            onSend={sendToAgent}
+                            onClose={() => closePane(tabId, paneId)}
+                          />
+                        </div>
+                      );
+                    }
                     return (
                       <div
                         class="pane"

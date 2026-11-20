@@ -31,6 +31,7 @@ export function serialize(
   const tabs = l.tabs.map((t) => ({
     ...t,
     root: mapLeaves(t.root, (leaf) => {
+      if (leaf.browser) return { kind: "leaf", id: leaf.id, profileId: "", browser: { ...leaf.browser } };
       const p = live(leaf.id);
       const agentId = p?.agentId ?? leaf.startup?.agentId;
       // Sin el comando ni las variables (pueden traer el PATH entero): solo qué agente era.
@@ -51,6 +52,7 @@ export function restore(
   const s = saved as SavedWindow | null;
   if (!s || s.version !== 1 || !Array.isArray(s.layout?.tabs) || s.layout.tabs.length === 0) return null;
   const fix = (leaf: M.Leaf): M.Leaf => {
+    if (leaf.browser && typeof leaf.browser.url === "string") return { kind: "leaf", id: leaf.id, profileId: "", browser: { url: leaf.browser.url, ...(leaf.browser.owner ? { owner: leaf.browser.owner } : {}) } };
     const profileId = opts.profileOk(leaf.profileId) ? leaf.profileId : opts.fallbackProfile;
     const agent = leaf.startup?.agentId ? opts.agents.find((a) => a.id === leaf.startup!.agentId) : undefined;
     // Comandos explícitos (una ventana abierta por la API con un comando) se corren igual.

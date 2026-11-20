@@ -37,6 +37,17 @@ describe("sesión", () => {
     expect(M.leaves(r.layout.tabs[0].root)[0].startup).toEqual({ command: "claude --continue", env: { PATH: "p" }, agentId: "claude" });
   });
 
+  it("guarda y restaura paneles de navegador (URL y dueño)", () => {
+    const t = M.newTab("powershell", "C:\\x");
+    const b = M.browserLeaf("http://localhost:5173/", t.activePane);
+    const l = M.splitPane({ tabs: [t], activeTab: t.id }, t.id, t.activePane, "row", b);
+    const json = JSON.parse(JSON.stringify(serialize(l, () => undefined)));
+    const r = restore(json, opts)!;
+    const leaf = M.leaves(r.layout.tabs[0].root).find((x) => x.browser)!;
+    expect(leaf.browser).toEqual({ url: "http://localhost:5173/", owner: t.activePane });
+    expect(leaf.startup).toBeUndefined();
+  });
+
   it("ignora basura", () => {
     expect(restore(null, opts)).toBeNull();
     expect(restore({ version: 1, layout: { tabs: [] } }, opts)).toBeNull();

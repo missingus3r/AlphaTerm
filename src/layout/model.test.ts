@@ -177,3 +177,17 @@ describe("colores y carpetas de pestañas", () => {
     expect(g.tabs.every((t) => !t.groupId)).toBe(true);
   });
 });
+
+describe("paneles de navegador", () => {
+  it("se crean, se actualizan y se encuentran", () => {
+    const t = M.newTab("powershell");
+    const b = M.browserLeaf("http://localhost:3000", t.activePane);
+    let l = M.splitPane({ tabs: [t], activeTab: t.id }, t.id, t.activePane, "row", b);
+    expect(M.isBrowser(M.findLeaf(l.tabs[0].root, b.id))).toBe(true);
+    expect(M.browserOf(l.tabs[0])?.id).toBe(b.id);
+    l = M.setBrowser(l, b.id, { url: "http://localhost:3000/otra" });
+    expect(M.findLeaf(l.tabs[0].root, b.id)?.browser).toEqual({ url: "http://localhost:3000/otra", owner: t.activePane });
+    // Sobre un panel que no es navegador no cambia nada (misma referencia).
+    expect(M.setBrowser(l, t.activePane, { url: "x" })).toBe(l);
+  });
+});

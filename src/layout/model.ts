@@ -12,12 +12,21 @@ export interface Startup {
   agentId?: string;
 }
 
+/** Panel de navegador (en vez de una terminal). */
+export interface BrowserSpec {
+  url: string;
+  /** Panel de terminal al que van los pedidos (el agente del proyecto). */
+  owner?: string;
+}
+
 export interface Leaf {
   kind: "leaf";
   id: string;
   profileId: string;
   cwd?: string;
   startup?: Startup;
+  /** Si está, el panel es un navegador integrado. */
+  browser?: BrowserSpec;
 }
 
 export interface Split {
@@ -61,6 +70,31 @@ export const newId = (prefix: string) => `${prefix}${Date.now().toString(36)}${(
 
 export function leaf(profileId: string, cwd?: string, startup?: Startup): Leaf {
   return { kind: "leaf", id: newId("p"), profileId, cwd, ...(startup ? { startup } : {}) };
+}
+
+/** Hoja de navegador (sin shell). */
+export function browserLeaf(url: string, owner?: string): Leaf {
+  return { kind: "leaf", id: newId("b"), profileId: "", browser: { url, ...(owner ? { owner } : {}) } };
+}
+
+export const isBrowser = (l: Leaf | undefined) => !!l?.browser;
+
+/** Actualiza la URL (o el dueño) de un panel de navegador: lo que se guarda en la sesión. */
+export function setBrowser(l: Layout, paneId: string, patch: Partial<BrowserSpec>): Layout {
+  const fix = (n: PaneNode): PaneNode =>
+    n.kind === "leaf" ? (n.id === paneId && n.browser ? { ...n, browser: { ...n.browser, ...patch } } : n) : { ...n, a: fix(n.a), b: fix(n.b) };
+  let changed = false;
+  const tabs = l.tabs.map((t) => {
+    if (!findLeaf(t.root, paneId)?.browser) return t;
+    changed = true;
+    return { ...t, root: fix(t.root) };
+  });
+  return changed ? { ...l, tabs } : l;
+}
+
+/** Primer panel de navegador de una pestaña. */
+export function browserOf(t: Tab): Leaf | undefined {
+  return leaves(t.root).find((x) => x.browser);
 }
 
 export function newTab(profileId: string, cwd?: string, startup?: Startup): Tab {

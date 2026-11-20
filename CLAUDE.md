@@ -11,6 +11,8 @@ la guía de código en `Documentacion\Guia_de_codigo.txt` (y su PDF); el registr
 - Renombrada a AlphaTerm: binario `alphaterm.exe`, identificador `uy.alphaterm.app`, datos en
   `%APPDATA%\AlphaTerm` (se copia la de NovaTerm la primera vez). La carpeta del proyecto es
   `Desktop\AlphaTerm` (renombrada el 18/11/2026; antes `Desktop\NovaTerm`).
+- Navegador integrado con marcado (20/11/2026): panel de navegador (hoja con `browser` en el modelo)
+  con modo edición para marcar elementos y pedirle cambios al agente de la pestaña. Ver Gotchas.
 - Pendiente: decidir si además de la instalación por versión (`compilar-version.bat`) hace falta un
   instalador NSIS; probar Docker con un contenedor real y Claude Code con una tarea real pasando por
   el guardián; metas de RAM (<120 MB) y arranque (<500 ms) no se cumplen (~225 MB y 1,2–1,4 s,
@@ -80,6 +82,19 @@ la guía de código en `Documentacion\Guia_de_codigo.txt` (y su PDF); el registr
   en el entorno persistente de Windows.
 - `build.rs`: rutas con `std::env::var("CARGO_MANIFEST_DIR")`, no `env!()` (queda fija al compilar el
   build script y se rompe al mover la carpeta).
+
+- Navegador integrado (`src-tauri/src/browser.rs`, `src/browser/`): un WebView2 hijo
+  (`Window::add_child`, feature `unstable` de tauri) puesto encima del `.bp-view` de su panel; el
+  frontend le manda el rectángulo cada 150 ms y lo esconde si algo flotante de la interfaz se le
+  superpone (`FLOATING` en `src/browser/marks.ts`: agregar ahí las clases de menús/modales nuevos,
+  porque nada de la interfaz puede tapar al WebView2). Se maneja por CDP con
+  `CallDevToolsProtocolMethod` (bloquea: nunca desde el hilo principal; `add_child` tampoco).
+  La capa de marcado es `scripts/browser-overlay.js` (initialization_script) y le habla al backend
+  por `Runtime.addBinding("__alphaterm")`. El pedido se pega en la terminal del dueño con
+  `term.paste` (bracketed paste) y el Enter va aparte 350 ms después. "Listo": hook Stop de Claude
+  Code (`claude-stop.json` o dentro de `claude-guardian.json` → `agent_stop`); los demás agentes,
+  por el silencio de la terminal después de haber trabajado. Con `--remote-debugging-port`, el
+  navegador hijo aparece como otro target en `/json` (sirve para probar).
 
 ## Decisiones ya tomadas (no re-discutir sin motivo)
 - Tauri 2 + Rust; Vite + TypeScript + SolidJS 1.9; xterm.js 6 con WebGL (fallback DOM).

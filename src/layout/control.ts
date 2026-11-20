@@ -28,6 +28,8 @@ export interface ControlCtx {
   defaultProfile: () => string;
   /** Variables para comandos lanzados por la API (PATH completo). */
   env: () => Record<string, string>;
+  /** Abre (o reusa) el navegador de una pestaña; devuelve su id cuando está listo. */
+  openBrowser: (o: { url?: string; tabId?: string; pane?: string; dir?: M.SplitDir; reuse?: boolean; focus?: boolean }) => Promise<string | undefined>;
 }
 
 interface Req {
@@ -104,6 +106,7 @@ export async function handleControl(req: Req, ctx: ControlCtx): Promise<unknown>
             activePane: t.activePane,
             panes: M.leaves(t.root).map((leaf) => {
               const s = ctx.pane(leaf.id);
+              if (leaf.browser) return { pane: leaf.id, browser: leaf.browser.url, owner: leaf.browser.owner };
               return {
                 pane: leaf.id,
                 cwd: s?.cwd,
@@ -126,6 +129,19 @@ export async function handleControl(req: Req, ctx: ControlCtx): Promise<unknown>
       await waitPane(ctx, tab.activePane);
       return { result: { window: ctx.label, tab: tab.id, pane: tab.activePane } };
     }
+  }
+
+  if (req.method === "browser_open") {
+    // Al lado del panel pedido, o del que llama (el agente); si no, en la pestaña activa.
+    const at = str(p.pane) ?? str(p.caller);
+    const t = at ? tabOfPane(l, at) : undefined;
+    if (at && !t) return notMine;
+    if (!at && !mineForNew(req, ctx.label)) return notMine;
+    const url = str(p.url);
+    if (!url) return { error: "Falta 'url'" };
+    const id = await ctx.openBrowser({ url, tabId: t?.id, pane: at, dir: p.direction === "down" ? "column" : "row", reuse: !p.new, focus: true });
+    if (!id) return { error: "No se pudo abrir el navegador" };
+    return { result: { window: ctx.label, tab: t?.id ?? l.activeTab, browser: id, url } };
   }
 
   // Lo demás es sobre un panel: contesta la ventana que lo tiene.

@@ -76,6 +76,8 @@ dependencies = [
  "tauri-plugin-opener",
  "tiny_http",
  "vt100",
+ "webview2-com",
+ "windows-core",
  "windows-sys 0.61.2",
  "winreg 0.56.0",
 ]

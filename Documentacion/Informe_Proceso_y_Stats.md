@@ -646,3 +646,62 @@ necesita los controles comunes v6); el manifiesto ahora lo incrusta el linker pa
 
 ### Stats
 - Tests: Rust 74 (+6 ignorados), Vitest 111. Todos en verde.
+
+## Navegador integrado con marcado de elementos (20/11/2026)
+
+Pedido: una vista de navegador dentro de AlphaTerm donde el agente vea la app que levantó,
+interactúe, saque capturas, y donde el usuario marque elementos (como la primera versión de Claude
+Design) para pedirle cambios en tiempo real. Decisiones de Bruno: el pedido va al agente que ya
+trabaja en el proyecto, en su pestaña, como si se tipeara (opción 1); el navegador es un WebView2
+hijo dentro de la ventana (opción A, frente a ventana pegada o Chrome transmitido como video); es
+un tipo de panel nuevo; Claude Code con aviso exacto de "listo", el resto por silencio.
+
+### Qué se hizo
+- `src-tauri/src/browser.rs`: WebView2 hijo (`Window::add_child`, feature `unstable`) sobre el
+  rectángulo del panel; CDP por `CallDevToolsProtocolMethod` (capturas de vista, página entera y
+  recortes; clic, texto, teclas, scroll, eval); eventos `Runtime.bindingCalled` (marcas),
+  `consoleAPICalled` y `exceptionThrown` (consola de la página); ventanas nuevas se abren en el mismo
+  panel; el pedido arma `pedido.md`, `marcas.json` y las capturas en `%TEMP%\AlphaTerm\navegador`.
+- `scripts/browser-overlay.js`: modo edición (resaltado al pasar el mouse con etiqueta y componente,
+  clic marca con número sin disparar la página, Alt+clic el padre, Esc sale), datos de cada marca
+  (selector único, HTML, estilos calculados, posición, componente y archivo fuente de React —
+  `_debugSource` o la pila de React 19 —, Vue 2/3, Svelte y Angular), detección de recarga en caliente,
+  y la estructura de la página como texto para el agente.
+- Frontend: hoja `browser` en el modelo (se guarda en la sesión), `src/browser/BrowserView.tsx`
+  (barra con URL, Editar, Todo el sitio, errores de consola; marcas como chips; pedido con a qué
+  terminal va; "Armando… / Trabajando… / Te necesita / Listo ✓"), se esconde si un menú o modal se
+  le superpone o al cambiar de pestaña. Se abre con Ctrl+Shift+U, desde Servidores («Abrir en el
+  navegador», al lado de la pestaña donde nació) o por la API.
+- API/MCP: `browser_open/list/navigate/reload/screenshot/snapshot/click/type/key/scroll/eval/
+  console/marks`; la captura vuelve como imagen por MCP. Hook Stop de Claude Code (`agent_stop`), en
+  `claude-guardian.json` y en `claude-stop.json` (si no está el guardián).
+- Arreglo de paso: con un WebView hijo, Tauri ya no cuenta la ventana en `webview_windows()`; la API
+  de control, el guardián y el cierre de ventanas pasaron a `app.windows()`.
+
+### Prueba en la app (release aparte con datos propios, CDP en 9339)
+Sitio de prueba con recarga automática y un "agente" falso (lee el pegado, muestra un spinner 4 s y
+cambia el color del botón en el HTML):
+- Abierto por la API como lo haría un agente: panel al lado de su terminal, capa inyectada, función
+  `__alphaterm` viva, recarga en caliente detectada.
+- Modo edición: el clic marca y no dispara el `onclick` de la página; dos marcas con componente
+  `SubmitButton` y archivo `src/components/SubmitButton.tsx:12` (fibra simulada); chips en la UI.
+- Pedido: el agente recibió el texto con las rutas; "Trabajando…" a los 0,5 s, "Listo ✓" a los 7,8 s,
+  el botón quedó azul (la página se recargó sola) y las marcas se limpiaron. Capturas correctas
+  (vista con números y recorte del botón).
+- Herramientas de agente: snapshot con selectores, clic real ("clic 1"), texto con ñ y tilde,
+  Ctrl+A, scroll, eval, captura entera y de un elemento, error de consola, selector inexistente con
+  error claro; por MCP la captura llega como imagen.
+- Hook Stop simulado (mismo JSON que manda Claude Code): pasa a "Listo" mientras el agente sigue.
+- Pedido global: incluye la captura de la página entera.
+- Se esconde con Novedades abierto y en otra pestaña; vuelve al cerrar o volver.
+- Cerrar y reabrir: el panel vuelve con su URL y su dueño.
+
+### Pendiente / no verificado
+- Claude Code de verdad recibiendo un pedido (no se gastó una tarea real): se probó el hook con su
+  JSON y el pegado con un programa que pide bracketed paste.
+- React/Vue reales (la detección se probó con una fibra simulada); páginas con iframes (la capa
+  solo marca el documento principal).
+- Arrastrar un divisor sobre el navegador: mientras se arrastra, el navegador se esconde.
+
+### Stats
+- Tests: Rust 77 (+6 ignorados), Vitest 122. Todos en verde.

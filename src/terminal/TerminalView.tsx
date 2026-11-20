@@ -53,6 +53,8 @@ export interface TermHandle {
   focus(): void;
   /** Escribe texto en la shell como si se tipeara (con Enter al final si `enter`). */
   send(text: string, enter: boolean): boolean;
+  /** Pega texto como un pegado de verdad (con bracketed paste si el programa lo pidió). */
+  paste(text: string): boolean;
   /** Últimas `n` líneas del buffer (lo que se ve y el historial), como texto. */
   text(n: number): string;
   /** Salida del último comando terminado (con integración), o null. */
@@ -537,6 +539,11 @@ export function TerminalView(props: Props) {
       send: (text, enter) => {
         if (!session) return false;
         session.write(enter ? text + String.fromCharCode(13) : text);
+        return true;
+      },
+      paste: (text) => {
+        if (!session) return false;
+        term.paste(text);
         return true;
       },
       text: (n) => {

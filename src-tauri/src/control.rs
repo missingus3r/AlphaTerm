@@ -86,11 +86,15 @@ fn write_files(url: &str, token: &str) {
     let _ = std::fs::write(dir.join("guardian-hook.mjs"), HOOK_JS);
     let fwd = |p: std::path::PathBuf| p.display().to_string().replace('\\', "/");
     let hook_cmd = format!("node \"{}\"", fwd(dir.join("guardian-hook.mjs")));
+    // Stop: avisa cuándo Claude Code terminó de contestar (el navegador pasa de "trabajando" a "listo").
+    let stop = json!([ { "hooks": [ { "type": "command", "command": hook_cmd, "timeout": 15 } ] } ]);
+    let _ = crate::settings::save_to(&dir.join("claude-stop.json"), &json!({ "hooks": { "Stop": stop.clone() } }));
     let _ = crate::settings::save_to(
         &dir.join("claude-guardian.json"),
         &json!({ "hooks": {
             "PreToolUse": [ { "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell", "hooks": [ { "type": "command", "command": hook_cmd, "timeout": 600 } ] } ],
-            "PostToolUse": [ { "matcher": "Write|Edit|MultiEdit|NotebookEdit", "hooks": [ { "type": "command", "command": hook_cmd, "timeout": 30 } ] } ]
+            "PostToolUse": [ { "matcher": "Write|Edit|MultiEdit|NotebookEdit", "hooks": [ { "type": "command", "command": hook_cmd, "timeout": 30 } ] } ],
+            "Stop": stop
         } }),
     );
     let _ = crate::settings::save_to(
@@ -157,8 +161,28 @@ pub fn dispatch(app: &AppHandle, method: &str, p: Value, caller: Option<String>)
             "list", "read {pane, lines}", "last_output {pane}", "run {pane, command, wait, timeout_ms}", "send {pane, text, enter}",
             "open_tab {cwd, command, window, background}", "split {pane, direction: right|down, cwd, command}",
             "open_window {cwd, command}", "close {pane}", "focus {pane}",
-            "docker_list", "docker_action {target, action: start|stop|restart|rm}", "docker_logs {target, tail}", "docker_start {name}"
+            "docker_list", "docker_action {target, action: start|stop|restart|rm}", "docker_logs {target, tail}", "docker_start {name}",
+            "browser_open {url, pane, direction: right|down, new}", "browser_list", "browser_navigate {browser, url}", "browser_reload {browser, hard}",
+            "browser_screenshot {browser, selector, full}", "browser_click {browser, selector | x, y}", "browser_type {browser, text, selector}",
+            "browser_key {browser, key}", "browser_scroll {browser, dy, dx, selector}", "browser_eval {browser, js}", "browser_snapshot {browser, max_lines}",
+            "browser_console {browser, since, errors_only}", "browser_marks {browser}"
         ] })),
+        // --- Navegador integrado (el backend lo maneja por DevTools; abrir uno lo hace el frontend) ---
+        "browser_open" => {
+            let mut p = p;
+            if let Some(c) = &caller {
+                p["caller"] = json!(c);
+            }
+            ask_windows(app, "browser_open", p, Duration::from_secs(30), false)
+        }
+        m if m.starts_with("browser_") => crate::browser::control(app, m, &p, &caller),
+        // Hook Stop de Claude Code: el agente de ese panel terminó de contestar.
+        "agent_stop" => {
+            if let Some(c) = &caller {
+                let _ = app.emit("agent-stop", json!({ "pane": c }));
+            }
+            Ok(json!({ "ok": true }))
+        }
         // --- Docker (directo en el backend) ---
         "docker_list" => Ok(json!({ "containers": crate::docker::containers()?, "presets": *st.presets.lock().unwrap() })),
         "docker_logs" => Ok(json!({ "logs": crate::docker::logs(&s(&p, "target").ok_or("falta target")?, p.get("tail").and_then(Value::as_u64).unwrap_or(200) as u32)? })),
@@ -245,7 +269,7 @@ pub fn dispatch(app: &AppHandle, method: &str, p: Value, caller: Option<String>)
 /// la primera que no diga "no es mío".
 fn ask_windows(app: &AppHandle, method: &str, params: Value, limit: Duration, all: bool) -> Result<Value, String> {
     let st = app.state::<ControlState>();
-    let labels: Vec<String> = app.webview_windows().into_keys().filter(|l| l != "settings").collect();
+    let labels: Vec<String> = app.windows().into_keys().filter(|l| l != "settings").collect();
     if labels.is_empty() {
         return Err("No hay ventanas de terminal abiertas".into());
     }
@@ -327,6 +351,7 @@ pub fn control_files() -> Value {
     let d = crate::settings::data_dir();
     json!({
         "claudeSettings": d.join("claude-guardian.json").display().to_string(),
+        "claudeStop": d.join("claude-stop.json").display().to_string(),
         "claudeMcp": d.join("claude-mcp.json").display().to_string(),
         "mcpScript": d.join("alphaterm-mcp.mjs").display().to_string(),
     })

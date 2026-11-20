@@ -16,6 +16,8 @@ interface Props {
   onRefresh: () => void;
   onStart: (r: Recipe) => void;
   onFocus: (tabId: string, paneId: string) => void;
+  /** Abrir la URL en el navegador integrado (al lado de la pestaña donde nació, si se sabe). */
+  onBrowse?: (url: string, pane?: PaneRef) => void;
 }
 
 const FILTER_PREF = "alphaterm.servers.filter";
@@ -134,6 +136,15 @@ export default function ServersPanel(props: Props) {
                   {s.cwd ? ` · ${s.cwd}` : ""}
                 </small>
                 <div class="server-actions">
+                  <Show when={props.onBrowse && s.ports.length > 0}>
+                    <button
+                      class="link"
+                      title={`Abrir ${urlFor(s, s.ports[0])} en el navegador de AlphaTerm${pane() ? ", al lado de su pestaña" : ""} (para verlo, marcar elementos y pedirle cambios al agente)`}
+                      onClick={() => props.onBrowse!(urlFor(s, s.ports[0]), pane())}
+                    >
+                      Abrir en el navegador
+                    </button>
+                  </Show>
                   <Show when={pane()}>
                     <button class="link" onClick={() => props.onFocus(pane()!.tabId, pane()!.paneId)}>
                       Ir a la pestaña

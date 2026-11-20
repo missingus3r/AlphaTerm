@@ -50,6 +50,19 @@ const TOOLS = [
   { name: "docker_list", method: "docker_list", description: "Contenedores de Docker (todos) y recetas configuradas en AlphaTerm.", props: {} },
   { name: "docker_action", method: "docker_action", description: "start, stop, restart o rm (rm pasa por el guardián) de un contenedor.", props: { target: "string", action: "string" }, required: ["target", "action"] },
   { name: "docker_logs", method: "docker_logs", description: "Últimas líneas de log de un contenedor.", props: { target: "string", tail: "number" }, required: ["target"] },
+  { name: "browser_open", method: "browser_open", description: "Abre el navegador integrado de AlphaTerm al lado de tu panel (o reusa el que ya tenga tu pestaña) con una URL, por ejemplo el servidor de desarrollo que levantaste. El usuario lo ve y puede marcar elementos para pedirte cambios. new=true abre otro aunque ya haya uno. Devuelve el id del navegador.", props: { url: "string", pane: "string", direction: "string", new: "boolean" }, required: ["url"] },
+  { name: "browser_list", method: "browser_list", description: "Navegadores integrados abiertos (id, URL, título, panel dueño).", props: {} },
+  { name: "browser_navigate", method: "browser_navigate", description: "Lleva el navegador a una URL y espera a que cargue. Sin 'browser' usa el de tu panel (o el último abierto).", props: { browser: "string", url: "string", timeout_ms: "number" }, required: ["url"] },
+  { name: "browser_reload", method: "browser_reload", description: "Recarga la página (hard=true sin caché).", props: { browser: "string", hard: "boolean" } },
+  { name: "browser_screenshot", method: "browser_screenshot", description: "Captura de lo que se ve en el navegador (full=true: la página entera; selector: solo ese elemento). Devuelve la imagen.", props: { browser: "string", selector: "string", full: "boolean" } },
+  { name: "browser_snapshot", method: "browser_snapshot", description: "Estructura de la página como texto: encabezados, textos, links, botones y campos, cada interactivo con su selector {…} para usar en browser_click/browser_type.", props: { browser: "string", max_lines: "number" } },
+  { name: "browser_click", method: "browser_click", description: "Hace clic en un elemento (selector CSS) o en un punto (x, y en px de la vista).", props: { browser: "string", selector: "string", x: "number", y: "number" } },
+  { name: "browser_type", method: "browser_type", description: "Escribe texto (si hay selector, primero hace clic en ese campo).", props: { browser: "string", text: "string", selector: "string" }, required: ["text"] },
+  { name: "browser_key", method: "browser_key", description: "Aprieta una tecla: Enter, Tab, Escape, Backspace, ArrowDown, ... o combinaciones como Ctrl+A.", props: { browser: "string", key: "string" }, required: ["key"] },
+  { name: "browser_scroll", method: "browser_scroll", description: "Desplaza la página dy px (negativo = arriba) o hasta un elemento (selector).", props: { browser: "string", dy: "number", dx: "number", selector: "string" } },
+  { name: "browser_eval", method: "browser_eval", description: "Evalúa JavaScript en la página y devuelve el resultado (espera promesas). Para leer o probar cosas; los cambios de verdad van en el código fuente.", props: { browser: "string", js: "string" }, required: ["js"] },
+  { name: "browser_console", method: "browser_console", description: "Mensajes de la consola y errores de la página (since = último seq visto, para traer solo lo nuevo).", props: { browser: "string", since: "number", errors_only: "boolean" } },
+  { name: "browser_marks", method: "browser_marks", description: "Elementos que el usuario marcó en el navegador (etiqueta, texto, selector, HTML, estilos, componente y archivo fuente si se sabe).", props: { browser: "string" } },
   { name: "docker_start", method: "docker_start", description: "Inicia una receta de Docker configurada en AlphaTerm (por nombre): la crea si no existe.", props: { name: "string" }, required: ["name"] },
 ];
 
@@ -88,7 +101,16 @@ async function mcp() {
           if (!t) throw new Error(`Herramienta desconocida: ${params?.name}`);
           try {
             const r = await call(t.method, params.arguments ?? {});
-            send({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text: JSON.stringify(r, null, 2) }] } });
+            const content = [{ type: "text", text: JSON.stringify(r, null, 2) }];
+            // Las capturas van también como imagen, para que el agente las vea sin abrir el archivo.
+            if (t.method === "browser_screenshot" && r?.path) {
+              try {
+                content.push({ type: "image", data: fs.readFileSync(r.path).toString("base64"), mimeType: "image/png" });
+              } catch {
+                /* queda la ruta */
+              }
+            }
+            send({ jsonrpc: "2.0", id, result: { content } });
           } catch (e) {
             send({ jsonrpc: "2.0", id, result: { content: [{ type: "text", text: String(e.message || e) }], isError: true } });
           }

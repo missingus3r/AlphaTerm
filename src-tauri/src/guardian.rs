@@ -194,7 +194,7 @@ pub fn ask(app: &AppHandle, mut a: Ask, limit: Duration) -> Decision {
     g.open.lock().unwrap().push(a.clone());
     let _ = app.emit("guardian-ask", &a);
     // Que la ventana pida atención (titila en la barra de tareas).
-    for (label, w) in app.webview_windows() {
+    for (label, w) in app.windows() {
         if label != "settings" {
             let _ = w.request_user_attention(Some(tauri::UserAttentionType::Critical));
         }

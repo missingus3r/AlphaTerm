@@ -1,4 +1,5 @@
 pub mod agents;
+pub mod browser;
 pub mod changes;
 pub mod clip;
 pub mod control;
@@ -76,6 +77,7 @@ pub fn run() {
         .manage(history::HistoryState::default())
         .manage(guardian::GuardianState::default())
         .manage(control::ControlState::default())
+        .manage(browser::BrowserState::default())
         .manage(changes::ChangesState::new(settings::data_dir().join("changes.json")))
         .manage({
             settings::migrate_from_novaterm();
@@ -93,10 +95,11 @@ pub fn run() {
                 window.state::<Arc<pty::PtyState>>().kill_owner(window.label());
                 projects::unwatch_window(&window.state::<projects::WatchState>(), window.label());
                 changes::unwatch_owner(&window.state::<changes::ChangesState>(), window.label());
+                browser::window_closed(window.app_handle(), window.label());
                 // Si ya no queda ninguna terminal, la configuración no se queda sola abierta.
                 let app = window.app_handle();
                 let terminals = app
-                    .webview_windows()
+                    .windows()
                     .into_keys()
                     .filter(|l| l != "settings" && l != window.label())
                     .count();
@@ -189,6 +192,14 @@ pub fn run() {
             usage::usage_statusline_status,
             usage::usage_statusline_install,
             fonts::font_file,
+            browser::browser_open,
+            browser::browser_bounds,
+            browser::browser_navigate,
+            browser::browser_go,
+            browser::browser_eval,
+            browser::browser_request,
+            browser::browser_set_owner,
+            browser::browser_close,
         ])
         .run(tauri::generate_context!())
         .expect("no se pudo iniciar AlphaTerm");
