@@ -174,6 +174,24 @@ describe("collect", () => {
     expect(r.find((s) => s.label === "Alarma.txt")).toMatchObject({ insert: ".\\Alarma.txt", from: 14, kind: "file" });
   });
 
+  it("primera palabra en PowerShell: el catálogo antes que lo de PowerShell, y sin repetir .exe del PATH", async () => {
+    const ps: PsMsg = {
+      type: "completions",
+      buffer: "g",
+      cursor: 1,
+      index: 0,
+      length: 1,
+      results: [
+        { text: "G:", label: "G:", kind: "ProviderContainer", tip: "" },
+        { text: "gal", label: "gal", kind: "Command", tip: "Get-Alias" },
+        { text: "gallery-dl.exe", label: "gallery-dl.exe", kind: "Command", tip: "" },
+      ],
+    };
+    const r = await run("g", "ps", sources({ path: ["gallery-dl"] }), ps);
+    expect(r[0].insert).toBe("git");
+    expect(r.filter((s) => s.label.toLowerCase().startsWith("gallery-dl"))).toHaveLength(1);
+  });
+
   it("parámetros de PowerShell con su guion y lo tipeado resaltado", async () => {
     const ps: PsMsg = {
       type: "completions",

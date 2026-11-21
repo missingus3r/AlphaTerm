@@ -234,7 +234,9 @@ function fromPwsh(ps: PsMsg | undefined, ctx: Ctx, a: Analysis): Suggestion[] {
   if (!ps || ps.type !== "completions") return [];
   // Respuesta vieja (se siguió tipeando) o que no termina en el cursor: no sirve.
   if (ps.buffer !== ctx.line || ps.cursor !== ctx.line.length || ps.index + ps.length !== ps.cursor) return [];
-  const base = a.spec ? 250 : 640;
+  // Primera palabra: después del historial y el catálogo (antes que el PATH). Argumentos de un
+  // comando que el catálogo no conoce: es la mejor fuente. De uno que conoce: al final.
+  const base = a.mode === "command" ? 300 : a.spec ? 250 : 640;
   const typed = ctx.line.slice(ps.index);
   return ps.results.map((r) => {
     const kind = PS_KIND[r.kind] ?? "pwsh";
@@ -267,7 +269,13 @@ function values(vals: Value[], typed: string, score: number): Suggestion[] {
 const dedupeKey = (s: Suggestion) =>
   s.replace === "line"
     ? `line:${s.insert.toLowerCase()}`
-    : s.insert.toLowerCase().replace(/^['"]|['"]$/g, "").replace(/^\.[\\/]/, "").replace(/[\\/]+$/, "");
+    : s.insert
+        .toLowerCase()
+        .replace(/^['"]|['"]$/g, "")
+        .replace(/^\.[\\/]/, "")
+        .replace(/[\\/]+$/, "")
+        // Un programa con y sin extensión (el PATH propio vs. lo que devuelve PowerShell) es el mismo.
+        .replace(s.kind === "command" ? /\.(exe|cmd|bat|com|ps1)$/ : /$^/, "");
 
 export async function collect(a: Analysis, ctx: Ctx, src: Sources, ps?: PsMsg): Promise<Suggestion[]> {
   const typed = a.word.value;
