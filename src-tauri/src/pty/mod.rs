@@ -551,6 +551,73 @@ mod integration_tests {
         check_shell("powershell", "cmd /c exit 4", 4);
     }
 
+    /// Espera una OSC completa que empiece con `prefix` y devuelve lo que hay entre el prefijo y el BEL.
+    fn wait_osc(rx: &Receiver<Vec<u8>>, acc: &mut String, from: usize, prefix: &str, secs: u64) -> Option<String> {
+        let end = Instant::now() + Duration::from_secs(secs);
+        loop {
+            if let Some(i) = acc[from..].find(prefix).map(|i| i + from + prefix.len()) {
+                if let Some(j) = acc[i..].find('\x07') {
+                    return Some(acc[i..i + j].to_string());
+                }
+            }
+            let left = end.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return None;
+            }
+            if let Ok(b) = rx.recv_timeout(left) {
+                acc.push_str(&String::from_utf8_lossy(&b));
+            }
+        }
+    }
+
+    fn completions(payload: &str) -> serde_json::Value {
+        use base64::Engine;
+        let bytes = base64::engine::general_purpose::STANDARD.decode(payload.trim()).expect("base64");
+        serde_json::from_slice(&bytes).expect("json")
+    }
+
+    /// Riesgo 1 del diseño de predicciones: el atajo escondido (F12,e) llega a PSReadLine a través
+    /// de la ConPTY, corre TabExpansion2 y la respuesta vuelve como OSC 7717 sin tocar el buffer.
+    #[test]
+    fn powershell_completa_con_f12() {
+        let dir = std::env::temp_dir().join("alphaterm-f12");
+        std::fs::create_dir_all(dir.join("CarpetaUno")).unwrap();
+        let state = Arc::new(PtyState::default());
+        let (tx, rx) = channel::<Vec<u8>>();
+        let mut env = HashMap::new();
+        env.insert("ALPHATERM_NONCE".to_string(), "abc123".to_string());
+        let info = spawn_env(&state, "test", "powershell", Some(dir.to_string_lossy().into_owned()), 120, 30, &env, move |b| tx.send(b).is_ok(), |_| {}).unwrap();
+        state.write(info.id, b"\x1b[1;1R").unwrap();
+        let mut out = String::new();
+        assert!(wait_for(&rx, &mut out, "\x1b]7717;ready;abc123", 30), "sin aviso de listo: {out:?}");
+        assert!(wait_for(&rx, &mut out, "\x1b]133;B", 30), "sin fin de prompt: {out:?}");
+
+        let from = out.len();
+        state.write(info.id, b"Get-ChildIt\x1b[24~e").unwrap();
+        let p = wait_osc(&rx, &mut out, from, "\x1b]7717;c;abc123;", 30).unwrap_or_else(|| panic!("sin completados: {out:?}"));
+        let v = completions(&p);
+        assert_eq!(v["b"], "Get-ChildIt");
+        assert_eq!(v["c"], 11);
+        assert_eq!(v["i"], 0);
+        let texts: Vec<&str> = v["r"].as_array().unwrap().iter().filter_map(|r| r["t"].as_str()).collect();
+        assert!(texts.contains(&"Get-ChildItem"), "{texts:?}");
+
+        // Se borra lo escrito (11 retrocesos) y se piden las carpetas para `cd `.
+        let from = out.len();
+        state.write(info.id, &[b"\x7f".repeat(11), b"cd \x1b[24~e".to_vec()].concat()).unwrap();
+        let p = wait_osc(&rx, &mut out, from, "\x1b]7717;c;abc123;", 30).unwrap_or_else(|| panic!("sin completados de cd: {out:?}"));
+        let v = completions(&p);
+        assert_eq!(v["b"], "cd ");
+        let dirs: Vec<&str> =
+            v["r"].as_array().unwrap().iter().filter(|r| r["k"] == "ProviderContainer").filter_map(|r| r["t"].as_str()).collect();
+        assert!(dirs.iter().any(|d| d.contains("CarpetaUno")), "{v}");
+
+        // El nonce no queda en el entorno de la sesión (ni de lo que se lance desde ella).
+        state.write(info.id, &[b"\x7f".repeat(3), b"Write-Output \"N=[$env:ALPHATERM_NONCE]\"\r".to_vec()].concat()).unwrap();
+        assert!(wait_for(&rx, &mut out, "N=[]", 30), "el nonce sigue en el entorno: {out:?}");
+        state.write(info.id, b"exit\r").unwrap();
+    }
+
     #[test]
     fn git_bash_emite_marcas_y_codigo() {
         if profiles::detect().iter().any(|p| p.id == "gitbash" && p.available) {

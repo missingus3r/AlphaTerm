@@ -33,9 +33,40 @@ function global:prompt {
     $p = [Uri]::EscapeDataString(($loc.ProviderPath -replace '\\', '/')).Replace('%2F', '/').Replace('%3A', ':')
     $out += "$e]7;file://$env:COMPUTERNAME/$p$b"
   }
+  if ($global:__ntNonce) { $out += "$e]7717;ready;$global:__ntNonce$b" }
   $orig = if ($global:__ntOrigPrompt) { & $global:__ntOrigPrompt } else { "PS $loc> " }
   $global:LASTEXITCODE = $ec
   "$out$e]133;A$b$orig$e]133;B$b"
+}
+
+# Predicciones: AlphaTerm manda el atajo F12,e y se le contesta con los completados de esta sesión
+# (TabExpansion2) en una OSC 7717 invisible, con el nonce que puso en ALPHATERM_NONCE. No toca el buffer.
+if ($env:ALPHATERM_NONCE -and (Get-Command Set-PSReadLineKeyHandler -ErrorAction SilentlyContinue)) {
+  $nonce = $env:ALPHATERM_NONCE
+  Remove-Item Env:ALPHATERM_NONCE -ErrorAction SilentlyContinue
+  try {
+    Set-PSReadLineKeyHandler -Chord 'F12,e' -BriefDescription AlphaTermCompletions -ScriptBlock {
+      $buf = $null; $cur = 0
+      [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$buf, [ref]$cur)
+      $res = [ordered]@{ b = $buf; c = $cur; i = $cur; l = 0; r = @() }
+      try {
+        $x = TabExpansion2 -inputScript $buf -cursorColumn $cur
+        if ($x) {
+          $res.i = $x.ReplacementIndex
+          $res.l = $x.ReplacementLength
+          $res.r = @($x.CompletionMatches | Select-Object -First 100 | ForEach-Object {
+            $tip = "$($_.ToolTip)"
+            if ($tip.Length -gt 200) { $tip = $tip.Substring(0, 200) }
+            [ordered]@{ t = $_.CompletionText; s = $_.ListItemText; k = "$($_.ResultType)"; d = $tip }
+          })
+        }
+      } catch {}
+      $json = ConvertTo-Json $res -Compress -Depth 4
+      $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($json))
+      [Console]::Write("$([char]27)]7717;c;$global:__ntNonce;$b64$([char]7)")
+    }
+    $global:__ntNonce = $nonce
+  } catch {}
 }
 
 if (Get-Command PSConsoleHostReadLine -ErrorAction SilentlyContinue) {
