@@ -705,3 +705,60 @@ cambia el color del botón en el HTML):
 
 ### Stats
 - Tests: Rust 77 (+6 ignorados), Vitest 122. Todos en verde.
+
+## Predicciones de comandos (21/11/2026, rama `predicciones`)
+
+Pedido de Bruno: "un sistema predictivo de comandos en la shell, manteniendo el historial si apreto
+hacia arriba y que me aparezca un menú de posibles carpetas desde donde estoy parado si pongo cd"
+(y con `ping`, las IPs más comunes; "así con todos los comandos"). Diseño y plan en
+`Documentacion/specs/2026-11-21-predicciones-*.md`. Enfoque elegido: menú propio con fuentes propias
+(carpetas, historial, catálogo) + completados de la propia sesión de PowerShell.
+
+### Qué se hizo
+- `src/suggest/`: leer la línea del prompt de la pantalla (desde el 133;B hasta el cursor), separar
+  palabras con comillas (en cmd solo `"`), catálogo propio en español (~60 comandos: archivos, red,
+  sistema, git, npm, docker, winget, agentes…; los internos de cmd que en PowerShell son alias de
+  cmdlets van solo para cmd), motor que junta historial, catálogo, carpetas, PATH y PowerShell con
+  orden y sin repetidos, inserción con retrocesos y comillas, teclas del menú, controlador y menú.
+- PowerShell: `alphaterm.ps1` registra el atajo `F12,e` con PSReadLine; corre `TabExpansion2` y
+  contesta en una OSC 7717 invisible con un nonce por sesión (`ALPHATERM_NONCE`, se borra del
+  entorno). Se pide tras 150 ms sin teclas, nunca para comandos del catálogo ni rutas de red ni
+  después de Tab/Ctrl+R; si una respuesta tarda más de 300 ms, esa pestaña solo pide con Ctrl+Espacio.
+- Rust (`suggest.rs`): listar carpetas (caché 3 s, sin ocultas, máx. 500), puerta de enlace
+  (`GetBestRoute` a 8.8.8.8), ejecutables del PATH, scripts de npm y procesos.
+- cmd ahora guarda historial: la línea se lee al Enter y `running` pasa a true hasta el próximo
+  prompt (también lo ven el estado de la pestaña, el de agentes y Servidores).
+- Teclas: ↑ es siempre el historial salvo navegando el menú; ↓ navega; Tab inserta; Enter ejecuta
+  (inserta solo si se navegó); Esc cierra; Ctrl+Espacio abre a mano (en PowerShell reemplaza a
+  `MenuComplete` mientras las sugerencias estén activadas).
+- Configuración → Terminal: activadas / al escribir o solo con Ctrl+Espacio / completados de PowerShell.
+
+### Prueba en la app
+- Riesgo 1 (atajo escondido por ConPTY) verificado primero con un test de integración real
+  (`powershell_completa_con_f12`): llega, contesta `Get-ChildItem` y las carpetas para `cd `, y el
+  nonce no queda en el entorno.
+- Versión de desarrollo y release aparte (`target\prueba`, datos y WebView2 propios, CDP en 9333,
+  sin tocar la AlphaTerm abierta):
+  - PowerShell: `cd ` con carpetas, `..` y `~`; Tab baja a subcarpetas; ↓ + Enter inserta sin
+    ejecutar; Enter ejecuta; ↑ trae el historial y no abre el menú; Esc cierra sin borrar la línea;
+    `Get-Ch` y `Get-ChildItem -Fi` con resultados de la propia sesión; Ctrl+Espacio; nada de menú
+    dentro de `node`.
+  - cmd: `ping ` con 8.8.8.8, 1.1.1.1, el router (192.168.1.1, leído en vivo), localhost y opciones;
+    nada de menú mientras corre `ping`; `cd 3d` → `cd "3D Objects\"` y sigue bajando; historial de cmd
+    guardado tal cual se tipeó.
+  - Pantalla limpia: el atajo escondido no deja nada visible.
+- Arreglos que salieron de la prueba real (cada uno con su test que falló primero): el menú quedaba
+  una tecla atrás (un aviso de salida antes del eco consumía la marca; ahora se compara la línea);
+  el historial de `cd` de otras carpetas tapaba las carpetas; el título de cmd metía un espacio de
+  más en el historial; lo de PowerShell ganaba al catálogo en la primera palabra y repetía `.exe`;
+  `dir /` en cmd listaba la raíz del disco en vez de las opciones.
+
+### Pendiente / no verificado
+- PowerShell 7 (no está instalado en casa) y PSReadLine con predicciones propias (2.2+), que pueden
+  dibujar texto en gris después del cursor: el menú no aparece si hay algo escrito después del cursor.
+- Probarlo en el uso diario de Bruno (rama `predicciones`, acceso directo «AlphaTerm prueba
+  (predicciones).bat» en el escritorio, con datos aparte).
+- Líneas largas envueltas y comandos de varias líneas: cubierto por tests, no probado a mano.
+
+### Stats
+- Tests: Rust 84 (+6 ignorados), Vitest 198. Todos en verde.
