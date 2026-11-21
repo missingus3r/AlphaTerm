@@ -42,6 +42,12 @@ export function cmdRunningCommand(t: string): string | null {
   return m?.[1]?.trim() || null;
 }
 
+/** El comando del título de cmd lleva un espacio de más tras el nombre: si es el mismo que se tipeó, vale el tipeado. */
+export function preferTyped(typed: string | undefined, fromTitle: string): string {
+  const flat = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
+  return typed && flat(typed) === flat(fromTitle) ? typed : fromTitle;
+}
+
 export function folderName(cwd?: string): string {
   if (!cwd) return "";
   const parts = cwd.replace(/[\\/]+$/, "").split(/[\\/]/);

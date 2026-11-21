@@ -174,6 +174,19 @@ describe("collect", () => {
     expect(r.find((s) => s.label === "Alarma.txt")).toMatchObject({ insert: ".\\Alarma.txt", from: 14, kind: "file" });
   });
 
+  it("parámetros de PowerShell con su guion y lo tipeado resaltado", async () => {
+    const ps: PsMsg = {
+      type: "completions",
+      buffer: "Get-ChildItem -Fi",
+      cursor: 17,
+      index: 14,
+      length: 3,
+      results: [{ text: "-Filter", label: "Filter", kind: "ParameterName", tip: "[string] Filter" }],
+    };
+    const r = await run("Get-ChildItem -Fi", "ps", sources(), ps);
+    expect(r[0]).toMatchObject({ label: "-Filter", insert: "-Filter", kind: "option", hits: [0, 1, 2] });
+  });
+
   it("una respuesta de PowerShell vieja (otro buffer) se ignora", async () => {
     const ps: PsMsg = { type: "completions", buffer: "Get-Ch", cursor: 6, index: 0, length: 6, results: [{ text: "Get-ChildItem", label: "Get-ChildItem", kind: "Command", tip: "" }] };
     const r = await run("Get-Co", "ps", sources(), ps);

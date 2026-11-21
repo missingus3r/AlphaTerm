@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cmdRunningCommand, commandLabel, folderName, heuristicTitle, isShellTitle, tabTitle, type PaneInfo } from "./title";
+import { cmdRunningCommand, commandLabel, folderName, heuristicTitle, isShellTitle, preferTyped, tabTitle, type PaneInfo } from "./title";
 import { parse133, parse633, parseOsc7, parseOsc9, toWindowsPath, unescape633 } from "../terminal/integration";
 
 const base: PaneInfo = { shellName: "PowerShell", integrated: true, running: false };
@@ -34,6 +34,10 @@ describe("título de pestaña", () => {
   it("título de cmd con el comando en curso", () => {
     expect(cmdRunningCommand("C:\\WINDOWS\\system32\\cmd.exe - ping -n 8 127.0.0.1")).toBe("ping -n 8 127.0.0.1");
     expect(cmdRunningCommand("C:\\WINDOWS\\system32\\cmd.exe")).toBeNull();
+    // cmd mete un espacio de más en el título: si es el mismo comando que se tipeó, vale el tipeado.
+    expect(preferTyped("ping 8.8.8.8 -n 3", "ping  8.8.8.8 -n 3")).toBe("ping 8.8.8.8 -n 3");
+    expect(preferTyped("ping 8.8.8.8", "node server.js")).toBe("node server.js");
+    expect(preferTyped(undefined, "ping  x")).toBe("ping  x");
     expect(cmdRunningCommand("✳ Refactor - login")).toBeNull();
     const p: PaneInfo = { ...base, integrated: false, cwd: "C:\\x\\AlphaTerm", branch: "main", lastCommand: "ping -n 8 127.0.0.1" };
     expect(heuristicTitle({ ...p, fgProcess: "PING" })).toBe("ping -n 8 · AlphaTerm (main)");

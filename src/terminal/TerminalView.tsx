@@ -12,7 +12,7 @@ import { AckBatcher } from "./ack";
 import { parse133, parse633, parseOsc7, parseOsc9 } from "./integration";
 import { decideKey } from "./keys";
 import { PtySession } from "./pty";
-import { cmdRunningCommand, isShellTitle } from "../layout/title";
+import { cmdRunningCommand, isShellTitle, preferTyped } from "../layout/title";
 import type { Action } from "../layout/shortcuts";
 import type { TermLook } from "../settings/apply";
 import type { Startup } from "../layout/model";
@@ -136,6 +136,8 @@ export function TerminalView(props: Props) {
     const pathLinks = registerPathLinks(term, () => cwdNow);
 
     // Predicciones: todo lo que va a la shell pasa por `toShell` (así el controlador ve cada Enter).
+    /** Última línea tipeada en cmd (el título de cmd trae el mismo comando con un espacio de más). */
+    let typedCmd: string | undefined;
     const suggest = createSuggest({
       term,
       profileId: props.profileId,
@@ -144,6 +146,7 @@ export function TerminalView(props: Props) {
       settings: () => props.suggest,
       // cmd no avisa qué comando corre: se toma la línea al Enter (el 133;D del próximo prompt lo cierra).
       patchCmdCommand: (line) => {
+        typedCmd = line;
         running = true;
         patch({ lastCommand: line, running: true });
       },
@@ -289,7 +292,7 @@ export function TerminalView(props: Props) {
     term.onTitleChange((t) => {
       const cmdLine = cmdRunningCommand(t);
       if (cmdLine) {
-        patch({ lastCommand: cmdLine });
+        patch({ lastCommand: preferTyped(typedCmd, cmdLine) });
         return;
       }
       if (isShellTitle(t)) return;

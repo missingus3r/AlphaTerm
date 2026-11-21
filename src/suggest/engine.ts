@@ -235,12 +235,16 @@ function fromPwsh(ps: PsMsg | undefined, ctx: Ctx, a: Analysis): Suggestion[] {
   // Respuesta vieja (se siguió tipeando) o que no termina en el cursor: no sirve.
   if (ps.buffer !== ctx.line || ps.cursor !== ctx.line.length || ps.index + ps.length !== ps.cursor) return [];
   const base = a.spec ? 250 : 640;
+  const typed = ctx.line.slice(ps.index);
   return ps.results.map((r) => {
     const kind = PS_KIND[r.kind] ?? "pwsh";
     const tip = r.tip.trim();
+    // Los parámetros vienen sin guion en ListItemText ("Filter"): se muestra lo que se va a escribir.
+    const label = kind === "option" ? r.text : r.label;
     return {
       insert: r.text,
-      label: r.label,
+      label,
+      hits: match(label, typed.replace(/^\.[\\/]/, ""), true)?.hits,
       desc: tip && tip !== r.label && tip !== r.text && !tip.includes("\n") ? tip : undefined,
       kind,
       dir: kind === "folder",
