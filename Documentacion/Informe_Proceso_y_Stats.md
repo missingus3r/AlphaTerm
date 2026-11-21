@@ -744,7 +744,7 @@ hacia arriba y que me aparezca un menú de posibles carpetas desde donde estoy p
     `Get-Ch` y `Get-ChildItem -Fi` con resultados de la propia sesión; Ctrl+Espacio; nada de menú
     dentro de `node`.
   - cmd: `ping ` con 8.8.8.8, 1.1.1.1, el router (192.168.1.1, leído en vivo), localhost y opciones;
-    nada de menú mientras corre `ping`; `cd 3d` → `cd "3D Objects\"` y sigue bajando; historial de cmd
+    nada de menú mientras corre `ping`; `cd 3d` → `cd "3D Objects\\"` y sigue bajando; historial de cmd
     guardado tal cual se tipeó.
   - Pantalla limpia: el atajo escondido no deja nada visible.
 - Arreglos que salieron de la prueba real (cada uno con su test que falló primero): el menú quedaba
@@ -752,6 +752,15 @@ hacia arriba y que me aparezca un menú de posibles carpetas desde donde estoy p
   el historial de `cd` de otras carpetas tapaba las carpetas; el título de cmd metía un espacio de
   más en el historial; lo de PowerShell ganaba al catálogo en la primera palabra y repetía `.exe`;
   `dir /` en cmd listaba la raíz del disco en vez de las opciones.
+- Revisión de toda la rama por un revisor aparte ("con arreglos", nada crítico). Arreglado, cada uno con
+  su test: una inserción pendiente podía escribirse después del Enter (ahora se cancela y nunca se
+  escribe fuera del prompt); la espera del eco pasó a comparar la línea esperada (una salida ajena ya
+  no cuenta como eco); nada con caracteres de control se ofrece (un script de npm "x\rcalc\r" se
+  habría ejecutado); entre comillas la barra final va doblada (`"AI PROJECTS\\"`: con una sola, git
+  o node reciben el argumento roto, verificado en esta PC; cd y Set-Location aceptan la doble); los
+  valores que ya traen comillas no se vuelven a entrecomillar; caché de 4 s en los generadores (git,
+  docker, procesos) en vez de un proceso por tecla; el historial de otras carpetas vuelve para los
+  comandos que el catálogo no conoce. Los menores quedaron anotados (ver abajo).
 
 ### Pendiente / no verificado
 - PowerShell 7 (no está instalado en casa) y PSReadLine con predicciones propias (2.2+), que pueden
@@ -759,6 +768,11 @@ hacia arriba y que me aparezca un menú de posibles carpetas desde donde estoy p
 - Probarlo en el uso diario de Bruno (rama `predicciones`, acceso directo «AlphaTerm prueba
   (predicciones).bat» en el escritorio, con datos aparte).
 - Líneas largas envueltas y comandos de varias líneas: cubierto por tests, no probado a mano.
+- Menores de la revisión sin hacer: carpetas de más de 500 entradas (se cortan antes de filtrar),
+  aceptar un comando del menú no abre el siguiente menú, el primer ↓ solo marca la fila 1, el
+  nonce va a todos los perfiles, sin aviso visible cuando una pestaña deja de preguntarle a
+  PowerShell, detalles del catálogo (cd /d en PowerShell, chdir/mklink/title/ver/for), y anotar en
+  CLAUDE.md el protocolo 7717/F12,e y que toda escritura a la shell va por `toShell`.
 
 ### Stats
-- Tests: Rust 84 (+6 ignorados), Vitest 198. Todos en verde.
+- Tests: Rust 84 (+6 ignorados), Vitest 206. Todos en verde.
