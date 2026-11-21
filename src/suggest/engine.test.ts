@@ -124,6 +124,15 @@ describe("collect", () => {
     expect(folders[0]).toBe("..\\");
   });
 
+  it("en cmd, una palabra que empieza con / es una opción, no la raíz del disco", async () => {
+    const src = sources({ dirs: { "/": [{ name: "Windows", dir: true }] } });
+    const r = await run("dir /", "cmd", src);
+    expect(r.map((s) => s.insert)).toContain("/s");
+    expect(r.some((s) => s.kind === "folder")).toBe(false);
+    // Con otra barra sí es una ruta.
+    expect(analyze(parseLine("type /tmp/x", "cmd"), "cmd").source).toBe("paths");
+  });
+
   it("git checkout: ramas", async () => {
     const r = await run("git checkout ", "ps", sources());
     expect(r.map((s) => s.insert).slice(0, 2)).toEqual(["main", "predicciones"]);

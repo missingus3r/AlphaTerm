@@ -67,13 +67,16 @@ export interface Ctx {
 const MAX = 60;
 const norm = (s: string) => s.toLowerCase().replace(/\.(exe|cmd|bat|com)$/, "");
 const isNetwork = (s: string) => s.startsWith("\\\\") || s.startsWith("//");
-const looksLikePath = (s: string) => /[\\/]/.test(s) || s.startsWith(".") || s.startsWith("~") || /^[a-zA-Z]:/.test(s);
+const looksLikePath = (s: string, shell: Shell) =>
+  // En cmd, `/s` es una opción: solo es ruta si hay otra barra (`/tmp/x`) o empieza distinto.
+  !(shell === "cmd" && /^\/[^\\/]*$/.test(s)) &&
+  (/[\\/]/.test(s) || s.startsWith(".") || s.startsWith("~") || /^[a-zA-Z]:/.test(s));
 const isOptionLike = (s: string, shell: Shell) => s.startsWith("-") || (shell === "cmd" && s.startsWith("/"));
 
 export function analyze(p: Parsed, shell: Shell): Analysis {
   const word = p.current;
   const value = word.value;
-  const pathLike = looksLikePath(value);
+  const pathLike = looksLikePath(value, shell);
   const command = p.index > 0 ? norm(p.words[0].value) : norm(value);
 
   if (p.index === 0) {
@@ -311,7 +314,10 @@ export async function collect(a: Analysis, ctx: Ctx, src: Sources, ps?: PsMsg): 
     }
     const source = a.source;
     if (Array.isArray(source)) out.push(...values(source, typed, 700));
-    else if (source === "folders" || source === "paths") out.push(...(await listing(a, ctx, src, source === "folders")));
+    else if (source === "folders" || source === "paths") {
+      // `dir /` o `Get-Item -`: se está escribiendo una opción, no una ruta.
+      if (!(isOptionLike(typed, ctx.shell) && !a.pathLike)) out.push(...(await listing(a, ctx, src, source === "folders")));
+    }
     else if (source) {
       out.push(...values(await src.gen(source, ctx.cwd).catch(() => []), typed, 700));
       if (source === "hosts") out.push(...values(historyArgs(hist, a.command, ctx.shell), typed, 690));
