@@ -19,6 +19,9 @@ import type { Startup } from "../layout/model";
 import { registerPathLinks } from "./pathLinks";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
+import { createSuggest, type SuggestCtl } from "../suggest/controller";
+import { SuggestMenu, type Geom } from "../suggest/SuggestMenu";
+import type { SuggestSettings } from "../settings/schema";
 
 const windowLabel = getCurrentWindow().label;
 
@@ -72,6 +75,8 @@ interface Props {
   env?: Record<string, string>;
   windowsBuild: number;
   look: TermLook;
+  /** Predicciones de comandos (cmd y PowerShell). */
+  suggest: SuggestSettings;
   /** Atajo de la app para esta tecla (o null si va a la shell). */
   match: (e: KeyboardEvent) => Action | null;
   visible: boolean;
@@ -98,6 +103,10 @@ export function TerminalView(props: Props) {
   const [canTop, setCanTop] = createSignal(false);
   const [canBottom, setCanBottom] = createSignal(false);
   let scrollTo: ((where: "top" | "bottom") => void) | undefined;
+  // Menú de sugerencias: el controlador nace con la terminal (onMount).
+  const [suggestCtl, setSuggestCtl] = createSignal<SuggestCtl | null>(null);
+  let measure: (() => Geom) | undefined;
+  let focusTerm: (() => void) | undefined;
 
   onMount(() => {
     const look0 = props.look;
@@ -125,6 +134,32 @@ export function TerminalView(props: Props) {
     // Rutas en la salida: links que abren la carpeta o el archivo, con vista previa al pasar el mouse.
     let cwdNow = props.cwd;
     const pathLinks = registerPathLinks(term, () => cwdNow);
+
+    // Predicciones: todo lo que va a la shell pasa por `toShell` (así el controlador ve cada Enter).
+    const suggest = createSuggest({
+      term,
+      profileId: props.profileId,
+      write: (s) => session?.write(s),
+      cwd: () => cwdNow,
+      settings: () => props.suggest,
+      // cmd no avisa qué comando corre: se toma la línea al Enter (el 133;D del próximo prompt lo cierra).
+      patchCmdCommand: (line) => {
+        running = true;
+        patch({ lastCommand: line, running: true });
+      },
+    });
+    setSuggestCtl(suggest);
+    const toShell = (s: PtySession, data: string) => {
+      suggest.onWrite(data);
+      s.write(data);
+    };
+    measure = () => {
+      const pane = host.parentElement ?? host;
+      const pr = pane.getBoundingClientRect();
+      const sr = (host.querySelector(".xterm-screen") ?? host).getBoundingClientRect();
+      return { x: sr.left - pr.left, y: sr.top - pr.top, cw: sr.width / term.cols, ch: sr.height / term.rows, w: pr.width, h: pr.height };
+    };
+    focusTerm = () => term.focus();
 
     let disposed = false;
     const patch = (p: TermPatch) => {
@@ -199,7 +234,10 @@ export function TerminalView(props: Props) {
           current = { prompt: term.registerMarker(0) };
           blocks.push(current);
           if (blocks.length > 2000) blocks.splice(0, blocks.length - 2000).forEach((b) => b.prompt.dispose());
+        } else if (m.type === "promptEnd") {
+          suggest.onPromptEnd();
         } else if (m.type === "commandStart") {
+          suggest.onCommandStart();
           integrated = true;
           running = true;
           if (current) current.output = term.registerMarker(0);
@@ -224,6 +262,7 @@ export function TerminalView(props: Props) {
         patch({ integrated: true, lastCommand: m.command });
         return true;
       }),
+      term.parser.registerOscHandler(7717, (data) => suggest.onOsc7717(data)),
       term.parser.registerOscHandler(7, (data) => {
         const cwd = parseOsc7(data);
         if (cwd) {
@@ -287,7 +326,7 @@ export function TerminalView(props: Props) {
       clearTimeout(startupTimer);
       const s = session;
       const ENTER = String.fromCharCode(13); // lo que manda la tecla Enter
-      setTimeout(() => s.write(props.startup!.command + ENTER), 60);
+      setTimeout(() => toShell(s, props.startup!.command + ENTER), 60);
     };
 
     // --- Actividad y campana ------------------------------------------------------------------
@@ -320,7 +359,7 @@ export function TerminalView(props: Props) {
         current_session = await PtySession.spawn({
           profileId: props.profileId,
           cwd: props.cwd,
-          env: { ...props.env, ...props.startup?.env, ALPHATERM_PANE: props.paneId, ALPHATERM_WINDOW: windowLabel },
+          env: { ...props.env, ...props.startup?.env, ALPHATERM_PANE: props.paneId, ALPHATERM_WINDOW: windowLabel, ALPHATERM_NONCE: suggest.nonce },
           cols: term.cols,
           rows: term.rows,
           // El ack va cuando xterm terminó de procesar el trozo: eso es lo que frena al backend.
@@ -369,7 +408,7 @@ export function TerminalView(props: Props) {
         bell = false;
         patch({ bell: false });
       }
-      if (session) void session.write(data);
+      if (session) toShell(session, data);
       else if (exited && data === "\r") void start();
     });
     term.onResize(({ cols, rows }) => void session?.resize(cols, rows));
@@ -387,6 +426,7 @@ export function TerminalView(props: Props) {
     };
     term.onScroll(updateJumps);
     term.onWriteParsed(updateJumps);
+    term.onWriteParsed(() => suggest.onParsed());
     scrollTo = (where) => {
       if (where === "top") term.scrollToTop();
       else term.scrollToBottom();
@@ -407,6 +447,11 @@ export function TerminalView(props: Props) {
       if (img) term.paste(/\s/.test(img) ? `"${img}"` : img);
     };
     term.attachCustomKeyEventHandler((e) => {
+      // El menú de sugerencias va primero: solo toma teclas con el menú abierto (o Ctrl+Espacio).
+      if (suggest.key(e)) {
+        e.preventDefault();
+        return false;
+      }
       const action = props.match(e);
       if (action) {
         e.preventDefault();
@@ -434,6 +479,10 @@ export function TerminalView(props: Props) {
       }
     };
     host.addEventListener("focusin", onFocusIn);
+    const onFocusOut = (e: FocusEvent) => {
+      if (!host.contains(e.relatedTarget as Node | null)) suggest.close();
+    };
+    host.addEventListener("focusout", onFocusOut);
 
     let raf = 0;
     const ro = new ResizeObserver(() => {
@@ -454,6 +503,7 @@ export function TerminalView(props: Props) {
               if (props.focused) term.focus();
             });
           } else {
+            suggest.close();
             detachGl();
           }
         },
@@ -538,7 +588,7 @@ export function TerminalView(props: Props) {
       focus: () => term.focus(),
       send: (text, enter) => {
         if (!session) return false;
-        session.write(enter ? text + String.fromCharCode(13) : text);
+        toShell(session, enter ? text + String.fromCharCode(13) : text);
         return true;
       },
       paste: (text) => {
@@ -569,6 +619,8 @@ export function TerminalView(props: Props) {
       cancelAnimationFrame(raf);
       host.removeEventListener("contextmenu", onContext);
       host.removeEventListener("focusin", onFocusIn);
+      host.removeEventListener("focusout", onFocusOut);
+      suggest.dispose();
       oscs.forEach((d) => d.dispose());
       ligatures?.dispose();
       pathLinks.dispose();
@@ -594,6 +646,19 @@ export function TerminalView(props: Props) {
           </button>
         </Show>
       </div>
+      <Show when={suggestCtl()?.menu()}>
+        {(m) => (
+          <SuggestMenu
+            view={m()}
+            geom={measure!()}
+            font={props.look.fontFamily}
+            onPick={(i) => {
+              suggestCtl()?.pick(i);
+              focusTerm?.();
+            }}
+          />
+        )}
+      </Show>
     </>
   );
 }

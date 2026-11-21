@@ -940,6 +940,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                           startup={leafAt.startup}
                           windowsBuild={props.info.windowsBuild}
                           look={props.look}
+                          suggest={props.store.settings().terminal.suggest}
                           match={match}
                           visible={visible()}
                           focused={focused()}

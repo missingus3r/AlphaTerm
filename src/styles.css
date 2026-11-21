@@ -706,3 +706,23 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .settings-overlay { position: absolute; inset: 0; z-index: 300; background: var(--bg-solid); border-bottom: 1px solid var(--line); }
 .settings-nav h1 { display: flex; align-items: center; gap: 6px; }
 .settings-close { margin-left: auto; font-size: 16px; }
+
+/* --- Predicciones de comandos (src/suggest) --- */
+.suggest-menu {
+  position: absolute; z-index: 60; min-width: 240px; max-width: 560px; padding: 4px;
+  background: var(--bg-solid); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 28px #0008;
+  font-size: 12.5px; user-select: none;
+}
+.sg-list { max-height: 192px; overflow-y: auto; }
+.sg-row { display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; border-radius: 5px; cursor: pointer; white-space: nowrap; }
+.sg-row:hover { background: var(--tab-hover); }
+.sg-row.sel { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.sg-row.sel.firm { background: color-mix(in srgb, var(--accent) 30%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent); }
+.sg-ico { width: 18px; flex: none; text-align: center; color: var(--muted); font-size: 11px; }
+.sg-ico.sg-command, .sg-ico.sg-pwsh { color: var(--accent); }
+.sg-label { color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.sg-label b { color: var(--accent); font-weight: 700; }
+.sg-desc {
+  margin-left: auto; padding-left: 18px; max-width: 280px; overflow: hidden; text-overflow: ellipsis;
+  color: var(--muted); font: 11.5px "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
