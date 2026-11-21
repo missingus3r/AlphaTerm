@@ -133,6 +133,24 @@ describe("collect", () => {
     expect(analyze(parseLine("type /tmp/x", "cmd"), "cmd").source).toBe("paths");
   });
 
+  it("nunca ofrece texto con caracteres de control (podría ejecutar algo)", async () => {
+    const src = sources({ history: [h("echo a\necho b", null, 1)] });
+    src.gen = async () => [{ v: "x\rcalc\r" }, { v: "dev" }];
+    expect((await run("npm run ", "ps", src)).map((s) => s.insert)).toEqual(["dev"]);
+    expect((await run("echo", "ps", src)).some((s) => /[\r\n]/.test(s.insert))).toBe(false);
+  });
+
+  it("comandos que el catálogo no conoce (cmdlets): también el historial de otras carpetas", async () => {
+    const src = sources({ history: [h("Get-Process -Name chrome", "C:\\otra", 1)] });
+    expect((await run("Get-Process ", "ps", src)).map((s) => s.insert)).toContain("Get-Process -Name chrome");
+  });
+
+  it("una carpeta con la barra final doblada (por las comillas) se lista igual", async () => {
+    const src = sources({ dirs: { "Mis Documentos\\": [{ name: "Fotos", dir: true }] } });
+    const r = await run("cd 'Mis Documentos\\\\'", "ps", src);
+    expect(r.find((s) => s.label === "Fotos\\")).toMatchObject({ insert: "Mis Documentos\\Fotos\\" });
+  });
+
   it("git checkout: ramas", async () => {
     const r = await run("git checkout ", "ps", sources());
     expect(r.map((s) => s.insert).slice(0, 2)).toEqual(["main", "predicciones"]);

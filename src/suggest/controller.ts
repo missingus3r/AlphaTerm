@@ -81,7 +81,14 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
 
   let start: { marker: { line: number; dispose(): void }; x: number } | null = null;
   let atPrompt = false;
-  let echoPending = false;
+  /**
+   * Línea que la shell debería mostrar después de lo que se le mandó (null: no se sabe). Hasta que la
+   * pantalla la muestre, una inserción espera: si no, los retrocesos se calcularían sobre la línea vieja.
+   * No sirve una marca de "llegó algo": xterm avisa de salidas ajenas antes del eco de la tecla.
+   */
+  let expected: { line: string; at: number } | null = null;
+  /** Tecla de efecto imprevisible (flechas, Tab de la shell…): se espera a que la línea cambie. */
+  let waitChange: { from: string | null; at: number } | null = null;
   /** Después de ↑/↓, Tab de la shell, Esc o de insertar: no se abre solo hasta que se tipee. */
   let suppressAuto = false;
   /** Pedido a mano (Ctrl+Espacio) o carpeta recién insertada: se muestra aunque no toque solo. */
@@ -104,7 +111,13 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
 
   const enabled = () => supported && o.settings().enabled;
 
+  const cancelPending = () => {
+    if (pending) clearTimeout(pending.timer);
+    pending = null;
+  };
+
   const close = () => {
+    cancelPending();
     seq++;
     navigating = false;
     wantOpen = false;
@@ -126,13 +139,25 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
     return line;
   }
 
+  /** Hay algo mandado a la shell que todavía no se ve en la pantalla. */
+  function echoPending(): boolean {
+    const t = now();
+    // Si la shell muestra otra cosa que la esperada (o no reacciona), no se espera para siempre.
+    if (expected && t - expected.at > ECHO_WAIT_MS) expected = null;
+    if (waitChange && t - waitChange.at > ECHO_WAIT_MS) waitChange = null;
+    const line = currentLine();
+    if (expected) return line !== expected.line;
+    if (waitChange) return line === waitChange.from;
+    return false;
+  }
+
   function schedulePs(a: Analysis, line: string) {
     clearTimeout(psTimer);
     if (shell !== "ps" || !psReady || !o.settings().pwsh || chainKey || !line.trim()) return;
     if (!forcePs && (!a.askPwsh || demoted)) return;
     if (lastPs?.type === "completions" && lastPs.buffer === line) return;
     psTimer = setTimeout(() => {
-      if (disposed || !atPrompt || echoPending || chainKey || currentLine() !== line) return;
+      if (disposed || !atPrompt || echoPending() || chainKey || currentLine() !== line) return;
       forcePs = false;
       psSentAt = now();
       o.write(PS_CHORD);
@@ -171,11 +196,16 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
   }
 
   function doAccept(item: Suggestion) {
+    // Ya se mandó un Enter (o empezó un comando): nada de teclas para el programa que corre.
+    if (!atPrompt) return close();
     const line = currentLine();
     if (line === null) return close();
     const cur = parseLine(line, shell).current;
-    o.write(insertion(line, item, cur, shell));
-    echoPending = true;
+    const text = insertion(line, item, cur, shell);
+    o.write(text);
+    const dels = text.length - text.replace(/^\x7f+/, "").length;
+    expected = { line: line.slice(0, Math.max(0, line.length - dels)) + text.slice(dels), at: now() };
+    waitChange = null;
     lastPs = undefined;
     const reopen = item.dir && !/['"]$/.test(item.insert);
     close();
@@ -185,14 +215,16 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
 
   function accept(item: Suggestion | undefined) {
     if (!item) return;
-    if (!echoPending) return doAccept(item);
-    // Hay teclas que la shell todavía no mostró: se inserta cuando llegue el eco.
-    if (pending) clearTimeout(pending.timer);
+    if (!echoPending()) return doAccept(item);
+    // Hay teclas que la shell todavía no mostró: se inserta cuando llegue el eco (o a los 300 ms).
+    cancelPending();
     pending = {
       item,
       timer: setTimeout(() => {
         const p = pending;
         pending = null;
+        expected = null;
+        waitChange = null;
         if (p) doAccept(p.item);
       }, ECHO_WAIT_MS),
     };
@@ -208,6 +240,8 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
       start = marker ? { marker, x: b.cursorX } : null;
       atPrompt = supported;
       lastLine = null;
+      expected = null;
+      waitChange = null;
       suppressAuto = false;
       chainKey = false;
       lastPs = undefined;
@@ -230,9 +264,19 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
         return;
       }
       if (!atPrompt) return;
-      echoPending = true;
       chainKey = data === "\t" || data === "\x12" || data === "\x13" || data.startsWith("\x1b");
       const typed = data === "\x7f" || data === "\b" || !/[\x00-\x1f]/.test(data);
+      if (typed && !waitChange) {
+        // Lo que la shell va a mostrar: lo esperado hasta ahora (o la pantalla) más esta tecla.
+        const base = expected?.line ?? currentLine();
+        if (base !== null) {
+          const line = data === "\x7f" || data === "\b" ? base.slice(0, -1) : base + data;
+          expected = { line, at: now() };
+        }
+      } else if (!typed) {
+        expected = null;
+        waitChange = { from: currentLine(), at: now() };
+      }
       if (typed) suppressAuto = false;
       else {
         suppressAuto = true;
@@ -240,8 +284,10 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
       }
     },
     onParsed() {
-      echoPending = false;
-      if (pending) {
+      const pend = echoPending();
+      if (expected && !pend) expected = null;
+      if (waitChange && !pend) waitChange = null;
+      if (pending && !pend) {
         const p = pending;
         pending = null;
         clearTimeout(p.timer);

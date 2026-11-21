@@ -141,6 +141,37 @@ describe("controlador de sugerencias", () => {
     expect(r.ctl.menu()?.items.map((i) => i.insert)).toContain("ping");
   });
 
+  it("Tab con un eco pendiente y Enter enseguida: no se escribe nada después del Enter", async () => {
+    r = rig("cmd");
+    r.prompt("C:\\proy>");
+    await r.type("cd al");
+    r.ctl.onWrite("p"); // la shell todavía no la mostró
+    expect(r.ctl.key(key("Tab"))).toBe(true);
+    r.ctl.onWrite("\r");
+    await vi.advanceTimersByTimeAsync(500);
+    r.term.echo("p");
+    r.ctl.onParsed();
+    await flush();
+    expect(r.written.some((w) => w.includes("AlphaTerm"))).toBe(false);
+  });
+
+  it("una salida ajena no cuenta como el eco de lo tipeado: se espera el eco para insertar", async () => {
+    r = rig("cmd");
+    r.prompt("C:\\proy>");
+    await r.type("cd a");
+    r.ctl.onWrite("l"); // sin eco todavía
+    r.ctl.onParsed(); // salida de otra cosa
+    await flush();
+    expect(r.ctl.key(key("Tab"))).toBe(true);
+    await flush();
+    expect(r.written.some((w) => w.includes("AlphaTerm"))).toBe(false);
+    r.term.echo("l");
+    r.ctl.onParsed();
+    await flush();
+    expect(r.written.at(-1)).toBe("\x7f\x7fAlphaTerm\\");
+    expect(r.term.row).toBe("C:\\proy>cd AlphaTerm\\");
+  });
+
   it("↑ con el menú abierto sin navegar no se toma (historial) y cierra", async () => {
     r = rig("cmd");
     r.prompt("C:\\proy>");

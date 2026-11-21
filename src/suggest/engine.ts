@@ -160,8 +160,10 @@ const ABSOLUTE = /\s["']?([a-zA-Z]:[\\/]|~|\\\\)/;
 function historyLines(hist: HistEntry[], ctx: Ctx, a: Analysis): Suggestion[] {
   const line = ctx.line.toLowerCase();
   if (!line.trim()) return [];
-  // `cd docs` hecho en otra carpeta no sirve acá: con rutas relativas, solo el historial de esta carpeta.
-  const relative = a.mode === "arg" && (a.source === "folders" || a.source === "paths");
+  // `cd docs` hecho en otra carpeta no sirve acá: si el catálogo dice que el argumento es una ruta (o
+  // lo que se escribe lo es), solo el historial de esta carpeta. Los demás (cmdlets, CLIs que el
+  // catálogo no conoce) se quedan con todo el historial, con menos peso el de otras carpetas.
+  const relative = a.mode === "arg" && ((a.spec !== null && (a.source === "folders" || a.source === "paths")) || a.pathLike);
   const now = ctx.now ?? Date.now();
   const groups = new Map<string, { command: string; count: number; at: number; here: boolean }>();
   for (const e of hist) {
@@ -203,7 +205,8 @@ function historyArgs(hist: HistEntry[], command: string, shell: Shell): Value[] 
 async function listing(a: Analysis, ctx: Ctx, src: Sources, dirsOnly: boolean): Promise<Suggestion[]> {
   const value = a.word.value;
   const cut = Math.max(value.lastIndexOf("\\"), value.lastIndexOf("/")) + 1;
-  const dirPart = value.slice(0, cut);
+  // `'Mis Documentos\\'`: la barra final va doblada entre comillas (ver insert.ts); acá cuenta una.
+  const dirPart = value.slice(0, cut).replace(/\\{2,}/g, "\\");
   const namePart = value.slice(cut);
   const out: Suggestion[] = [];
   const entries = isNetwork(value) ? [] : await src.listDir(dirPart, dirsOnly, namePart.startsWith("."));
@@ -325,15 +328,19 @@ export async function collect(a: Analysis, ctx: Ctx, src: Sources, ps?: PsMsg): 
   }
   out.push(...fromPwsh(ps, ctx, a));
 
+  // Nada con caracteres de control: un script de npm llamado "x\rcalc\r" (o una línea de historial de
+  // varias líneas, o un completer de PowerShell) se ejecutaría al insertarlo.
+  const safe = out.filter((s) => !/[\x00-\x1f\x7f]/.test(s.insert));
+
   // Sin repetidos: gana el de más puntaje (o el primero).
   const best = new Map<string, Suggestion>();
-  for (const s of out) {
+  for (const s of safe) {
     const k = dedupeKey(s);
     const had = best.get(k);
     if (!had || s.score > had.score) best.set(k, s);
   }
   const keep = new Set(best.values());
-  return out
+  return safe
     .filter((s) => keep.has(s))
     .map((s, i) => ({ s, i }))
     .sort((x, y) => y.s.score - x.s.score || x.i - y.i)

@@ -92,6 +92,19 @@ async function gen(name: GenName, cwd: string): Promise<Value[]> {
   }
 }
 
+// Cada generador lanza procesos (git, docker) o recorre todos los procesos: se reusa el pedido en curso
+// y se guarda unos segundos, si no se lanzaría uno por tecla (y con Docker colgado se apilarían).
+const GEN_TTL = 4000;
+const genCache = new Map<string, { at: number; values: Promise<Value[]> }>();
+function cachedGen(name: GenName, cwd: string): Promise<Value[]> {
+  const key = `${name}|${cwd.toLowerCase()}`;
+  const hit = genCache.get(key);
+  if (hit && Date.now() - hit.at < GEN_TTL) return hit.values;
+  const values = gen(name, cwd).catch(() => []);
+  genCache.set(key, { at: Date.now(), values });
+  return values;
+}
+
 /** `cwd` se lee en cada pedido (la carpeta cambia con cada `cd`). */
 export function liveSources(cwd: () => string): Sources {
   return {
@@ -99,6 +112,6 @@ export function liveSources(cwd: () => string): Sources {
       invoke<{ name: string; dir: boolean }[]>("suggest_list_dir", { cwd: cwd(), dir, dirsOnly, hidden }).catch(() => []),
     history,
     pathCommands,
-    gen: (name, c) => gen(name, c || cwd()),
+    gen: (name, c) => cachedGen(name, c || cwd()),
   };
 }

@@ -16,10 +16,16 @@ const NEEDS_QUOTES: Record<Shell, RegExp> = {
 };
 
 function quote(v: string, shell: Shell, q: '"' | "'" | null): string {
-  if (shell === "cmd") return `"${v}"`;
-  if ((q ?? "'") === "'") return `'${v.replace(/'/g, "''")}'`;
-  return `"${v.replace(/[`"$]/g, "`$&")}"`;
+  // Barra final doblada: con una sola, `\"` escapa la comilla para git, node y cualquier programa
+  // externo (lo que les llega queda roto); cd, Set-Location y los cmdlets aceptan la doble.
+  const body = v.replace(/\\+$/, "\\\\");
+  if (shell === "cmd") return `"${body}"`;
+  if ((q ?? "'") === "'") return `'${body.replace(/'/g, "''")}'`;
+  return `"${body.replace(/[`"$]/g, "`$&")}"`;
 }
+
+/** Un valor del catálogo que ya viene entre comillas (`"IMAGENAME eq chrome.exe"`). */
+const alreadyQuoted = (v: string) => /^(["']).*\1$/.test(v);
 
 /**
  * `line`: lo escrito hasta el cursor (el cursor está al final). `cur`: la palabra actual.
@@ -32,6 +38,7 @@ export function insertion(line: string, s: Suggestion, cur: Word, shell: Shell):
     const suffix = s.dir ? (quoted || /[\\/]$/.test(s.insert) ? "" : "\\") : " ";
     return DEL.repeat(Math.max(0, line.length - s.from)) + s.insert + suffix;
   }
-  const text = cur.quote || NEEDS_QUOTES[shell].test(s.insert) ? quote(s.insert, shell, cur.quote) : s.insert;
+  const text =
+    !alreadyQuoted(s.insert) && (cur.quote || NEEDS_QUOTES[shell].test(s.insert)) ? quote(s.insert, shell, cur.quote) : s.insert;
   return DEL.repeat(cur.raw.length) + text + (s.dir ? "" : " ");
 }
