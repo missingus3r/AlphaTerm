@@ -15,6 +15,7 @@ pub mod projects;
 pub mod pty;
 pub mod session;
 pub mod settings;
+pub mod suggest;
 pub mod sysmon;
 pub mod usage;
 pub mod usage_live;
@@ -174,6 +175,11 @@ pub fn run() {
             guardian::guardian_open,
             guardian::guardian_log,
             history::history_search,
+            suggest::suggest_list_dir,
+            suggest::suggest_gateway,
+            suggest::suggest_path_commands,
+            suggest::suggest_npm_scripts,
+            suggest::suggest_processes,
             session::session_restore,
             session::session_claim,
             git::git_root,
