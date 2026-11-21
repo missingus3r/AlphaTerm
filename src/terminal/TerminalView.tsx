@@ -149,6 +149,11 @@ export function TerminalView(props: Props) {
       },
     });
     setSuggestCtl(suggest);
+    // Solo en desarrollo: para probar por CDP (xterm con WebGL no deja el texto en el DOM).
+    if (import.meta.env.DEV) {
+      const w = window as unknown as { __alphaterm?: Record<string, unknown> };
+      (w.__alphaterm ??= {})[props.paneId] = { term, suggest };
+    }
     const toShell = (s: PtySession, data: string) => {
       suggest.onWrite(data);
       s.write(data);

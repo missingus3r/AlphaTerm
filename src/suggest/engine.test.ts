@@ -110,6 +110,20 @@ describe("collect", () => {
     expect(r.some((s) => s.insert === "..\\")).toBe(true);
   });
 
+  it("cd: el historial de otra carpeta no aparece, salvo con rutas absolutas", async () => {
+    const src = sources({
+      history: [h("cd docs", "C:\\otra", 1), h("cd src", "C:\\proy", 2), h("cd C:\\Windows", "C:\\otra", 3), h("cd ~\\Desktop", "C:\\x", 4)],
+    });
+    const r = (await run("cd ", "ps", src)).filter((s) => s.kind === "history").map((s) => s.insert);
+    expect(r).toEqual(["cd src", "cd C:\\Windows", "cd ~\\Desktop"]);
+  });
+
+  it("cd: la carpeta de arriba va primero entre las carpetas", async () => {
+    const r = await run("cd ", "cmd", sources({ dirs: { "": [{ name: "AlphaTerm", dir: true }] } }));
+    const folders = r.filter((s) => s.kind === "folder").map((s) => s.insert);
+    expect(folders[0]).toBe("..\\");
+  });
+
   it("git checkout: ramas", async () => {
     const r = await run("git checkout ", "ps", sources());
     expect(r.map((s) => s.insert).slice(0, 2)).toEqual(["main", "predicciones"]);

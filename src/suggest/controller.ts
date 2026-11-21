@@ -88,7 +88,8 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
   let wantOpen = false;
   let navigating = false;
   let swallowPress = false;
-  let dirty = false;
+  /** Línea con la que se armó el último menú: se recalcula cuando la de la pantalla cambia. */
+  let lastLine: string | null = null;
   /** La última tecla deja a PSReadLine esperando otra (Tab, Ctrl+R…): no mandarle el atajo. */
   let chainKey = false;
   let psReady = false;
@@ -139,10 +140,10 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
   }
 
   async function recompute() {
-    dirty = false;
     if (disposed) return;
     if (!enabled() || !atPrompt) return close();
     const line = currentLine();
+    lastLine = line;
     if (line === null) return close();
     const p = parseLine(line, shell);
     const a = analyze(p, shell);
@@ -206,6 +207,7 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
       const marker = o.term.registerMarker(0);
       start = marker ? { marker, x: b.cursorX } : null;
       atPrompt = supported;
+      lastLine = null;
       suppressAuto = false;
       chainKey = false;
       lastPs = undefined;
@@ -229,7 +231,6 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
       }
       if (!atPrompt) return;
       echoPending = true;
-      dirty = true;
       chainKey = data === "\t" || data === "\x12" || data === "\x13" || data.startsWith("\x1b");
       const typed = data === "\x7f" || data === "\b" || !/[\x00-\x1f]/.test(data);
       if (typed) suppressAuto = false;
@@ -248,7 +249,9 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
         return;
       }
       if (!atPrompt) return;
-      if (dirty || wantOpen || menu()) void recompute();
+      // No alcanza con "se tipeó algo": xterm puede avisar de una salida anterior antes del eco de la
+      // tecla, y si ahí se consumiera el aviso, el eco ya no recalcularía. Se compara la línea.
+      if (wantOpen || currentLine() !== lastLine) void recompute();
     },
     key(e) {
       if (e.type === "keypress") {

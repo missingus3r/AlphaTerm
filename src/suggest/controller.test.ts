@@ -126,6 +126,21 @@ describe("controlador de sugerencias", () => {
     expect(m?.col).toBe("C:\\proy>cd ".length);
   });
 
+  it("una salida que llega entre la tecla y su eco no hace perder la tecla", async () => {
+    r = rig("cmd");
+    r.prompt("C:\\proy>");
+    await r.type("p");
+    expect(r.ctl.menu()).toBeNull();
+    // Como en la app real: xterm avisa de una salida anterior antes de que llegue el eco de la "i".
+    r.ctl.onWrite("i");
+    r.ctl.onParsed();
+    await flush();
+    r.term.echo("i");
+    r.ctl.onParsed();
+    await flush();
+    expect(r.ctl.menu()?.items.map((i) => i.insert)).toContain("ping");
+  });
+
   it("↑ con el menú abierto sin navegar no se toma (historial) y cierra", async () => {
     r = rig("cmd");
     r.prompt("C:\\proy>");

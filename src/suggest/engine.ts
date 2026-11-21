@@ -151,9 +151,14 @@ const matchesShell = (entry: string | null, shell: Shell) =>
 
 const sameDir = (a: string | null, b: string) => !!a && a.toLowerCase().replace(/\\+$/, "") === b.toLowerCase().replace(/\\+$/, "");
 
-function historyLines(hist: HistEntry[], ctx: Ctx): Suggestion[] {
+/** Hay una ruta absoluta en los argumentos (vale desde cualquier carpeta). */
+const ABSOLUTE = /\s["']?([a-zA-Z]:[\\/]|~|\\\\)/;
+
+function historyLines(hist: HistEntry[], ctx: Ctx, a: Analysis): Suggestion[] {
   const line = ctx.line.toLowerCase();
   if (!line.trim()) return [];
+  // `cd docs` hecho en otra carpeta no sirve acá: con rutas relativas, solo el historial de esta carpeta.
+  const relative = a.mode === "arg" && (a.source === "folders" || a.source === "paths");
   const now = ctx.now ?? Date.now();
   const groups = new Map<string, { command: string; count: number; at: number; here: boolean }>();
   for (const e of hist) {
@@ -165,7 +170,7 @@ function historyLines(hist: HistEntry[], ctx: Ctx): Suggestion[] {
     g.here ||= sameDir(e.cwd, ctx.cwd);
     groups.set(c, g);
   }
-  return [...groups.values()].map((g) => {
+  return [...groups.values()].filter((g) => !relative || g.here || ABSOLUTE.test(g.command)).map((g) => {
     const hours = Math.max(0, (now - g.at) / 3_600_000);
     return {
       insert: g.command,
@@ -210,7 +215,7 @@ async function listing(a: Analysis, ctx: Ctx, src: Sources, dirsOnly: boolean): 
     if (ctx.shell === "ps" && dirPart === "") specials.push({ v: "~", desc: "tu carpeta de usuario" });
     for (const s of specials) {
       const m = match(s.v, namePart, false);
-      if (m) out.push({ insert: `${dirPart}${s.v}\\`, label: `${s.v}\\`, desc: s.desc, kind: "folder", dir: true, replace: "word", score: 640 + m.bonus, hits: m.hits });
+      if (m) out.push({ insert: `${dirPart}${s.v}\\`, label: `${s.v}\\`, desc: s.desc, kind: "folder", dir: true, replace: "word", score: 660 + m.bonus, hits: m.hits });
     }
   }
   return out;
@@ -263,7 +268,7 @@ const dedupeKey = (s: Suggestion) =>
 export async function collect(a: Analysis, ctx: Ctx, src: Sources, ps?: PsMsg): Promise<Suggestion[]> {
   const typed = a.word.value;
   const hist = (await src.history()).filter((e) => matchesShell(e.shell, ctx.shell));
-  const out: Suggestion[] = [...historyLines(hist, ctx)];
+  const out: Suggestion[] = [...historyLines(hist, ctx, a)];
 
   if (a.mode === "command") {
     if (a.pathLike) out.push(...(await listing(a, ctx, src, false)));
