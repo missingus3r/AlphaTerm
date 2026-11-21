@@ -591,6 +591,29 @@ function TerminalSection(props: SectionProps & { info: TermInfo }) {
           onChange={(e) => props.set((d) => void (d.terminal.scrollback = Number(e.currentTarget.value)))}
         />
       </Row>
+      <Row label="Sugerencias de comandos" hint="En cmd y PowerShell: carpetas para cd, historial, opciones y valores típicos (ping, git, npm…). Tab inserta, ↓ elige, Esc cierra; ↑ sigue siendo el historial.">
+        <Toggle
+          checked={props.s.terminal.suggest.enabled}
+          label={props.s.terminal.suggest.enabled ? "Activadas" : "Desactivadas"}
+          onChange={(v) => props.set((d) => void (d.terminal.suggest.enabled = v))}
+        />
+      </Row>
+      <Show when={props.s.terminal.suggest.enabled}>
+        <Row label="Mostrar el menú" hint="Ctrl+Espacio lo abre siempre (en PowerShell reemplaza al menú de completados propio).">
+          <Segmented
+            value={props.s.terminal.suggest.mode}
+            options={[["auto", "Al escribir"], ["manual", "Solo con Ctrl+Espacio"]]}
+            onChange={(v) => props.set((d) => void (d.terminal.suggest.mode = v))}
+          />
+        </Row>
+        <Row label="Completados de PowerShell" hint="Le pregunta a la propia sesión (cmdlets, parámetros, módulos). Si una respuesta tarda más de 300 ms, esa pestaña solo pregunta con Ctrl+Espacio.">
+          <Toggle
+            checked={props.s.terminal.suggest.pwsh}
+            label={props.s.terminal.suggest.pwsh ? "Sí" : "No"}
+            onChange={(v) => props.set((d) => void (d.terminal.suggest.pwsh = v))}
+          />
+        </Row>
+      </Show>
       <Row label="Detectar el programa en uso cada" hint="Para el nombre de la pestaña cuando la shell no tiene integración. Se pausa con la ventana minimizada.">
         <select
           class="text"

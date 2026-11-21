@@ -46,6 +46,19 @@ describe("normalize", () => {
   });
 });
 
+describe("sugerencias de comandos", () => {
+  it("un settings viejo sin suggest queda con los valores de fábrica", () => {
+    const s = norm({ terminal: { defaultProfile: "cmd", scrollback: 5000 } });
+    expect(s.terminal.suggest).toEqual({ enabled: true, mode: "auto", pwsh: true });
+    expect(DEFAULTS.terminal.suggest).toEqual({ enabled: true, mode: "auto", pwsh: true });
+  });
+
+  it("valores inválidos vuelven a los de fábrica y los válidos se conservan", () => {
+    expect(norm({ terminal: { suggest: { enabled: "sí", mode: "siempre", pwsh: 1 } } }).terminal.suggest).toEqual({ enabled: true, mode: "auto", pwsh: true });
+    expect(norm({ terminal: { suggest: { enabled: false, mode: "manual", pwsh: false } } }).terminal.suggest).toEqual({ enabled: false, mode: "manual", pwsh: false });
+  });
+});
+
 describe("temas", () => {
   it("los de fábrica tienen todos los colores en hex", () => {
     for (const t of BUILTIN_THEMES) {

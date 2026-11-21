@@ -61,6 +61,14 @@ export interface DockerPreset {
   command: string;
 }
 
+export interface SuggestSettings {
+  enabled: boolean;
+  /** `auto`: el menú aparece al escribir; `manual`: solo con Ctrl+Espacio. */
+  mode: "auto" | "manual";
+  /** Pedirle completados a la sesión de PowerShell (cmdlets, parámetros…). */
+  pwsh: boolean;
+}
+
 export interface Settings {
   version: 1;
   appearance: {
@@ -95,6 +103,8 @@ export interface Settings {
     /** "" = el que detecta el backend (PowerShell 5.1 en esta PC). */
     defaultProfile: string;
     scrollback: number;
+    /** Predicciones de comandos en cmd y PowerShell (`src/suggest/`). */
+    suggest: SuggestSettings;
   };
   behavior: {
     /** Cada cuánto se mira qué programa corre en cada pestaña (para el título). */
@@ -156,7 +166,7 @@ export const DEFAULTS: Settings = {
   background: { effect: "none", opacity: 1, image: "", imageOpacity: 0.25, imageFit: "cover" },
   customThemes: [],
   tabBar: { position: "top", collapsed: false, width: 220 },
-  terminal: { defaultProfile: "", scrollback: 10_000 },
+  terminal: { defaultProfile: "", scrollback: 10_000, suggest: { enabled: true, mode: "auto", pwsh: true } },
   behavior: { foregroundPollMs: 2000 },
   shortcuts: {},
   agents: BUILTIN_AGENTS,
@@ -358,6 +368,11 @@ export function normalize(raw: unknown, baseColors: ThemeColors): Settings {
     terminal: {
       defaultProfile: typeof obj(r.terminal).defaultProfile === "string" ? (obj(r.terminal).defaultProfile as string) : "",
       scrollback: Math.round(num(obj(r.terminal).scrollback, D.terminal.scrollback, LIMITS.scrollback)),
+      suggest: (() => {
+        const g = obj(obj(r.terminal).suggest);
+        const d = D.terminal.suggest;
+        return { enabled: bool(g.enabled, d.enabled), mode: oneOf(g.mode, ["auto", "manual"], d.mode), pwsh: bool(g.pwsh, d.pwsh) };
+      })(),
     },
     behavior: {
       foregroundPollMs: Math.round(num(obj(r.behavior).foregroundPollMs, D.behavior.foregroundPollMs, LIMITS.foregroundPollMs)),
