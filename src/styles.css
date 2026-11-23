@@ -140,14 +140,16 @@ body.pane-dragging, body.pane-dragging * { cursor: grabbing !important; }
    el body (con la opacidad elegida), así que acá siempre transparente. */
 .term-host .xterm .xterm-viewport { background-color: transparent !important; }
 
-/* Zona de agarre de 7 px que se ve como una línea de 1 px. */
+/* Zona de agarre de 9 px que se ve como una línea de 1 px (3 px de color al pasar el mouse). */
 .divider { position: absolute; z-index: 5; }
-.divider::before { content: ""; position: absolute; background: var(--line); transition: background .12s; }
-.divider.row { width: 7px; margin-left: -3px; cursor: col-resize; }
-.divider.row::before { left: 3px; width: 1px; top: 0; bottom: 0; }
-.divider.column { height: 7px; margin-top: -3px; cursor: row-resize; }
-.divider.column::before { top: 3px; height: 1px; left: 0; right: 0; }
-.divider:hover::before, body.resizing .divider::before { background: var(--accent); }
+.divider::before { content: ""; position: absolute; background: var(--line); transition: background .12s, width .12s, height .12s, left .12s, top .12s; }
+.divider.row { width: 9px; margin-left: -4px; cursor: col-resize; }
+.divider.row::before { left: 4px; width: 1px; top: 0; bottom: 0; }
+.divider.column { height: 9px; margin-top: -4px; cursor: row-resize; }
+.divider.column::before { top: 4px; height: 1px; left: 0; right: 0; }
+.divider:hover::before, body.resizing:not(.pane-dragging) .divider::before { background: var(--accent); }
+.divider.row:hover::before { left: 3px; width: 3px; }
+.divider.column:hover::before { top: 3px; height: 3px; }
 
 /* --- Marcas de comandos (shell integration) --- */
 .nt-mark { pointer-events: auto; }

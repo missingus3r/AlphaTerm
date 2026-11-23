@@ -779,7 +779,10 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
       const fx = (ev.clientX - box.left) / box.width;
       const fy = (ev.clientY - box.top) / box.height;
       const ratio = area.dir === "row" ? (fx - area.rect.x) / area.rect.w : (fy - area.rect.y) / area.rect.h;
-      update((x) => M.setRatio(x, tabId, area.id, ratio));    };
+      // Se frena en ⅓, ½ y ⅔ si queda a pocos píxeles.
+      const extentPx = area.dir === "row" ? box.width * area.rect.w : box.height * area.rect.h;
+      update((x) => M.setRatio(x, tabId, area.id, M.snapRatio(ratio, extentPx)));
+    };
     const up = () => {
       document.body.classList.remove("resizing", "resizing-row", "resizing-column");
       window.removeEventListener("pointermove", move);
@@ -1031,7 +1034,9 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                           ? { left: pct(area.rect.x + area.rect.w * area.ratio), top: pct(area.rect.y), height: pct(area.rect.h) }
                           : { top: pct(area.rect.y + area.rect.h * area.ratio), left: pct(area.rect.x), width: pct(area.rect.w) }
                       }
+                      title="Arrastrar para cambiar el tamaño · doble clic: mitad y mitad"
                       onPointerDown={(e) => startDrag(tabId, area, e)}
+                      onDblClick={() => update((x) => M.setRatio(x, tabId, area.id, 0.5))}
                     />
                   )}
                 </For>
