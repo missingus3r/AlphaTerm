@@ -35,8 +35,8 @@ export function PaneBar(props: {
       <button class="icon-btn" title="Dividir abajo" onPointerDown={stop} onClick={() => props.onSplit("column")}>
         ⤓
       </button>
-      <button class="icon-btn" title="Cerrar el panel" onPointerDown={stop} onClick={() => props.onClose()}>
-        ✕
+      <button class="icon-btn close" title="Cerrar el panel" onPointerDown={stop} onClick={() => props.onClose()}>
+        ×
       </button>
     </div>
   );

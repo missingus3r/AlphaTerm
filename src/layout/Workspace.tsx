@@ -14,6 +14,8 @@ import type { AgentDef } from "../settings/schema";
 import { agentRunning, agentState, paneBusy, pushRecent } from "../panels/agentState";
 import { PaneBar, PaneMenu } from "./PaneBar";
 import { startPaneDrag } from "./paneDrag";
+import { askConfirm } from "../widgets/confirm";
+import { ConfirmModal } from "../widgets/ConfirmModal";
 import { agentKind, buildCommand, launchParts, shellKindOf } from "../panels/agentLaunch";
 import type { RunningAgent } from "../panels/AgentsPanel";
 import { ActivityBar, PANELS, type PanelId } from "../panels/ActivityBar";
@@ -235,10 +237,13 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   };
 
   const closePane = (tabId: string, paneId: string) => update((x) => M.closePane(x, tabId, paneId));
-  /** Cerrar desde la barrita o el menú: si hay algo corriendo, pregunta antes. */
-  const askClose = (tabId: string, paneId: string) => {
+  /** Cerrar desde la barrita o el menú: si hay algo corriendo, pregunta antes (dentro de la app). */
+  const askClose = async (tabId: string, paneId: string) => {
     const p = panes[paneId];
-    if (p && paneBusy(p) && !confirm(`¿Cerrar este panel? Se corta lo que está corriendo en él (${paneLabel(paneId)}).`)) return;
+    if (p && paneBusy(p)) {
+      const yes = await askConfirm(`¿Cerrar este panel? Se corta lo que está corriendo en él (${paneLabel(paneId)}).`, "Cerrar");
+      if (!yes) return void handles.get(paneId)?.focus();
+    }
     closePane(tabId, paneId);
   };
   /** Enfoca un panel ya (el clic en la barrita no le da el foco a la terminal por sí solo). */
@@ -1145,6 +1150,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
       )}
     </Show>
     <GuardianModal />
+    <ConfirmModal />
     <UsageFooter
       usage={settings().usage}
       onSettings={() => void openSettings()}
