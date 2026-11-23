@@ -13,6 +13,7 @@ import { closeSettings, openSettings, settingsOpen, type SettingsStore } from ".
 import type { AgentDef } from "../settings/schema";
 import { agentRunning, agentState, paneBusy, pushRecent } from "../panels/agentState";
 import { PaneBar, PaneMenu } from "./PaneBar";
+import { startPaneDrag } from "./paneDrag";
 import { agentKind, buildCommand, launchParts, shellKindOf } from "../panels/agentLaunch";
 import type { RunningAgent } from "../panels/AgentsPanel";
 import { ActivityBar, PANELS, type PanelId } from "../panels/ActivityBar";
@@ -250,8 +251,27 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     focusNow(tabId, paneId);
     setPaneMenu({ x: Math.min(e.clientX, window.innerWidth - 230), y: Math.min(e.clientY, window.innerHeight - 180), tabId, paneId });
   };
-  /** Agarrar la barrita: por ahora solo enfoca (el arrastre se suma aparte). */
-  const grab = (tabId: string, paneId: string, _e: PointerEvent) => focusNow(tabId, paneId);
+  /** Lo que se pinta mientras se arrastra un panel: dónde va a quedar. */
+  const [dropHint, setDropHint] = createSignal<{ tabId: string; rect: M.Rect; center: boolean } | null>(null);
+  /** Agarrar la barrita: enfoca el panel y, si se arrastra, lo mueve al soltarlo sobre otro. */
+  const grab = (tabId: string, paneId: string, e: PointerEvent) => {
+    focusNow(tabId, paneId);
+    const container = (e.target as HTMLElement)?.closest?.(".tab-view");
+    const t = tabById(tabId);
+    if (!container || !t || M.leaves(t.root).length < 2) return;
+    startPaneDrag({
+      e,
+      container,
+      paneId,
+      rects: () => M.paneRects(tabById(tabId)?.root ?? t.root),
+      onHover: (h) => {
+        const r = h && M.paneRects(tabById(tabId)?.root ?? t.root).get(h.target);
+        setDropHint(h && r ? { tabId, rect: M.zoneRect(r, h.zone), center: h.zone === "center" } : null);
+      },
+      onDrop: (target, zone) => update((x) => M.movePane(x, tabId, paneId, target, zone)),
+      onClick: () => {},
+    });
+  };
 
   // --- Paneles laterales en mosaico -----------------------------------------------------------
   // Se guardan en la sesión de la ventana y, como preferencia, para las ventanas nuevas.
@@ -1015,6 +1035,15 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                     />
                   )}
                 </For>
+                <Show when={dropHint()?.tabId === tabId && dropHint()}>
+                  {(h) => (
+                    <div
+                      class="pane-drop"
+                      classList={{ center: h().center }}
+                      style={{ left: pct(h().rect.x), top: pct(h().rect.y), width: pct(h().rect.w), height: pct(h().rect.h) }}
+                    />
+                  )}
+                </Show>
               </div>
             );
           }}
