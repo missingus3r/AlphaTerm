@@ -290,6 +290,56 @@ export function setRatio(l: Layout, tabId: string, splitId: string, ratio: numbe
   }));
 }
 
+/** Dónde se suelta un panel arrastrado sobre otro: un lado, o el centro para intercambiarlos. */
+export type DropZone = "left" | "right" | "top" | "bottom" | "center";
+
+/** Cambia dos paneles de lugar (las divisiones y sus proporciones quedan igual). */
+export function swapPanes(l: Layout, tabId: string, aId: string, bId: string): Layout {
+  const tab = l.tabs.find((t) => t.id === tabId);
+  if (!tab || aId === bId) return l;
+  const a = findLeaf(tab.root, aId);
+  const b = findLeaf(tab.root, bId);
+  if (!a || !b) return l;
+  const swap = (n: PaneNode): PaneNode =>
+    n.kind === "leaf" ? (n.id === aId ? b : n.id === bId ? a : n) : { ...n, a: swap(n.a), b: swap(n.b) };
+  return mapTab(l, tabId, (t) => ({ ...t, root: swap(t.root), activePane: aId }));
+}
+
+/**
+ * Mueve un panel al lado de otro (queda mitad y mitad) o, en el centro, los intercambia.
+ * El panel movido es la misma hoja: su terminal no se vuelve a crear.
+ */
+export function movePane(l: Layout, tabId: string, paneId: string, targetId: string, zone: DropZone): Layout {
+  if (zone === "center") return swapPanes(l, tabId, paneId, targetId);
+  const tab = l.tabs.find((t) => t.id === tabId);
+  if (!tab || paneId === targetId) return l;
+  const moved = findLeaf(tab.root, paneId);
+  if (!moved || !findLeaf(tab.root, targetId)) return l;
+  const rest = removeLeaf(tab.root, paneId);
+  if (!rest) return l;
+  const dir: SplitDir = zone === "left" || zone === "right" ? "row" : "column";
+  const first = zone === "left" || zone === "top";
+  const root = replaceNode(rest, targetId, (n) => ({ kind: "split", id: newId("s"), dir, ratio: 0.5, a: first ? moved : n, b: first ? n : moved }));
+  return mapTab(l, tabId, (t) => ({ ...t, root, activePane: paneId }));
+}
+
+/** Cuántos paneles hay a lo largo de un eje (los de al lado suman; los apilados en el otro eje, no). */
+function span(n: PaneNode, dir: SplitDir): number {
+  if (n.kind === "leaf") return 1;
+  return n.dir === dir ? span(n.a, dir) + span(n.b, dir) : Math.max(span(n.a, dir), span(n.b, dir));
+}
+
+/** Iguala los tamaños: en cada eje, todos los paneles quedan del mismo ancho (o alto). */
+export function equalize(l: Layout, tabId: string): Layout {
+  const fix = (n: PaneNode): PaneNode => {
+    if (n.kind === "leaf") return n;
+    const a = span(n.a, n.dir);
+    const ratio = Math.min(0.9, Math.max(0.1, a / (a + span(n.b, n.dir))));
+    return { ...n, ratio, a: fix(n.a), b: fix(n.b) };
+  };
+  return mapTab(l, tabId, (t) => ({ ...t, root: fix(t.root) }));
+}
+
 export interface Rect {
   x: number;
   y: number;

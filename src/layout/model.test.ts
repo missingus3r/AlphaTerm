@@ -191,3 +191,87 @@ describe("paneles de navegador", () => {
     expect(M.setBrowser(l, t.activePane, { url: "x" })).toBe(l);
   });
 });
+
+describe("mover paneles", () => {
+  /** Pestaña con dos paneles lado a lado: A | B. */
+  const two = () => {
+    const t = M.newTab("powershell", "C:\\a");
+    const A = t.activePane;
+    const B = M.leaf("cmd", "C:\\b", { command: "claude", agentId: "claude" });
+    const l = M.splitPane({ tabs: [t], activeTab: t.id }, t.id, A, "row", B);
+    return { l, tab: t.id, A, B };
+  };
+  const ids = (l: M.Layout) => M.leaves(l.tabs[0].root).map((x) => x.id);
+
+  it("a la izquierda de otro", () => {
+    const { l, tab, A, B } = two();
+    const r = M.movePane(l, tab, B.id, A, "left");
+    expect(ids(r)).toEqual([B.id, A]);
+    const root = r.tabs[0].root;
+    expect(root.kind === "split" && root.dir).toBe("row");
+    expect(root.kind === "split" && root.ratio).toBe(0.5);
+    expect(r.tabs[0].activePane).toBe(B.id);
+  });
+
+  it("abajo con tres paneles", () => {
+    const { l, tab, A, B } = two();
+    const C = M.leaf("cmd");
+    let x = M.splitPane(l, tab, B.id, "column", C); // A | (B sobre C)
+    x = M.movePane(x, tab, A, C.id, "bottom");
+    expect(ids(x)).toEqual([B.id, C.id, A]);
+    const r = M.paneRects(x.tabs[0].root).get(A)!;
+    expect(r.x).toBeCloseTo(0);
+    expect(r.y).toBeCloseTo(0.75);
+    expect(r.w).toBeCloseTo(1);
+    expect(r.h).toBeCloseTo(0.25);
+  });
+
+  it("el centro intercambia y no toca proporciones", () => {
+    const { l, tab, A, B } = two();
+    const C = M.leaf("cmd");
+    let x = M.splitPane(l, tab, B.id, "row", C); // A | (B | C)
+    x = M.setRatio(x, tab, x.tabs[0].root.id, 0.3);
+    x = M.movePane(x, tab, A, C.id, "center");
+    expect(ids(x)).toEqual([C.id, B.id, A]);
+    const root = x.tabs[0].root;
+    expect(root.kind === "split" && root.ratio).toBe(0.3);
+  });
+
+  it("sobre sí mismo, con un panel solo o con ids que no existen no cambia nada", () => {
+    const { l, tab, A, B } = two();
+    expect(M.movePane(l, tab, A, A, "left")).toBe(l);
+    expect(M.movePane(l, tab, "no-existe", A, "left")).toBe(l);
+    expect(M.movePane(l, tab, A, "no-existe", "right")).toBe(l);
+    expect(M.movePane(l, "otra-pestaña", A, B.id, "right")).toBe(l);
+    expect(M.swapPanes(l, tab, A, A)).toBe(l);
+    const solo = start();
+    const only = solo.tabs[0].activePane;
+    expect(M.movePane(solo, solo.tabs[0].id, only, only, "center")).toBe(solo);
+  });
+
+  it("mover no crea paneles", () => {
+    const { l, tab, A, B } = two();
+    const r = M.movePane(l, tab, B.id, A, "top");
+    expect(M.findLeaf(r.tabs[0].root, B.id)).toEqual(B);
+    const s = M.movePane(l, tab, B.id, A, "center");
+    expect(M.findLeaf(s.tabs[0].root, B.id)).toEqual(B);
+  });
+
+  it("igualar deja todos del mismo tamaño en cada eje", () => {
+    const { l, tab, A, B } = two();
+    const C = M.leaf("cmd");
+    const row = M.equalize(M.splitPane(l, tab, B.id, "row", C), tab); // A | (B | C)
+    for (const r of M.paneRects(row.tabs[0].root).values()) expect(r.w).toBeCloseTo(1 / 3);
+
+    let col = M.splitPane(l, tab, B.id, "column", C); // A | (B sobre C)
+    const root = col.tabs[0].root;
+    col = M.setRatio(col, tab, root.id, 0.8);
+    col = M.setRatio(col, tab, root.kind === "split" ? root.b.id : "", 0.2);
+    col = M.equalize(col, tab);
+    const rects = M.paneRects(col.tabs[0].root);
+    expect(rects.get(A)!.w).toBeCloseTo(0.5);
+    expect(rects.get(B.id)!.w).toBeCloseTo(0.5);
+    expect(rects.get(B.id)!.h).toBeCloseTo(0.5);
+    expect(rects.get(C.id)!.h).toBeCloseTo(0.5);
+  });
+});

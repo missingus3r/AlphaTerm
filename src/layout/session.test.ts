@@ -48,6 +48,15 @@ describe("sesión", () => {
     expect(leaf.startup).toBeUndefined();
   });
 
+  it("guarda la distribución movida", () => {
+    const t = M.newTab("powershell", "C:\\x");
+    const B = M.leaf("powershell", "C:\\y");
+    let l = M.splitPane({ tabs: [t], activeTab: t.id }, t.id, t.activePane, "row", B);
+    l = M.movePane(l, t.id, B.id, t.activePane, "left");
+    const r = restore(JSON.parse(JSON.stringify(serialize(l, () => undefined))), opts)!;
+    expect(M.leaves(r.layout.tabs[0].root).map((x) => x.id)).toEqual([B.id, t.activePane]);
+  });
+
   it("ignora basura", () => {
     expect(restore(null, opts)).toBeNull();
     expect(restore({ version: 1, layout: { tabs: [] } }, opts)).toBeNull();
