@@ -1,4 +1,5 @@
 import { createEffect, createResource, createSignal, For, onCleanup, Show } from "solid-js";
+import { askConfirm } from "../widgets/confirm";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { DockerPreset, Settings } from "../settings/schema";
@@ -72,8 +73,8 @@ export default function DockerPanel(props: Props) {
       void refetch();
     }
   };
-  const action = (c: Container, a: string) => {
-    if (a === "rm" && !confirm(`¿Borrar el contenedor ${c.name}? Se pierde lo que tenga adentro que no esté en un volumen. No se puede deshacer.`)) return;
+  const action = async (c: Container, a: string) => {
+    if (a === "rm" && !(await askConfirm(`¿Borrar el contenedor ${c.name}? Se pierde lo que tenga adentro que no esté en un volumen. No se puede deshacer.`, "Borrar"))) return;
     void act(`${a} ${c.name}`, () => invoke<string>("docker_action", { target: c.name, act: a }));
   };
   const startPreset = (p: DockerPreset) => void act(`iniciar ${p.name}`, () => invoke<string>("docker_start_preset", { preset: p }));
@@ -219,8 +220,8 @@ export default function DockerPanel(props: Props) {
                   <div class="row-actions">
                     <button
                       class="link danger"
-                      onClick={() => {
-                        if (!confirm(`¿Sacar "${p.name}" de la lista? El contenedor (si existe) no se borra.`)) return;
+                      onClick={async () => {
+                        if (!(await askConfirm(`¿Sacar "${p.name}" de la lista? El contenedor (si existe) no se borra.`, "Sacar"))) return;
                         props.update((d) => void (d.docker.presets = d.docker.presets.filter((x) => x.name !== p.name)));
                         setEditing(null);
                       }}

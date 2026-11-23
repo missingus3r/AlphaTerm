@@ -49,9 +49,9 @@ la guía de código en `Documentacion\Guia_de_codigo.txt` (y su PDF); el registr
   paneles) más `pane-dragging`; Esc se ataja en captura para que no le llegue a la terminal.
 - `window.confirm` NO pregunta: el plugin de diálogos de Tauri lo reemplaza por una función async
   (devuelve una promesa, que siempre es "sí") y falta el permiso `dialog:allow-confirm`. Usar
-  `askConfirm` (`src/widgets/confirm.ts`), que pregunta dentro de la app. Al 23/11/2026 hay 13
-  `confirm()` viejos que siguen sin preguntar (Docker, Git, Servidores, Configuración —incluida la
-  statusline de Claude Code—, Agentes, Modificaciones, cerrar carpeta de pestañas).
+  `askConfirm` (`src/widgets/confirm.ts`), que pregunta dentro de la app (`ConfirmModal`, montado
+  en Workspace y en la ventana de configuración). El test `scripts/sin-confirm.test.mjs` falla si
+  vuelve a aparecer un `confirm(` suelto en `src`.
 - Con `npx tauri dev`/Vite, la recarga en caliente de `Workspace.tsx` deja viva la instancia vieja
   (sigue contestando la API de control y puede pisar la sesión): recargar la página antes de probar.
 - Escrituras a la PTY por `WriteQueue` (si no, se invierten teclas). Nunca atajos con Ctrl+Alt (AltGr).

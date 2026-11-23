@@ -1,4 +1,5 @@
 import { createResource, createSignal, For, onMount, Show } from "solid-js";
+import { askConfirm } from "../widgets/confirm";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { AgentDef, Settings } from "../settings/schema";
@@ -206,8 +207,8 @@ export default function AgentsPanel(props: Props) {
                           onDelete={
                             a().builtin
                               ? undefined
-                              : () => {
-                                  if (!confirm(`¿Borrar "${a().name}" del catálogo?`)) return;
+                              : async () => {
+                                  if (!(await askConfirm(`¿Borrar "${a().name}" del catálogo?`, "Borrar"))) return;
                                   props.update((s) => void (s.agents = s.agents.filter((x) => x.id !== id)));
                                   setEditing(null);
                                 }

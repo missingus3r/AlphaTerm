@@ -1,4 +1,5 @@
 import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, Show } from "solid-js";
+import { askConfirm } from "../widgets/confirm";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { countChanges, parseDiff, sideBySide, STATUS_WORD, type DiffLine } from "./diff";
@@ -123,8 +124,8 @@ export default function GitPanel(props: Props) {
       },
     );
   const remote = (op: "fetch" | "pull" | "push") => act(op, () => invoke<string>("git_remote", { root: root(), op }), (r) => String(r));
-  const switchTo = (name: string, create: boolean) => {
-    if (!create && (status()?.files.length ?? 0) > 0 && !confirm(`Hay ${status()!.files.length} cambios sin commitear. ¿Cambiar a ${name} igual? Git no deja cambiar si se pisarían.`)) return;
+  const switchTo = async (name: string, create: boolean) => {
+    if (!create && (status()?.files.length ?? 0) > 0 && !(await askConfirm(`Hay ${status()!.files.length} cambios sin commitear. ¿Cambiar a ${name} igual? Git no deja cambiar si se pisarían.`, "Cambiar"))) return;
     void act("switch", () => invoke<string>("git_switch", { root: root(), branch: name, create }), () => `Ahora en ${name}`);
   };
   const [newBranch, setNewBranch] = createSignal("");
@@ -193,8 +194,9 @@ export default function GitPanel(props: Props) {
               <Show when={props.dir}>
                 <button
                   class="btn"
-                  onClick={() => {
-                    if (confirm(`¿Crear un repo git nuevo en ${props.dir}?`)) void act("init", () => invoke("git_init", { dir: props.dir }), () => "Repo creado.");
+                  onClick={async () => {
+                    const dir = props.dir;
+                    if (await askConfirm(`¿Crear un repo git nuevo en ${dir}?`, "Crear")) void act("init", () => invoke("git_init", { dir }), () => "Repo creado.");
                   }}
                 >
                   Inicializar un repo acá

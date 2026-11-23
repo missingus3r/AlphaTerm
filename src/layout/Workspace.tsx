@@ -913,9 +913,9 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
         onGroupMove={(id, g) => update((x) => M.moveToGroup(x, id, g))}
         onGroupUpdate={(g, patch) => update((x) => M.updateGroup(x, g, patch))}
         onGroupUngroup={(g) => update((x) => M.ungroup(x, g))}
-        onGroupClose={(g) => {
+        onGroupClose={async (g) => {
           const n = layout().tabs.filter((t) => t.groupId === g).length;
-          if (confirm(`¿Cerrar las ${n} pestañas de la carpeta? Se cierran sus shells y lo que esté corriendo en ellas.`)) {
+          if (await askConfirm(`¿Cerrar las ${n} pestañas de la carpeta? Se cierran sus shells y lo que esté corriendo en ellas.`, "Cerrar")) {
             update((x) => x.tabs.filter((t) => t.groupId === g).reduce((acc, t) => M.closeTab(acc, t.id), x));
           }
         }}

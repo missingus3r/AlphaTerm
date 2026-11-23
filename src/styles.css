@@ -660,7 +660,7 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
   width: min(440px, 100%); background: var(--bg-solid); border: 1px solid var(--line); border-radius: 12px;
   padding: 16px 18px; box-shadow: 0 20px 60px #000a; display: flex; flex-direction: column; gap: 14px;
 }
-.confirm-box p { margin: 0; line-height: 1.45; }
+.confirm-box p { margin: 0; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
 
 /* --- Novedades (changelog) --- */
 .app-version.news { color: var(--accent); }

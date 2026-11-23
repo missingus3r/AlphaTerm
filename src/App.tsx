@@ -2,6 +2,7 @@ import { createEffect, createMemo, createResource, lazy, Show, Suspense } from "
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { killOwned, termInfo } from "./terminal/pty";
 import { Workspace } from "./layout/Workspace";
+import { ConfirmModal } from "./widgets/ConfirmModal";
 import { loadSettings, type SettingsStore } from "./settings/store";
 import { termLook, useAppearance } from "./settings/apply";
 import { invoke } from "@tauri-apps/api/core";
@@ -66,6 +67,7 @@ function Themed(props: { store: SettingsStore }) {
           IS_SETTINGS ? (
             <Suspense>
               <SettingsView info={ti()} store={props.store} />
+              <ConfirmModal />
             </Suspense>
           ) : (
             <Workspace info={ti()} store={props.store} look={look()} initial={initial() ?? undefined} />

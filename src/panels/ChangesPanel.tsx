@@ -1,4 +1,5 @@
 import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { askConfirm } from "../widgets/confirm";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { parseDiff } from "./diff";
@@ -62,8 +63,8 @@ function FileCard(props: { c: ChangeSummary; open: boolean; split: boolean; onTo
       setSaving(false);
     }
   };
-  const cancel = () => {
-    if (dirty() && !confirm("¿Descartar lo que editaste en este archivo?")) return;
+  const cancel = async () => {
+    if (dirty() && !(await askConfirm("¿Descartar lo que editaste en este archivo?", "Descartar"))) return;
     setEdit(null);
     setMsg(null);
   };
@@ -246,7 +247,7 @@ export default function ChangesPanel() {
         <button
           class="link small danger"
           disabled={!(list() ?? []).length}
-          onClick={() => confirm("¿Vaciar la lista de modificaciones? Los archivos no se tocan.") && remove()}
+          onClick={async () => (await askConfirm("¿Vaciar la lista de modificaciones? Los archivos no se tocan.", "Vaciar")) && remove()}
         >
           Limpiar
         </button>

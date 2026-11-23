@@ -1,4 +1,5 @@
 import { createMemo, createResource, createSignal, For, onCleanup, Show, type JSX } from "solid-js";
+import { askConfirm } from "../widgets/confirm";
 import type { TermInfo } from "../terminal/pty";
 import { invoke } from "@tauri-apps/api/core";
 import { COMMANDS, FIXED_HELP, comboOf, comboProblem, comboWarning, conflicts, effectiveBindings } from "../layout/shortcuts";
@@ -167,8 +168,8 @@ export default function SettingsView(props: { info: TermInfo; store: SettingsSto
           </button>
           <button
             class="link danger"
-            onClick={() => {
-              if (confirm("¿Volver toda la configuración a los valores de fábrica? Se borran también los temas propios.")) {
+            onClick={async () => {
+              if (await askConfirm("¿Volver toda la configuración a los valores de fábrica? Se borran también los temas propios.", "Volver a fábrica")) {
                 props.store.reset();
               }
             }}
@@ -278,9 +279,9 @@ function ThemeSection(props: SectionProps & { osDark: boolean }) {
       if (t) t.colors[key] = value;
     });
 
-  const remove = () => {
+  const remove = async () => {
     const t = selected();
-    if (!confirm(`¿Borrar el tema "${t.name}"? No se puede deshacer (salvo volviéndolo a importar).`)) return;
+    if (!(await askConfirm(`¿Borrar el tema "${t.name}"? No se puede deshacer (salvo volviéndolo a importar).`, "Borrar"))) return;
     props.set((d) => {
       d.customThemes = d.customThemes.filter((x) => x.id !== t.id);
       if (d.appearance.theme === t.id) d.appearance.theme = "nova-dark";
@@ -765,10 +766,11 @@ function UsageSection(props: SectionProps) {
   const [msg, setMsg] = createSignal<{ ok: boolean; text: string } | null>(null);
   const install = async () => {
     const cur = status()?.current;
-    const ok = confirm(
+    const ok = await askConfirm(
       "Esto cambia la statusline de Claude Code (~/.claude/settings.json) por la de AlphaTerm, que guarda los límites de 5 h y semana para el footer." +
         (cur ? `\n\nHoy está configurada: ${cur}` : "") +
         "\n\nAntes se guarda una copia del archivo (settings.json.antes-de-alphaterm). ¿Seguir?",
+      "Seguir",
     );
     if (!ok) return;
     try {

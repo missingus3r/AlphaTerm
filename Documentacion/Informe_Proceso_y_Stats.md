@@ -816,15 +816,16 @@ barrita fija arriba de cada panel (en vez de botones flotantes).
   pregunta. Para no mostrar preguntas después de actuar, no se agregó el permiso.
 
 ### Pendiente / no verificado
-- Los 13 `confirm()` viejos siguen sin preguntar (detener un servidor, aunque no lo haya lanzado
-  AlphaTerm; borrar contenedor de Docker; volver la configuración a fábrica; cambiar la statusline
-  de Claude Code; borrar temas, recetas, presets de Docker y agentes del catálogo; cambiar de rama
-  con cambios; crear repo; vaciar modificaciones; descartar edición; cerrar carpeta de pestañas).
-  Arreglo propuesto: pasarlos a `askConfirm`. Decide Bruno.
+- Arreglado a pedido de Bruno: los 13 `confirm()` viejos (detener un servidor, aunque no lo haya
+  lanzado AlphaTerm; borrar contenedor de Docker; volver la configuración a fábrica; cambiar la
+  statusline de Claude Code; borrar temas, recetas, presets de Docker y agentes del catálogo;
+  cambiar de rama con cambios; crear repo; vaciar modificaciones; descartar edición; cerrar carpeta
+  de pestañas) pasaron a `askConfirm`, con un botón que dice qué hace («Detener», «Borrar»,
+  «Volver a fábrica»…). `scripts/sin-confirm.test.mjs` falla si vuelve a aparecer uno suelto.
 - Probarlo en el uso diario de Bruno (acceso directo «AlphaTerm prueba (paneles).bat»).
 - Con un agente real trabajando (Claude Code) mientras se mueve su panel: probado con `ping`, no con
   un agente.
 
 ### Stats
-- Tests: Vitest 228 (+22: modelo 11, sesión 1, estado 1, arrastre 7, confirmación 3). Sin cambios
-  de Rust.
+- Tests: Vitest 229 (+23: modelo 11, sesión 1, estado 1, arrastre 7, confirmación 3, guardia de
+  `confirm()` 1). Sin cambios de Rust.

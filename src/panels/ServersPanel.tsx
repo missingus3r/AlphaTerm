@@ -1,4 +1,5 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
+import { askConfirm } from "../widgets/confirm";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -55,7 +56,7 @@ export default function ServersPanel(props: Props) {
     const question = ours
       ? `¿Detener ${what}? Se corta ese proceso y lo que cuelga de él.`
       : `${what} no lo lanzó AlphaTerm.\n\n¿Detenerlo igual? Se corta ese proceso y lo que cuelga de él; si es de otro programa, ese programa puede fallar.`;
-    if (!confirm(question)) return;
+    if (!(await askConfirm(question, "Detener"))) return;
     try {
       await invoke<string>("ports_kill", { pid: s.pid });
       setMsg({ ok: true, text: `Se detuvo ${s.name}.` });
@@ -229,8 +230,8 @@ export default function ServersPanel(props: Props) {
                   <div class="row-actions">
                     <button
                       class="link danger"
-                      onClick={() => {
-                        if (!confirm(`¿Borrar la receta "${r.name}"?`)) return;
+                      onClick={async () => {
+                        if (!(await askConfirm(`¿Borrar la receta "${r.name}"?`, "Borrar"))) return;
                         props.update((d) => void (d.recipes = d.recipes.filter((x) => x.id !== r.id)));
                         setEditing(null);
                       }}
