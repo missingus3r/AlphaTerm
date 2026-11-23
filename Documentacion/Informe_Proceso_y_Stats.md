@@ -776,3 +776,55 @@ hacia arriba y que me aparezca un menú de posibles carpetas desde donde estoy p
 
 ### Stats
 - Tests: Rust 84 (+6 ignorados), Vitest 206. Todos en verde.
+
+## Paneles: barrita, mover y divisores (23/11/2026, rama `paneles`)
+
+Pedido de Bruno: "poner split view de multiples ventanas", y después "agregá los botones de dividir
+y cerrar, tambien el poder moverlas como si fuera snap, osea cambiar el orden o el tamaño". Diseño y
+plan en `Documentacion/specs/2026-11-23-paneles-barra-y-snap-*.md`. Enfoque elegido por Bruno: una
+barrita fija arriba de cada panel (en vez de botones flotantes).
+
+### Qué se hizo
+- Barrita de 22 px en cada panel de terminal: nombre (agente o shell · carpeta), ⇥ dividir a la
+  derecha, ⤓ dividir abajo, × cerrar. Resaltada en el panel enfocado. Clic derecho: Dividir a la
+  derecha, Dividir abajo, Igualar tamaños, Cerrar panel. El navegador suma el agarre ⋮⋮ y ⇥ ⤓.
+- × y «Cerrar panel» preguntan si hay algo corriendo (agente o comando), con una pregunta propia
+  dentro de la app (`askConfirm`): `window.confirm` no pregunta en AlphaTerm (ver Pendiente).
+- Mover: se arrastra la barrita (umbral de 5 px); sobre la mitad de otro panel queda de ese lado,
+  en el centro se intercambian; se pinta dónde va a quedar. Esc, perder el foco o pointercancel
+  cancelan. El navegador se esconde mientras se arrastra.
+- Divisores: zona de 9 px, se frenan en ⅓, ½ y ⅔ (a 12 px o menos), doble clic deja mitad y mitad.
+- Modelo con tests: `movePane`, `swapPanes`, `equalize`, `paneAt`, `dropZone`, `zoneRect`,
+  `snapRatio`; `paneBusy`; el controlador del arrastre (`paneDrag.ts`) con tests propios.
+
+### Prueba en la app (exe de debug + Vite, datos y WebView2 propios, CDP en 9333)
+- ⇥ y ⤓ dividen el panel de esa barrita; el nuevo queda resaltado; × sin nada corriendo cierra.
+- Con `ping -t localhost` corriendo, × y «Cerrar panel» preguntan («¿Cerrar este panel? Se corta lo
+  que está corriendo en él (PING · Br1).»), con el foco en Cancelar; Esc y Cancelar no cierran.
+- Arrastrar el panel del ping a la mitad izquierda de otro: queda a la izquierda, es el mismo nodo
+  de la terminal (marca en el DOM intacta) y el proceso PING sigue vivo. Centro intercambia. Esc,
+  blur y un clic sin mover no cambian nada y dejan el body limpio.
+- Esc a mitad de arrastre no llega a la shell (una línea escrita en PowerShell sigue ahí; un Esc
+  directo sí la borra).
+- Con un navegador: durante el arrastre se esconde y se pinta la zona; al cancelar vuelve. El
+  navegador se mueve por su agarre.
+- Divisor: cerca de ⅓ queda en 0,3333; a 9 px de ⅔ queda en 0,6667; lejos queda donde se suelta
+  (0,42); doble clic 0,5; «Igualar tamaños» 0,5.
+- Cerrar la ventana de prueba y volver a abrirla recupera la distribución movida.
+- Hallazgo: `window.confirm` está reemplazado por el plugin de diálogos de Tauri (función async →
+  promesa, siempre "sí") y la app no tiene el permiso: ninguno de los `confirm()` de la app
+  pregunta. Para no mostrar preguntas después de actuar, no se agregó el permiso.
+
+### Pendiente / no verificado
+- Los 13 `confirm()` viejos siguen sin preguntar (detener un servidor, aunque no lo haya lanzado
+  AlphaTerm; borrar contenedor de Docker; volver la configuración a fábrica; cambiar la statusline
+  de Claude Code; borrar temas, recetas, presets de Docker y agentes del catálogo; cambiar de rama
+  con cambios; crear repo; vaciar modificaciones; descartar edición; cerrar carpeta de pestañas).
+  Arreglo propuesto: pasarlos a `askConfirm`. Decide Bruno.
+- Probarlo en el uso diario de Bruno (acceso directo «AlphaTerm prueba (paneles).bat»).
+- Con un agente real trabajando (Claude Code) mientras se mueve su panel: probado con `ping`, no con
+  un agente.
+
+### Stats
+- Tests: Vitest 228 (+22: modelo 11, sesión 1, estado 1, arrastre 7, confirmación 3). Sin cambios
+  de Rust.

@@ -43,6 +43,17 @@ la guía de código en `Documentacion\Guia_de_codigo.txt` (y su PDF); el registr
 ## Gotchas
 - Paneles de terminal: se iteran por id y se posicionan por rectángulos (anidarlos re-monta las
   terminales y mata la shell). Lo mismo con los paneles laterales del mosaico: iterar ids, no objetos.
+  Cada uno tiene arriba la barrita de 22 px (`PaneBar`) y la terminal va en `.pane-body`. Mover un
+  panel (`movePane`) es solo cambiar el árbol: la hoja es la misma y la terminal no se recrea.
+  El arrastre usa la clase `resizing` del body (esconde el navegador y quita el puntero a los
+  paneles) más `pane-dragging`; Esc se ataja en captura para que no le llegue a la terminal.
+- `window.confirm` NO pregunta: el plugin de diálogos de Tauri lo reemplaza por una función async
+  (devuelve una promesa, que siempre es "sí") y falta el permiso `dialog:allow-confirm`. Usar
+  `askConfirm` (`src/widgets/confirm.ts`), que pregunta dentro de la app. Al 23/11/2026 hay 13
+  `confirm()` viejos que siguen sin preguntar (Docker, Git, Servidores, Configuración —incluida la
+  statusline de Claude Code—, Agentes, Modificaciones, cerrar carpeta de pestañas).
+- Con `npx tauri dev`/Vite, la recarga en caliente de `Workspace.tsx` deja viva la instancia vieja
+  (sigue contestando la API de control y puede pisar la sesión): recargar la página antes de probar.
 - Escrituras a la PTY por `WriteQueue` (si no, se invierten teclas). Nunca atajos con Ctrl+Alt (AltGr).
 - Solid: dentro de un `createEffect`, una función que lee y cambia una señal lo vuelve a disparar en
   bucle (pasó en el footer: 180 MB). Usar `untrack` u `on`. Y en `<Show>` con callback, no leer `m()`

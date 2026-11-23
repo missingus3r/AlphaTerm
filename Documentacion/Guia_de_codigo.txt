@@ -68,6 +68,14 @@ FRONTEND (SOLIDJS)
    pollers y la respuesta a la API de control. Los paneles se dibujan planos, posicionados por
    rectángulos e iterados por id: anidarlos re-monta las terminales y mata sus shells.
  - layout\model.ts: funciones puras sobre el layout (abrir, cerrar, dividir, mover, carpetas…).
+   También mover un panel al lado de otro o intercambiarlos (movePane/swapPanes), igualar
+   tamaños (equalize) y la geometría del arrastre (paneAt, dropZone, zoneRect, snapRatio).
+ - layout\PaneBar.tsx: la barrita de 22 px de cada panel de terminal (nombre, dividir, cerrar) y
+   el menú de su clic derecho. La terminal va debajo, en .pane-body.
+ - layout\paneDrag.ts: el arrastre de un panel por su barrita (umbral de 5 px, Esc/blur/
+   pointercancel cancelan). Recibe la ventana y el body por parámetro para poder testearlo.
+ - widgets\confirm.ts y ConfirmModal.tsx: askConfirm(), la pregunta dentro de la app.
+   window.confirm NO sirve en AlphaTerm (ver CLAUDE.md, Gotchas).
  - layout\title.ts: el nombre de la pestaña (manual > título del programa > modelo > heurística).
  - layout\shortcuts.ts: atajos configurables; nunca Ctrl+Alt (AltGr en teclado español).
  - layout\session.ts y control.ts: guardar/restaurar y contestar pedidos de la API.
