@@ -43,3 +43,15 @@ opt-level = 3
 lto = true
 codegen-units = 1
 strip = true
+
+# Desarrollo (`npx tauri dev`, `cargo test`): sin esto target\debug llego a 28 GB, casi todo
+# informacion de depuracion de las dependencias. El codigo propio guarda solo numeros de linea
+# (alcanzan para los backtraces); dependencias, build scripts y macros, nada.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
+[profile.dev.build-override]
+debug = false
