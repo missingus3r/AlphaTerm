@@ -24,6 +24,11 @@ export function agentRunning(p: AgentPaneInfo): boolean {
   return p.integrated ? p.running : !!p.fgProcess;
 }
 
+/** Hay algo corriendo en el panel (un agente o un comando): cerrarlo lo corta. */
+export function paneBusy(p: AgentPaneInfo): boolean {
+  return !p.exited && agentRunning(p);
+}
+
 export function agentState(p: AgentPaneInfo): AgentState {
   if (p.exited) return "exited";
   if (!p.agentStarted) return "starting";

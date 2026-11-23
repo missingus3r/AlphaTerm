@@ -275,3 +275,39 @@ describe("mover paneles", () => {
     expect(rects.get(C.id)!.h).toBeCloseTo(0.5);
   });
 });
+
+describe("zonas para soltar y frenado del divisor", () => {
+  const full = { x: 0, y: 0, w: 1, h: 1 };
+
+  it("el borde más cercano o el centro", () => {
+    expect(M.dropZone(full, 0.05, 0.5)).toBe("left");
+    expect(M.dropZone(full, 0.95, 0.5)).toBe("right");
+    expect(M.dropZone(full, 0.5, 0.05)).toBe("top");
+    expect(M.dropZone(full, 0.5, 0.95)).toBe("bottom");
+    expect(M.dropZone(full, 0.5, 0.5)).toBe("center");
+    expect(M.dropZone(full, 0.6, 0.62)).toBe("center");
+    expect(M.dropZone({ x: 0.5, y: 0, w: 0.5, h: 1 }, 0.55, 0.5)).toBe("left");
+  });
+
+  it("el rectángulo que se pinta: la mitad del lado o el panel entero", () => {
+    expect(M.zoneRect(full, "right")).toEqual({ x: 0.5, y: 0, w: 0.5, h: 1 });
+    expect(M.zoneRect(full, "top")).toEqual({ x: 0, y: 0, w: 1, h: 0.5 });
+    expect(M.zoneRect(full, "center")).toEqual(full);
+  });
+
+  it("qué panel está debajo del puntero", () => {
+    const rects = new Map([
+      ["a", { x: 0, y: 0, w: 0.5, h: 1 }],
+      ["b", { x: 0.5, y: 0, w: 0.5, h: 1 }],
+    ]);
+    expect(M.paneAt(rects, 0.75, 0.5)).toBe("b");
+    expect(M.paneAt(rects, 1.5, 0.5)).toBeUndefined();
+  });
+
+  it("se frena en un tercio, la mitad y dos tercios si está cerca", () => {
+    expect(M.snapRatio(0.49, 800)).toBe(0.5);
+    expect(M.snapRatio(0.47, 800)).toBe(0.47);
+    expect(M.snapRatio(0.34, 600)).toBe(1 / 3);
+    expect(M.snapRatio(0.9, 1000)).toBe(0.9);
+  });
+});

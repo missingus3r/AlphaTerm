@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentState, envToText, parseEnvText, pushRecent } from "./agentState";
+import { agentState, envToText, paneBusy, parseEnvText, pushRecent } from "./agentState";
 
 const base = { integrated: true, running: true, agentStarted: true };
 
@@ -31,5 +31,14 @@ describe("variables y carpetas", () => {
   it("recientes: la última primero, sin repetir (sin importar mayúsculas ni barra final)", () => {
     expect(pushRecent(["C:\\a", "C:\\b"], "c:\\B\\")).toEqual(["c:\\B\\", "C:\\a"]);
     expect(pushRecent(Array.from({ length: 12 }, (_, i) => `d${i}`), "nueva")).toHaveLength(12);
+  });
+});
+
+describe("panel ocupado (para preguntar antes de cerrarlo)", () => {
+  it("corre algo si la shell integrada está en un comando o, sin integración, hay un programa al frente", () => {
+    expect(paneBusy({ integrated: true, running: true })).toBe(true);
+    expect(paneBusy({ integrated: true, running: false })).toBe(false);
+    expect(paneBusy({ integrated: false, running: false, fgProcess: "ping" })).toBe(true);
+    expect(paneBusy({ integrated: true, running: true, exited: true })).toBe(false);
   });
 });

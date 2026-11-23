@@ -366,6 +366,50 @@ export function paneRects(node: PaneNode, r: Rect = { x: 0, y: 0, w: 1, h: 1 }):
   return out;
 }
 
+/** El panel cuyo rectángulo contiene el punto (en las mismas unidades que los rectángulos). */
+export function paneAt(rects: Map<string, Rect>, fx: number, fy: number): string | undefined {
+  for (const [id, r] of rects) if (fx >= r.x && fx < r.x + r.w && fy >= r.y && fy < r.y + r.h) return id;
+  return undefined;
+}
+
+/** Zona de un panel bajo el puntero: el centro (para intercambiar) o el borde más cercano. */
+export function dropZone(r: Rect, fx: number, fy: number): DropZone {
+  const u = (fx - r.x) / r.w;
+  const v = (fy - r.y) / r.h;
+  if (Math.abs(u - 0.5) <= 0.2 && Math.abs(v - 0.5) <= 0.2) return "center";
+  const edges: [DropZone, number][] = [
+    ["left", u],
+    ["right", 1 - u],
+    ["top", v],
+    ["bottom", 1 - v],
+  ];
+  return edges.reduce((best, e) => (e[1] < best[1] ? e : best))[0];
+}
+
+/** Lo que se pinta al arrastrar: la mitad donde va a quedar el panel, o el panel entero (intercambio). */
+export function zoneRect(r: Rect, zone: DropZone): Rect {
+  switch (zone) {
+    case "left":
+      return { ...r, w: r.w / 2 };
+    case "right":
+      return { ...r, x: r.x + r.w / 2, w: r.w / 2 };
+    case "top":
+      return { ...r, h: r.h / 2 };
+    case "bottom":
+      return { ...r, y: r.y + r.h / 2, h: r.h / 2 };
+    default:
+      return r;
+  }
+}
+
+export const SNAP_POINTS = [1 / 3, 1 / 2, 2 / 3];
+
+/** El divisor se frena en ⅓, ½ o ⅔ si se lo suelta a pocos píxeles (`extentPx`: largo de la división). */
+export function snapRatio(ratio: number, extentPx: number, thresholdPx = 12): number {
+  const near = SNAP_POINTS.reduce((best, s) => (Math.abs(s - ratio) < Math.abs(best - ratio) ? s : best));
+  return Math.abs(near - ratio) * extentPx <= thresholdPx ? near : ratio;
+}
+
 export type Direction = "left" | "right" | "up" | "down";
 
 /** Panel vecino en una dirección: el más cercano que se superpone en el otro eje. */
