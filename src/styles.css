@@ -111,6 +111,18 @@ body { height: 100%; margin: 0; background: var(--bg); color: var(--text); overf
   content: ""; position: absolute; inset: 0; pointer-events: none;
   box-shadow: inset 0 0 0 1px #2563eb88; border-radius: 2px;
 }
+/* Barrita de cada panel de terminal: nombre, dividir, cerrar; se agarra para mover el panel. */
+.pane-bar {
+  position: absolute; left: 0; right: 0; top: 0; height: 22px; display: flex; align-items: center; gap: 1px;
+  padding: 0 3px 0 10px; background: var(--bar); border-bottom: 1px solid var(--line);
+  font-size: 11.5px; color: var(--muted); cursor: grab; user-select: none;
+}
+.pane-bar.highlight { color: var(--text); box-shadow: inset 0 2px 0 var(--accent); }
+.pane-bar .pane-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pane-bar .icon-btn { width: 20px; height: 18px; font-size: 12px; cursor: pointer; }
+.pane-body { position: absolute; top: 22px; left: 0; right: 0; bottom: 0; }
+.bp-grip { color: var(--muted); cursor: grab; padding: 0 4px; user-select: none; letter-spacing: -2px; }
+.bp-grip:hover { color: var(--text); }
 .term-host { position: absolute; inset: 0; padding: 6px 4px 4px 12px; }
 .term-host .xterm { height: 100%; }
 /* xterm pinta su viewport opaco aunque el tema sea transparente; el color de fondo ya lo pone

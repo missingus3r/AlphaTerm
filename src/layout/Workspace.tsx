@@ -11,7 +11,8 @@ import { foreground, gitBranch, newWindow, type TermInfo } from "../terminal/pty
 import type { TermLook } from "../settings/apply";
 import { closeSettings, openSettings, settingsOpen, type SettingsStore } from "../settings/store";
 import type { AgentDef } from "../settings/schema";
-import { agentRunning, agentState, pushRecent } from "../panels/agentState";
+import { agentRunning, agentState, paneBusy, pushRecent } from "../panels/agentState";
+import { PaneBar, PaneMenu } from "./PaneBar";
 import { agentKind, buildCommand, launchParts, shellKindOf } from "../panels/agentLaunch";
 import type { RunningAgent } from "../panels/AgentsPanel";
 import { ActivityBar, PANELS, type PanelId } from "../panels/ActivityBar";
@@ -209,14 +210,10 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   });
 
   // --- Acciones -------------------------------------------------------------------------------
-  const activeLeaf = () => {
-    const t = active();
-    return t ? M.findLeaf(t.root, t.activePane) : undefined;
-  };
-
-  const doSplit = (dir: M.SplitDir | "auto") => {
-    const t = active();
-    const l = activeLeaf();
+  /** Divide un panel (el de la barrita, o el activo con los atajos). */
+  const splitAt = (tabId: string, paneId: string, dir: M.SplitDir | "auto") => {
+    const t = tabById(tabId);
+    const l = t ? M.findLeaf(t.root, paneId) : undefined;
     if (!t || !l) return;
     // Desde un navegador se abre una terminal en la carpeta de su dueño.
     const base = l.browser ? M.findLeaf(t.root, l.browser.owner ?? "") ?? M.leaves(t.root).find((x) => !x.browser) : l;
@@ -231,8 +228,30 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     // El panel nuevo hereda perfil y carpeta del actual.
     update((x) => M.splitPane(x, t.id, l.id, d, M.leaf(base?.profileId || defaultProfile(), (base && panes[base.id]?.cwd) ?? base?.cwd)));
   };
+  const doSplit = (dir: M.SplitDir | "auto") => {
+    const t = active();
+    if (t) splitAt(t.id, t.activePane, dir);
+  };
 
   const closePane = (tabId: string, paneId: string) => update((x) => M.closePane(x, tabId, paneId));
+  /** Cerrar desde la barrita o el menú: si hay algo corriendo, pregunta antes. */
+  const askClose = (tabId: string, paneId: string) => {
+    const p = panes[paneId];
+    if (p && paneBusy(p) && !confirm(`¿Cerrar este panel? Se corta lo que está corriendo en él (${paneLabel(paneId)}).`)) return;
+    closePane(tabId, paneId);
+  };
+  /** Enfoca un panel ya (el clic en la barrita no le da el foco a la terminal por sí solo). */
+  const focusNow = (tabId: string, paneId: string) => {
+    if (tabById(tabId)?.activePane !== paneId) update((x) => M.focusPane(x, tabId, paneId));
+    queueMicrotask(() => handles.get(paneId)?.focus());
+  };
+  const [paneMenu, setPaneMenu] = createSignal<{ x: number; y: number; tabId: string; paneId: string } | null>(null);
+  const openPaneMenu = (e: MouseEvent, tabId: string, paneId: string) => {
+    focusNow(tabId, paneId);
+    setPaneMenu({ x: Math.min(e.clientX, window.innerWidth - 230), y: Math.min(e.clientY, window.innerHeight - 180), tabId, paneId });
+  };
+  /** Agarrar la barrita: por ahora solo enfoca (el arrastre se suma aparte). */
+  const grab = (tabId: string, paneId: string, _e: PointerEvent) => focusNow(tabId, paneId);
 
   // --- Paneles laterales en mosaico -----------------------------------------------------------
   // Se guardan en la sesión de la ventana y, como preferencia, para las ventanas nuevas.
@@ -555,18 +574,21 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     const u = prompt("¿Qué dirección abro en el navegador?", guessUrl(t.id) ?? "http://localhost:5173");
     if (u !== null && u.trim()) openBrowser({ url: u.trim() });
   };
+  /** Nombre corto de un panel de terminal: agente (o programa, o shell) · carpeta. */
+  const paneLabel = (id: string) => {
+    const p = panes[id];
+    if (!p) return "";
+    const agent = settings().agents.find((a) => a.id === (p.agentId ?? providerFor(p.agentId, p.running ? p.lastCommand : undefined, p.fgProcess)));
+    const where = p.cwd ? p.cwd.split(/[\\/]/).filter(Boolean).pop() : "";
+    return `${agent?.name ?? p.fgProcess ?? p.shellName}${where ? ` · ${where}` : ""}`;
+  };
   /** Terminales de la pestaña a las que se les puede mandar un pedido. */
   const targetsOf = (tabId: string): Target[] => {
     const t = tabById(tabId);
     if (!t) return [];
     return M.leaves(t.root)
       .filter((l) => !l.browser && panes[l.id])
-      .map((l) => {
-        const p = panes[l.id]!;
-        const agent = settings().agents.find((a) => a.id === (p.agentId ?? providerFor(p.agentId, p.running ? p.lastCommand : undefined, p.fgProcess)));
-        const where = p.cwd ? p.cwd.split(/[\\/]/).filter(Boolean).pop() : "";
-        return { id: l.id, label: `${agent?.name ?? p.fgProcess ?? p.shellName}${where ? ` · ${where}` : ""}` };
-      });
+      .map((l) => ({ id: l.id, label: paneLabel(l.id) }));
   };
   const ownerLive = (id: string): OwnerLive | undefined => {
     const p = panes[id];
@@ -923,6 +945,9 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                             }}
                             onSend={sendToAgent}
                             onClose={() => closePane(tabId, paneId)}
+                            onSplit={(d) => splitAt(tabId, paneId, d)}
+                            onGrab={(e) => grab(tabId, paneId, e)}
+                            onMenu={(e) => openPaneMenu(e, tabId, paneId)}
                           />
                         </div>
                       );
@@ -933,6 +958,16 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                         classList={{ focused: focused() && multi() }}
                         style={{ left: pct(r().x), top: pct(r().y), width: pct(r().w), height: pct(r().h) }}
                       >
+                        <PaneBar
+                          title={paneLabel(paneId)}
+                          tooltip={[panes[paneId]?.cwd, "Arrastrar para mover el panel · clic derecho: más opciones"].filter(Boolean).join("\n")}
+                          highlight={focused() && multi()}
+                          onSplit={(d) => splitAt(tabId, paneId, d)}
+                          onClose={() => askClose(tabId, paneId)}
+                          onGrab={(e) => grab(tabId, paneId, e)}
+                          onMenu={(e) => openPaneMenu(e, tabId, paneId)}
+                        />
+                        <div class="pane-body">
                         <TerminalView
                           paneId={paneId}
                           profileId={leafAt.profileId}
@@ -961,6 +996,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                           onAction={run}
                           ref={(h) => handles.set(paneId, h)}
                         />
+                        </div>
                       </div>
                     );
                   }}
@@ -1062,6 +1098,18 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
         </div>
       </Show>
     </div>
+    <Show when={paneMenu()}>
+      {(m) => (
+        <PaneMenu
+          x={m().x}
+          y={m().y}
+          onSplit={(d) => splitAt(m().tabId, m().paneId, d)}
+          onEqualize={() => update((x) => M.equalize(x, m().tabId))}
+          onClose={() => askClose(m().tabId, m().paneId)}
+          onDismiss={() => setPaneMenu(null)}
+        />
+      )}
+    </Show>
     <GuardianModal />
     <UsageFooter
       usage={settings().usage}

@@ -31,6 +31,12 @@ interface Props {
   /** Escribe el pedido en la terminal del agente. */
   onSend: (pane: string, message: string) => boolean;
   onClose: () => void;
+  /** Dividir desde el navegador (abre una terminal en la carpeta de su dueño). */
+  onSplit?: (dir: "row" | "column") => void;
+  /** Agarrar el panel para moverlo. */
+  onGrab?: (e: PointerEvent) => void;
+  /** Clic derecho en el agarre: el menú del panel. */
+  onMenu?: (e: MouseEvent) => void;
 }
 
 type Status = { kind: "idle" } | { kind: "busy"; text: string } | { kind: "working"; since: number } | { kind: "attention" } | { kind: "done" } | { kind: "error"; text: string };
@@ -244,6 +250,18 @@ export function BrowserView(props: Props) {
   return (
     <div class="browser-pane" classList={{ focused: props.focused }} onMouseDown={props.onFocus}>
       <div class="bp-bar">
+        <span
+          class="bp-grip"
+          title="Arrastrar para mover el panel"
+          onMouseDown={(e) => e.preventDefault()}
+          onPointerDown={(e) => props.onGrab?.(e)}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            props.onMenu?.(e);
+          }}
+        >
+          ⋮⋮
+        </span>
         <button class="icon-btn" title="Atrás" onClick={() => void invoke("browser_go", { id: props.id, action: "back" })}>
           ←
         </button>
@@ -276,6 +294,14 @@ export function BrowserView(props: Props) {
           <span class="bp-errors" title={errors().join("\n\n")} onClick={() => setErrors([])}>
             ⚠ {errors().length}
           </span>
+        </Show>
+        <Show when={props.onSplit}>
+          <button class="icon-btn" title="Dividir a la derecha" onClick={() => props.onSplit?.("row")}>
+            ⇥
+          </button>
+          <button class="icon-btn" title="Dividir abajo" onClick={() => props.onSplit?.("column")}>
+            ⤓
+          </button>
         </Show>
         <button class="icon-btn tiny-x" title="Cerrar el navegador" onClick={props.onClose}>
           ×
