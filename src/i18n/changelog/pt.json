@@ -1,0 +1,206 @@
+{
+  "F0 y F1: plan, documentación y núcleo de la terminal": {
+    "subject": "F0 e F1: plano, documentação e núcleo do terminal",
+    "body": "- Plano com adendo sobre o ambiente de casa, PDFs regeneráveis e Relatório do processo.\n- Tauri 2 + Vite + SolidJS + xterm.js 6 (WebGL com fallback para DOM).\n- Sessões ConPTY com agrupamento de saída (4 ms / 64 KB), contrapressão e canal binário.\n- Perfis: Windows PowerShell, PowerShell 7, cmd, Git Bash e WSL, com detecção.\n- Copiar/colar como no Windows Terminal, redimensionamento, reinício quando o shell termina.\n- ConPTY da Microsoft (conpty.dll + OpenConsole.exe 1.25, MIT) junto ao exe.\n- Testes: 9 de Rust (inclui ConPTY real) e 8 de Vitest; benchmarks ignorados."
+  },
+  "F2: pestañas, splits, multi-ventana y shell integration": {
+    "subject": "F2: abas, divisões, múltiplas janelas e integração com o shell",
+    "body": "- Modelo puro de abas e painéis (dividir, fechar, proporções, vizinhos por direção).\n- Painéis posicionados por retângulos e iterados por id: dividir não remonta os terminais.\n- Abas ocultas sem WebGL (limite de contextos); continuam carregando seu buffer.\n- Barra de abas em cima ou à esquerda, marquee, reordenar, renomear, estado.\n- Múltiplas janelas: cada sessão pertence à sua janela e morre com ela.\n- Atalhos sem Ctrl+Alt (AltGr no teclado espanhol).\n- Integração com o shell: PowerShell (-EncodedCommand), Git Bash (--init-file) e cmd (PROMPT): OSC 133/633/7/9, marcas por código de saída, pular entre comandos, copiar a última saída.\n- Título-resumo: manual > título OSC do programa > comando + pasta + branch do git.\n- Correção: as escritas na PTY vão em ordem (WriteQueue); antes as teclas se invertiam.\n- Testes: Rust 17 (inclui PowerShell e Git Bash reais), Vitest 32."
+  },
+  "F3: configuración y temas en vivo": {
+    "subject": "F3: configurações e temas ao vivo",
+    "body": "- settings.json em %APPDATA%\\NovaTerm: escrita atômica, monitorado para edições manuais, cópia .bak antes de sobrescrever um arquivo corrompido, aviso a todas as janelas.\n- Janela de configurações (Ctrl+,): 11 temas, modo escuro/claro/conforme o Windows, editor de cores, importar temas do Windows Terminal, iTerm2 e xterm.js.\n- Fundo: Mica, Acrylic, opacidade e imagem (janelas transparentes).\n- Fontes monoespaçadas instaladas, ligaduras (fonte lida pelo backend), cursor.\n- Atalhos configuráveis com detecção de conflitos e recusa de Ctrl+Alt (AltGr).\n- Testes: Rust 24, Vitest 51."
+  },
+  "F4: panel de agentes (catálogo editable, detección, lanzar en pestaña, estado)": {
+    "subject": "F4: painel de agentes (catálogo editável, detecção, iniciar em uma aba, estado)",
+    "body": "- Detecção sem executar nada: PATH do processo + do registro + pastas habituais.\n- Iniciar: aba nova com o shell padrão; o comando é digitado no primeiro prompt, com o PATH completo e as variáveis do agente.\n- Estado por agente: iniciando, trabalhando, esperando entrada (silêncio), precisa de você (sino), terminou (com código). Também no ponto da aba.\n- Barra de painéis à direita (Ctrl+Shift+A) e plugin de diálogos para escolher pasta.\n- Correção: o tamanho do terminal é reenviado se mudou enquanto a sessão iniciava."
+  },
+  "F5: widget de CPU/RAM y footer de consumo (Claude, Codex, agy)": {
+    "subject": "F5: widget de CPU/RAM e rodapé de uso (Claude, Codex, agy)",
+    "body": "- CPU e RAM com sparkline de 60 s; clique: processos que mais consomem e uso por aba (árvore do shell).\n- Uso: Claude pela statusline do Claude Code (exato) ou estimado pelos transcripts; Codex pelas suas sessões (.jsonl.zst, com ruzstd); agy com o /quota oficial, sem shell. Cada dado informa sua fonte, se é exato e sua idade; cache compartilhado de 30 s.\n- Botão para instalar a statusline do NovaTerm no Claude Code (com cópia do settings.json).\n- Seção Uso e widgets nas Configurações."
+  },
+  "F6: panel de servidores y puertos (listar, detener, recetas, iniciar)": {
+    "subject": "F6: painel de servidores e portas (listar, parar, receitas, iniciar)",
+    "body": "- Portas em escuta (IPv4/IPv6) via GetExtendedTcpTable, com processo, comando, pasta e uptime.\n- Marca as que nasceram em uma aba do NovaTerm (descendentes dos seus shells).\n- Parar: taskkill /T /F, com confirmação mais forte se não foi o NovaTerm que o iniciou; nunca PID <= 4.\n- Receitas: são salvas sozinhas (comando por OSC 633 + pasta + portas) ou à mão; Iniciar abre uma aba em segundo plano; Reiniciar = parar + iniciar. Portas clicáveis abrem o navegador."
+  },
+  "F7: panel de proyectos con árbol que respeta .gitignore y se actualiza solo": {
+    "subject": "F7: painel de projetos com árvore que respeita o .gitignore e se atualiza sozinha",
+    "body": "- Descobre projetos a partir das sessões do Claude Code (cwd dos transcripts) e do Codex (session_meta, também .jsonl.zst), mais os adicionados à mão e as pastas recentes.\n- Árvore carregada sob demanda com o crate ignore (.gitignore, globais e de pastas superiores); o notify monitora as pastas abertas e avisa a janela para recarregá-las.\n- Ações: terminal, iniciar um agente, Explorador, VS Code, git, ocultar."
+  },
+  "F8: panel de git (status, diff, stage, commit, historial, ramas, fetch/pull/push, clone, init)": {
+    "subject": "F8: painel do Git (status, diff, stage, commit, histórico, branches, fetch/pull/push, clone, init)",
+    "body": "- git CLI sem console nem prompts (GIT_TERMINAL_PROMPT=0), timeouts, caminhos com ñ sem escapar.\n- Status porcelain v2 (renomeações, conflitos, não rastreados), diff unificado ou lado a lado, stage/unstage por arquivo ou todos, commit com Ctrl+Enter, histórico com grafo e git show, branches locais e remotas, criar e trocar, fetch/pull --ff-only/push (com -u se falta upstream).\n- Contador de alterações em cada aba; painel lateral redimensionável.\n- Teste de ciclo completo em um repositório temporário."
+  },
+  "Renombrar a AlphaTerm": {
+    "subject": "Renomear para AlphaTerm",
+    "body": "- Produto, binário (alphaterm.exe), identificador (uy.alphaterm.app), variáveis TERM_PROGRAM e scripts de integração. Os ids dos temas salvos não mudam.\n- As configurações passam para %APPDATA%\\AlphaTerm: na primeira vez, as do NovaTerm são copiadas (sem apagá-las)."
+  },
+  "Rutas en la terminal: links que abren carpeta o archivo, con vista previa (imagen, texto, carpeta)": {
+    "subject": "Caminhos no terminal: links que abrem pasta ou arquivo, com pré-visualização (imagem, texto, pasta)"
+  },
+  "Pestañas con color y carpetas, título de ventana a mano y restaurar la sesión al abrir": {
+    "subject": "Abas com cor e grupos, título da janela manual e restaurar a sessão ao abrir",
+    "body": "- Menu de contexto da aba: renomear, cor, grupo (novo, mover, remover), título da janela.\n- Grupos de abas recolhíveis, com cor; soltar uma aba sobre o grupo a coloca dentro.\n- Ctrl+Shift+F2: título da janela fixo.\n- Sessão em %APPDATA%\\AlphaTerm\\session.json: abas, painéis com sua pasta atual, cores, grupos, título e painel; reabre todas as janelas. Agentes: iniciar de novo com --continue é opcional."
+  },
+  "Historial de comandos, ubicación actual y consumo del agente abierto": {
+    "subject": "Histórico de comandos, local atual e uso do agente aberto",
+    "body": "- Histórico global persistente (history.jsonl, 5000), pesquisável por palavras; clique o escreve no terminal ativo, clique duplo o executa (Ctrl+Shift+H).\n- Rodapé com o local do painel ativo (cada trecho abre essa pasta, copiar caminho, branch do git).\n- O uso do agente da aba ativa fica primeiro e destacado; clique: detalhe com todas as janelas de uso, reinícios, fonte e botão para atualizar.\n- O terminal expõe enviar texto e ler seu buffer / a saída do último comando."
+  },
+  "Consumo: lógica pura aparte y nombre del agente desde rutas completas": {
+    "subject": "Uso: lógica pura separada e nome do agente a partir de caminhos completos"
+  },
+  "Consumo: separar rutas con barra invertida al reconocer el agente": {
+    "subject": "Uso: separar caminhos por barra invertida ao reconhecer o agente"
+  },
+  "Test de consumo: ruta con barras escapadas": {
+    "subject": "Teste de uso: caminho com barras escapadas"
+  },
+  "API de control para agentes, panel de Docker y guardián de archivos": {
+    "subject": "API de controle para agentes, painel do Docker e Guardião de arquivos",
+    "body": "- API local (127.0.0.1 + token que muda a cada início, control.json e variáveis ALPHATERM_* em cada aba): list, read, last_output, run (espera terminar e devolve a saída e o código), send, open_tab, split, open_window (subjanelas), close, focus e docker_*.\n- alphaterm-mcp.mjs: servidor MCP e CLI sem dependências; o Claude Code iniciado pelo AlphaTerm o recebe com --mcp-config.\n- Docker: estado do motor (abrir o Docker Desktop), contêineres com portas clicáveis, iniciar, parar, reiniciar, logs e shell em uma aba, apagar com confirmação, e receitas de um clique (modelos Postgres, Redis, MySQL, Mongo, nginx) sem shell no meio.\n- Guardião: pergunta antes de apagar ou modificar. Hook PreToolUse para o Claude Code (--settings), Codex com seu modo de aprovação, e comandos da API classificados (rm, Remove-Item, git reset --hard, redirecionamentos, docker rm…). Diálogo em todas as janelas, permitir 30 min por sessão, bloqueio após 10 min sem resposta, registro de decisões; é desligado nas Configurações."
+  },
+  "F9 (parte): resumen de pestañas con modelo opcional, sección Acerca y límites, marca de arranque": {
+    "subject": "F9 (parte): resumo das abas com modelo opcional, seção Sobre e limites, marca de inicialização",
+    "body": "- llm_summarize: endpoint compatível com OpenAI (Ollama/vLLM/LM Studio), reqwest com o TLS do sistema, título limpo de 2 a 6 palavras; ordem: manual > OSC do programa > modelo > heurística.\n- bench_mark: ms desde o início do processo até o primeiro prompt (ALPHATERM_BENCH)."
+  },
+  "Footer de consumo: el efecto de carga entraba en bucle (renderer 180 MB, 60 layouts por segundo)": {
+    "subject": "Rodapé de uso: o efeito de carregamento entrava em loop (renderer 180 MB, 60 layouts por segundo)",
+    "body": "load() lia busy() dentro do efeito: cada carregamento o disparava de novo. Com untrack o renderer cai para ~45 MB e o total com uma aba para ~225 MB."
+  },
+  "Paneles en mosaico, saltos al principio/final y arreglos visuales": {
+    "subject": "Painéis em mosaico, saltos para o início/fim e correções visuais",
+    "body": "- Os painéis laterais não se substituem mais: abrem embaixo ou ao lado, vários ao mesmo tempo junto ao terminal; largura de cada coluna e altura entre painéis ajustáveis, reordenar arrastando a barra de título; é salvo na sessão e como preferência.\n- Botões para pular para o início ou o fim quando a saída é longa.\n- Sem a linha clara do ruler do xterm; barra de rolagem discreta.\n- Botão + desenhado e centralizado; CPU e RAM em uma linha abaixo dos ícones na barra vertical; botão ativo aceso por inteiro (barra de painéis e configurações).\n- API: integração desde o primeiro prompt, read até a linha do cursor; o menu da aba aplica a ação antes de fechar (cor e grupo não eram aplicados).\n- Guia de código (txt + PDF), adendo AlphaTerm no plano, PDFs regenerados."
+  },
+  "Informe de F4 a F9 y extras, CLAUDE.md de AlphaTerm": {
+    "subject": "Relatório de F4 a F9 e extras, CLAUDE.md do AlphaTerm"
+  },
+  "Carpeta renombrada a Desktop\\AlphaTerm: rutas en CLAUDE.md, Informe y plan": {
+    "subject": "Pasta renomeada para Desktop\\AlphaTerm: caminhos no CLAUDE.md, Relatório e plano"
+  },
+  "Las shells no heredan el entorno de quien abrió AlphaTerm (Claude Code salía sin colores)": {
+    "subject": "Os shells não herdam o ambiente de quem abriu o AlphaTerm (o Claude Code saía sem cores)",
+    "body": "- pty/env.rs: NO_COLOR, FORCE_COLOR, CLICOLOR, CI, CLAUDECODE e CLAUDE_CODE_* / CLAUDE_AGENT_* (com tokens e a marca de sessão filha) são removidas ao criar o shell, a menos que estejam no ambiente persistente do Windows.\n- build.rs: CARGO_MANIFEST_DIR em tempo de execução (não env!()), para que continue copiando a ConPTY se a pasta for movida."
+  },
+  "0.2.0: consumo en vivo, panel de modificaciones, instalador por versión": {
+    "subject": "0.2.0: uso ao vivo, painel de alterações, instalador por versão",
+    "body": "- A janela do cmd que aparecia a cada 10 min era o atualizador do agy, iniciado pela consulta de cota: o agy agora roda com AGY_CLI_DISABLE_AUTO_UPDATE=true (como o System dashboard).\n- Uso ao vivo como o dashboard (usage_live.rs): ao abrir e a cada N minutos, o claude (/usage) e o codex (/status) são abertos em uma ConPTY sem janela e a tela é lida com vt100; o agy por /quota. Vence o dado mais recente entre a consulta e os arquivos. Plano, modelo, janelas por modelo, uso extra, \"o que mais consome\" e previsão semanal.\n- Painel de agentes: detalhe de uso embaixo de cada agente.\n- Painel de alterações (changes.rs, Ctrl+Shift+M): o que os agentes alteram, com ou sem git, PDF pelo texto, diff unificado ou lado a lado, expandir/recolher todos, editar e salvar (respeita codificação e fim de linha, não sobrescreve se o arquivo mudou). Fontes: hook Pre/PostToolUse do Claude Code e cópia + monitoramento da pasta da aba de qualquer agente.\n- RAM em porcentagem; na barra vertical, o gráfico embaixo do número e, recolhida, só números.\n- Barra de abas vertical recolhível.\n- Colar imagens: sem texto na área de transferência, a imagem é salva como PNG e o caminho é colado.\n- Versão no rodapé (commit, data e caminho do exe no tooltip).\n- compilar-version.bat + scripts/release.mjs + scripts/instalar.mjs: compila (em target\\prueba se a versão antiga estiver aberta), instala em %LOCALAPPDATA%\\AlphaTerm\\versiones\\<v> e deixa o atalho \"AlphaTerm <v>\" na área de trabalho e o fixado da barra de tarefas apontando para lá.\n- ALPHATERM_DATA_DIR para testar uma versão ao lado da aberta.\n- Testes de Rust: o manifesto do Windows é incorporado pelo linker (sem ele, STATUS_ENTRYPOINT_NOT_FOUND).\n\nTestes: Rust 72 (+6 ignorados), Vitest 104."
+  },
+  "Barra vertical ajustable y opciones de arranque de los agentes": {
+    "subject": "Barra vertical ajustável e opções de inicialização dos agentes",
+    "body": "- Botão de recolher desenhado; largura da barra vertical arrastável (160-480 px, clique duplo 220).\n- Opções de inicialização por agente (modelo, esforço, permissões, sessão, mais opções) com a linha de comando que vai rodar; catálogo em agentLaunch.ts levantado a partir dos --help instalados, modelos ao vivo (agent_models), conflitos entre opções, aspas conforme o shell; são salvas por agente.\n- O painel de agentes itera ids (não perde mais o foco ao mudar as configurações).\n\nTestes: Rust 74 (+6 ignorados), Vitest 111."
+  },
+  "Versiones automáticas y Novedades (changelog entre versiones con sus commits)": {
+    "subject": "Versões automáticas e Novidades (changelog entre versões com seus commits)",
+    "body": "- compilar-version.bat / scripts/release.mjs: sobem a versão sozinhos (patch por padrão, --minor, --major, --misma), commit \"Versão X\" + tag vX, compilam e instalam; se algo falha, desfazem o commit e a tag.\n- scripts/changelog.mjs: changelog a partir do git agrupado por tags vX.Y.Z em src/generated/changelog.json (roda com dev, build e typecheck). Tags v0.1.0 e v0.2.0 marcadas nos seus commits.\n- Rodapé: botão \"Novidades\" com cada versão, sua data e seus commits (corpo ao expandir, hash para copiar), filtro \"depois de X até Y\", expandir/recolher todas e a versão em execução marcada."
+  },
+  "Navegador integrado con marcado de elementos para pedirle cambios al agente": {
+    "subject": "Navegador integrado com marcação de elementos para pedir alterações ao agente",
+    "body": "- Painel de navegador (WebView2 filho dentro da janela, controlado pelo DevTools): URL, voltar, avançar, recarregar, erros do console; se esconde sob menus e modais e em outras abas.\n- Modo de edição: destaque ao passar o mouse, clique para marcar (vários), Alt+clique para o pai, \"Site inteiro\" para alterações globais. Cada marca leva seletor, HTML, estilos, posição, captura e, se possível, o componente e seu arquivo (React, Vue, Svelte, Angular).\n- O pedido é colado no terminal do agente da aba com as capturas e um pedido.md; \"trabalhando… pronto\" com o hook Stop do Claude Code (ou pelo silêncio em outros agentes), e recarrega se a página não tem hot reload.\n- API e MCP: browser_open/list/navigate/reload/screenshot/snapshot/click/type/key/scroll/eval/console/marks.\n- Abre com Ctrl+Shift+U, pelos Servidores ou pela API; é salvo na sessão.\n- Correção: com um WebView filho, a API de controle, o Guardião e o fechamento de janelas usam app.windows() (webview_windows() deixava de ver a janela)."
+  },
+  "Configuración dentro de la misma ventana": {
+    "subject": "Configurações dentro da mesma janela",
+    "body": "Abre por cima das abas e painéis (Ctrl+, a engrenagem ou a versão do rodapé) em vez de em uma janela separada; fecha com Esc, o × ou Ctrl+, e o foco volta ao terminal. Com ela aberta, os atalhos não mexem nas abas de trás e o navegador integrado se esconde."
+  },
+  "Predicciones: diseño, plan y completados de PowerShell por F12,e (OSC 7717)": {
+    "subject": "Sugestões: design, plano e completações do PowerShell por F12,e (OSC 7717)"
+  },
+  "Predicciones: mensajes de la sesión de PowerShell (parse7717)": {
+    "subject": "Sugestões: mensagens da sessão do PowerShell (parse7717)"
+  },
+  "Predicciones: leer la línea del prompt y separar palabras": {
+    "subject": "Sugestões: ler a linha do prompt e separar palavras"
+  },
+  "Predicciones: comandos de Rust (carpetas, router, PATH, npm, procesos)": {
+    "subject": "Sugestões: comandos em Rust (pastas, roteador, PATH, npm, processos)"
+  },
+  "Predicciones: teclas del menú": {
+    "subject": "Sugestões: teclas do menu"
+  },
+  "Predicciones: catálogo de comandos, motor e inserción": {
+    "subject": "Sugestões: catálogo de comandos, motor e inserção"
+  },
+  "Predicciones: opciones en la configuración": {
+    "subject": "Sugestões: opções nas Configurações"
+  },
+  "Predicciones: controlador, menú y cableado en la terminal": {
+    "subject": "Sugestões: controlador, menu e integração no terminal"
+  },
+  "Predicciones: recalcular por cambio de línea (no por aviso), historial de cd solo de esta carpeta": {
+    "subject": "Sugestões: recalcular por mudança de linha (não por aviso), histórico de cd só desta pasta"
+  },
+  "Predicciones: historial de cmd sin el espacio de más del título; parámetros de PowerShell con guion y resaltado": {
+    "subject": "Sugestões: histórico do cmd sem o espaço a mais do título; parâmetros do PowerShell com hífen e destaque"
+  },
+  "Predicciones: en la primera palabra, el catálogo antes que PowerShell; programas sin repetir por la extensión": {
+    "subject": "Sugestões: na primeira palavra, o catálogo antes do PowerShell; programas sem repetir pela extensão"
+  },
+  "Predicciones: en cmd, /x es una opción y no la raíz del disco": {
+    "subject": "Sugestões: no cmd, /x é uma opção e não a raiz do disco"
+  },
+  "Informe: predicciones de comandos": {
+    "subject": "Relatório: sugestões de comandos"
+  },
+  "Predicciones: arreglos de la revisión (inserción pendiente tras Enter, eco por línea esperada, sin caracteres de control, comillas con barra final, caché de generadores, historial de cmdlets)": {
+    "subject": "Sugestões: correções da revisão (inserção pendente após Enter, eco por linha esperada, sem caracteres de controle, aspas com barra final, cache de geradores, histórico de cmdlets)"
+  },
+  "Informe: arreglos de la revisión de predicciones": {
+    "subject": "Relatório: correções da revisão das sugestões"
+  },
+  "Perfiles de desarrollo livianos (target\\debug llegaba a 28 GB)": {
+    "subject": "Perfis de desenvolvimento leves (target\\debug chegava a 28 GB)",
+    "body": "debug = \"line-tables-only\" para o código próprio e sem informação de depuração para dependências, build scripts e macros. Os builds de release não mudam."
+  },
+  "Paneles: diseño de la barra con botones y mover como snap": {
+    "subject": "Painéis: design da barra com botões e mover no estilo snap"
+  },
+  "Paneles: plan de implementación": {
+    "subject": "Painéis: plano de implementação"
+  },
+  "Paneles: mover, intercambiar e igualar en el modelo": {
+    "subject": "Painéis: mover, trocar e igualar no modelo"
+  },
+  "Paneles: zonas para soltar, frenado del divisor y panel ocupado": {
+    "subject": "Painéis: zonas para soltar, encaixe do divisor e painel ocupado"
+  },
+  "Paneles: barrita con dividir y cerrar, y menú del clic derecho": {
+    "subject": "Painéis: barra do painel com dividir e fechar, e menu do clique direito"
+  },
+  "Paneles: mover arrastrando la barrita (mitades o intercambio)": {
+    "subject": "Painéis: mover arrastando a barra do painel (metades ou troca)"
+  },
+  "Paneles: divisor más ancho, se frena en ⅓ ½ ⅔ y doble clic iguala": {
+    "subject": "Painéis: divisor mais largo, encaixa em ⅓ ½ ⅔ e clique duplo iguala"
+  },
+  "Paneles: confirmación propia al cerrar un panel ocupado (window.confirm no pregunta en AlphaTerm)": {
+    "subject": "Painéis: confirmação própria ao fechar um painel ocupado (window.confirm não pergunta no AlphaTerm)",
+    "body": "O plugin de diálogos do Tauri substitui window.confirm por uma função assíncrona: devolve uma promessa (sempre \"sim\") e além disso falta a permissão. askConfirm + ConfirmModal perguntam dentro do app. O × da barra do painel passa a ×."
+  },
+  "Informe: paneles con barrita, mover y divisores": {
+    "subject": "Relatório: painéis com barra, mover e divisores"
+  },
+  "Las 13 confirmaciones viejas pasan a askConfirm (window.confirm no preguntaba)": {
+    "subject": "As 13 confirmações antigas passam para askConfirm (window.confirm não perguntava)",
+    "body": "Parar servidores, apagar contêineres, voltar ao padrão de fábrica, mudar a statusline do Claude Code, apagar temas/receitas/presets/agentes, trocar de branch com alterações, criar repositório, esvaziar ou descartar alterações e fechar um grupo de abas aconteciam sem perguntar. scripts/sin-confirm.test.mjs falha se voltar a aparecer um confirm() solto."
+  },
+  "README en inglés con logo y capturas": {
+    "subject": "README em inglês com logo e capturas de tela"
+  },
+  "Idiomas: base (t/k, idioma en la configuración, detección y verificador)": {
+    "subject": "Idiomas: base (t/k, idioma nas configurações, detecção e verificador)"
+  },
+  "Idiomas: toda la interfaz en inglés y portugués": {
+    "subject": "Idiomas: toda a interface em inglês e português"
+  },
+  "Idiomas: backend, API de control y scripts de agentes en tres idiomas": {
+    "subject": "Idiomas: backend, API de controle e scripts de agentes em três idiomas"
+  },
+  "Idiomas: Novedades en tres idiomas; release.mjs frena si falta una traducción": {
+    "subject": "Idiomas: Novidades em três idiomas; release.mjs para se faltar uma tradução"
+  },
+  "Documentación en inglés y portugués": {
+    "subject": "Documentação em inglês e português"
+  },
+  "Licencia MIT y avisos de terceros": {
+    "subject": "Licença MIT e avisos de terceiros"
+  }
+}

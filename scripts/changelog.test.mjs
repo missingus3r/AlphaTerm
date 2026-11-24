@@ -1,5 +1,20 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { bumpVersion, groupByVersion, LOG_FORMAT, parseLog, parseTags } from "./changelog-lib.mjs";
+import {
+  bumpVersion,
+  CHANGELOG_LANGS,
+  dictProblems,
+  groupByVersion,
+  LOG_FORMAT,
+  missingTranslations,
+  parseLog,
+  parseTags,
+  translateCommit,
+  unusedTranslations,
+  withTranslations,
+} from "./changelog-lib.mjs";
 
 const US = "\x1f";
 const RS = "\x1e";
@@ -55,5 +70,69 @@ describe("changelog", () => {
     const v = groupByVersion(commits, new Map([["h2", "0.2.0"]]), undefined);
     expect(v[0]).toMatchObject({ version: null, released: false });
     expect(v[0].commits).toHaveLength(2);
+  });
+});
+
+describe("traducciones del changelog", () => {
+  const c = (subject, body = "") => ({ hash: subject, short: subject.slice(0, 7), date: "", subject, body });
+  const dicts = {
+    en: { "Opciones de agentes": { subject: "Agent options", body: "- detail" }, "Sin cuerpo": { subject: "No body", body: "sobra" }, Viejo: { subject: "Old" } },
+    pt: { "Opciones de agentes": { subject: "Opções de agentes" }, "Sin cuerpo": { subject: "  " } },
+  };
+
+  it("traduce por el asunto en español; body solo si el commit tiene cuerpo", () => {
+    expect(translateCommit(c("Opciones de agentes", "- detalle"), "en", dicts.en)).toEqual({ subject: "Agent options", body: "- detail" });
+    expect(translateCommit(c("Opciones de agentes", "- detalle"), "pt", dicts.pt)).toEqual({ subject: "Opções de agentes", body: null });
+    expect(translateCommit(c("Sin cuerpo"), "en", dicts.en)).toEqual({ subject: "No body", body: "" });
+    expect(translateCommit(c("Sin cuerpo"), "pt", dicts.pt)).toEqual({ subject: null, body: "" });
+    expect(translateCommit(c("Otro"), "en", undefined)).toEqual({ subject: null, body: "" });
+    expect(translateCommit(c("constructor"), "en", {})).toEqual({ subject: null, body: "" });
+  });
+
+  it("los «Versión X.Y.Z» de release.mjs se traducen solos", () => {
+    const v = c("Versión 0.6.0", "Sube de 0.5.0 a 0.6.0.");
+    expect(translateCommit(v, "en", {})).toEqual({ subject: "Version 0.6.0", body: "Bumps from 0.5.0 to 0.6.0." });
+    expect(translateCommit(v, "pt", {})).toEqual({ subject: "Versão 0.6.0", body: "Sobe de 0.5.0 para 0.6.0." });
+    // Un cuerpo distinto del de release.mjs sí necesita traducción.
+    expect(translateCommit(c("Versión 0.6.0", "Otra cosa."), "en", {}).body).toBeNull();
+    expect(translateCommit(c("Versión 0.6"), "en", {}).subject).toBeNull();
+  });
+
+  it("el JSON generado lleva en `tr` solo lo traducido", () => {
+    const [a, b, d] = withTranslations([c("Opciones de agentes", "- detalle"), c("Sin cuerpo"), c("Otro")], dicts);
+    expect(a.tr).toEqual({ en: { subject: "Agent options", body: "- detail" }, pt: { subject: "Opções de agentes" } });
+    expect(b.tr).toEqual({ en: { subject: "No body" } });
+    expect(d).not.toHaveProperty("tr");
+    expect(a.subject).toBe("Opciones de agentes");
+  });
+
+  it("lista lo que falta, por idioma y parte", () => {
+    const commits = [c("Opciones de agentes", "- detalle"), c("Sin cuerpo"), c("Otro", "cuerpo"), c("Versión 0.3.0", "Sube de 0.2.0 a 0.3.0.")];
+    const m = missingTranslations(commits, dicts);
+    expect(m.map((x) => [x.commit.subject, x.missing])).toEqual([
+      ["Opciones de agentes", { pt: ["cuerpo"] }],
+      ["Sin cuerpo", { pt: ["asunto"] }],
+      ["Otro", { en: ["asunto", "cuerpo"], pt: ["asunto", "cuerpo"] }],
+    ]);
+    expect(missingTranslations([c("Versión 0.3.0", "Sube de 0.2.0 a 0.3.0.")], {})).toEqual([]);
+  });
+
+  it("avisa lo que sobra y lo mal formado", () => {
+    expect(unusedTranslations([c("Opciones de agentes"), c("Sin cuerpo")], dicts)).toEqual([{ lang: "en", subject: "Viejo" }]);
+    const bad = { en: { A: "texto suelto", B: { body: "x" }, C: { subject: "C", body: 3 }, D: { subject: "D", cuerpo: "x" }, E: { subject: "E", body: "e" } } };
+    expect(dictProblems(bad)).toEqual([
+      expect.stringContaining("«A» tiene que ser"),
+      expect.stringContaining("«B» no tiene"),
+      expect.stringContaining("«C»"),
+      expect.stringContaining("«D»"),
+    ]);
+  });
+
+  it("los diccionarios reales (src/i18n/changelog) son JSON válido y bien formado", () => {
+    const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "i18n", "changelog");
+    const real = Object.fromEntries(CHANGELOG_LANGS.map((l) => [l, JSON.parse(fs.readFileSync(path.join(dir, `${l}.json`), "utf8"))]));
+    expect(dictProblems(real)).toEqual([]);
+    // Los mismos asuntos en los dos idiomas.
+    expect(Object.keys(real.pt).sort()).toEqual(Object.keys(real.en).sort());
   });
 });

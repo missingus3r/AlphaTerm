@@ -1,0 +1,206 @@
+{
+  "F0 y F1: plan, documentación y núcleo de la terminal": {
+    "subject": "F0 and F1: plan, documentation and terminal core",
+    "body": "- Plan with an addendum on the home setup, regenerable PDFs and the process Report.\n- Tauri 2 + Vite + SolidJS + xterm.js 6 (WebGL with DOM fallback).\n- ConPTY sessions with output batching (4 ms / 64 KB), backpressure and a binary channel.\n- Profiles: Windows PowerShell, PowerShell 7, cmd, Git Bash and WSL, with detection.\n- Copy/paste like Windows Terminal, resize, restart when the shell exits.\n- Microsoft's ConPTY (conpty.dll + OpenConsole.exe 1.25, MIT) next to the exe.\n- Tests: 9 Rust (including real ConPTY) and 8 Vitest; benchmarks ignored."
+  },
+  "F2: pestañas, splits, multi-ventana y shell integration": {
+    "subject": "F2: tabs, splits, multiple windows and shell integration",
+    "body": "- Pure model of tabs and panes (split, close, ratios, neighbors by direction).\n- Panes positioned by rectangles and iterated by id: splitting doesn't remount terminals.\n- Hidden tabs without WebGL (context limit); they keep loading their buffer.\n- Tab bar on top or on the left, marquee, reorder, rename, status.\n- Multiple windows: each session belongs to its window and dies with it.\n- Shortcuts without Ctrl+Alt (AltGr on Spanish keyboards).\n- Shell integration: PowerShell (-EncodedCommand), Git Bash (--init-file) and cmd (PROMPT): OSC 133/633/7/9, marks by exit code, jump between commands, copy the last output.\n- Summary title: manual > program's OSC title > command + folder + git branch.\n- Fix: writes to the PTY go in order (WriteQueue); keystrokes used to get swapped.\n- Tests: Rust 17 (including real PowerShell and Git Bash), Vitest 32."
+  },
+  "F3: configuración y temas en vivo": {
+    "subject": "F3: settings and live themes",
+    "body": "- settings.json in %APPDATA%\\NovaTerm: atomic writes, watched for manual edits, .bak copy before overwriting a broken file, notice to every window.\n- Settings window (Ctrl+,): 11 themes, dark/light/follow Windows mode, color editor, import themes from Windows Terminal, iTerm2 and xterm.js.\n- Background: Mica, Acrylic, opacity and image (transparent windows).\n- Installed monospace fonts, ligatures (font read from the backend), cursor.\n- Configurable shortcuts with conflict detection, rejecting Ctrl+Alt (AltGr).\n- Tests: Rust 24, Vitest 51."
+  },
+  "F4: panel de agentes (catálogo editable, detección, lanzar en pestaña, estado)": {
+    "subject": "F4: agents panel (editable catalog, detection, launch in a tab, status)",
+    "body": "- Detection without running anything: process PATH + registry PATH + usual folders.\n- Launch: new tab with the default shell; the command is typed at the first prompt, with the full PATH and the agent's variables.\n- Status per agent: starting, working, waiting for input (silence), needs you (bell), finished (with exit code). Also on the tab's dot.\n- Panel bar on the right (Ctrl+Shift+A) and dialog plugin to pick a folder.\n- Fix: the terminal size is sent again if it changed while the session was starting."
+  },
+  "F5: widget de CPU/RAM y footer de consumo (Claude, Codex, agy)": {
+    "subject": "F5: CPU/RAM widget and usage footer (Claude, Codex, agy)",
+    "body": "- CPU and RAM with a 60 s sparkline; click: top processes and usage per tab (the shell's process tree).\n- Usage: Claude from Claude Code's statusline (exact) or estimated from transcripts; Codex from its sessions (.jsonl.zst, with ruzstd); agy with the official /quota, no shell. Each figure states its source, whether it's exact and its age; shared 30 s cache.\n- Button to install NovaTerm's statusline in Claude Code (with a backup of settings.json).\n- Usage and widgets section in Settings."
+  },
+  "F6: panel de servidores y puertos (listar, detener, recetas, iniciar)": {
+    "subject": "F6: servers and ports panel (list, stop, recipes, start)",
+    "body": "- Listening ports (IPv4/IPv6) via GetExtendedTcpTable, with process, command, folder and uptime.\n- Marks the ones born in a NovaTerm tab (descendants of its shells).\n- Stop: taskkill /T /F, with a stronger confirmation if NovaTerm didn't launch it; never PID <= 4.\n- Recipes: saved automatically (command via OSC 633 + folder + ports) or by hand; Start opens a background tab; Restart = stop + start. Clickable ports open the browser."
+  },
+  "F7: panel de proyectos con árbol que respeta .gitignore y se actualiza solo": {
+    "subject": "F7: projects panel with a tree that respects .gitignore and updates itself",
+    "body": "- Discovers projects from Claude Code sessions (cwd of the transcripts) and Codex sessions (session_meta, also .jsonl.zst), plus the ones added by hand and recent folders.\n- Lazy tree with the ignore crate (.gitignore, global ones and those from parent folders); notify watches the open folders and tells the window to reload them.\n- Actions: terminal, launch an agent, Explorer, VS Code, git, hide."
+  },
+  "F8: panel de git (status, diff, stage, commit, historial, ramas, fetch/pull/push, clone, init)": {
+    "subject": "F8: Git panel (status, diff, stage, commit, history, branches, fetch/pull/push, clone, init)",
+    "body": "- git CLI with no console or prompts (GIT_TERMINAL_PROMPT=0), timeouts, paths with ñ unescaped.\n- Porcelain v2 status (renames, conflicts, untracked), unified or side-by-side diff, stage/unstage per file or all, commit with Ctrl+Enter, history with graph and git show, local and remote branches, create and switch, fetch/pull --ff-only/push (with -u if there's no upstream).\n- Change counter on each tab; resizable side panel.\n- End-to-end test in a temporary repo."
+  },
+  "Renombrar a AlphaTerm": {
+    "subject": "Rename to AlphaTerm",
+    "body": "- Product, binary (alphaterm.exe), identifier (uy.alphaterm.app), TERM_PROGRAM variables and integration scripts. Saved theme ids don't change.\n- Settings move to %APPDATA%\\AlphaTerm: the first time, NovaTerm's are copied (without deleting them)."
+  },
+  "Rutas en la terminal: links que abren carpeta o archivo, con vista previa (imagen, texto, carpeta)": {
+    "subject": "Paths in the terminal: links that open a folder or file, with preview (image, text, folder)"
+  },
+  "Pestañas con color y carpetas, título de ventana a mano y restaurar la sesión al abrir": {
+    "subject": "Tab colors and groups, manual window title and session restore on open",
+    "body": "- Tab context menu: rename, color, group (new, move, remove), window title.\n- Collapsible tab groups, with color; dropping a tab on a group puts it inside.\n- Ctrl+Shift+F2: fixed window title.\n- Session in %APPDATA%\\AlphaTerm\\session.json: tabs, panes with their current folder, colors, groups, title and panel; reopens every window. Agents: relaunching with --continue is optional."
+  },
+  "Historial de comandos, ubicación actual y consumo del agente abierto": {
+    "subject": "Command history, current location and usage of the open agent",
+    "body": "- Persistent global history (history.jsonl, 5000), searchable by words; click types it into the active terminal, double click runs it (Ctrl+Shift+H).\n- Footer with the active pane's location (each segment opens that folder, copy path, git branch).\n- The usage of the active tab's agent comes first and highlighted; click: details with every usage window, resets, source and a refresh button.\n- The terminal exposes sending text and reading its buffer / the last command's output."
+  },
+  "Consumo: lógica pura aparte y nombre del agente desde rutas completas": {
+    "subject": "Usage: pure logic split out and agent name from full paths"
+  },
+  "Consumo: separar rutas con barra invertida al reconocer el agente": {
+    "subject": "Usage: split paths on backslashes when recognizing the agent"
+  },
+  "Test de consumo: ruta con barras escapadas": {
+    "subject": "Usage test: path with escaped backslashes"
+  },
+  "API de control para agentes, panel de Docker y guardián de archivos": {
+    "subject": "Control API for agents, Docker panel and file Guardian",
+    "body": "- Local API (127.0.0.1 + a token that changes on every start, control.json and ALPHATERM_* variables in each tab): list, read, last_output, run (waits for it to finish and returns output and exit code), send, open_tab, split, open_window (child windows), close, focus and docker_*.\n- alphaterm-mcp.mjs: MCP server and CLI with no dependencies; Claude Code launched from AlphaTerm gets it with --mcp-config.\n- Docker: engine status (open Docker Desktop), containers with clickable ports, start, stop, restart, logs and shell in a tab, delete with confirmation, and one-click recipes (Postgres, Redis, MySQL, Mongo, nginx templates) with no shell in between.\n- Guardian: asks before deleting or modifying. PreToolUse hook for Claude Code (--settings), Codex with its approval mode, and classified API commands (rm, Remove-Item, git reset --hard, redirections, docker rm…). Dialog in every window, allow 30 min per session, blocks after 10 min without an answer, decision log; turned off in Settings."
+  },
+  "F9 (parte): resumen de pestañas con modelo opcional, sección Acerca y límites, marca de arranque": {
+    "subject": "F9 (part): tab summaries with an optional model, About section and limits, startup mark",
+    "body": "- llm_summarize: OpenAI-compatible endpoint (Ollama/vLLM/LM Studio), reqwest with the system's TLS, clean title of 2 to 6 words; order: manual > program's OSC > model > heuristic.\n- bench_mark: ms from process start to the first prompt (ALPHATERM_BENCH)."
+  },
+  "Footer de consumo: el efecto de carga entraba en bucle (renderer 180 MB, 60 layouts por segundo)": {
+    "subject": "Usage footer: the load effect looped (renderer 180 MB, 60 layouts per second)",
+    "body": "load() read busy() inside the effect: every load triggered it again. With untrack the renderer drops to ~45 MB and the total with one tab to ~225 MB."
+  },
+  "Paneles en mosaico, saltos al principio/final y arreglos visuales": {
+    "subject": "Tiled panels, jump to top/bottom and visual fixes",
+    "body": "- Side panels no longer replace each other: they open below or beside, several at once next to the terminal; adjustable width of each column and height between panels, reorder by dragging the title bar; saved in the session and as a preference.\n- Buttons to jump to the top or bottom when the output is long.\n- No more light line from xterm's ruler; subtle scrollbar.\n- Drawn and centered + button; CPU and RAM in a row below the icons in the vertical bar; active button fully lit (panel bar and settings).\n- API: integration from the first prompt, read up to the cursor line; the tab menu applies the action before closing (color and group weren't applied).\n- Code guide (txt + PDF), AlphaTerm addendum in the plan, regenerated PDFs."
+  },
+  "Informe de F4 a F9 y extras, CLAUDE.md de AlphaTerm": {
+    "subject": "Report for F4 to F9 and extras, AlphaTerm's CLAUDE.md"
+  },
+  "Carpeta renombrada a Desktop\\AlphaTerm: rutas en CLAUDE.md, Informe y plan": {
+    "subject": "Folder renamed to Desktop\\AlphaTerm: paths in CLAUDE.md, Report and plan"
+  },
+  "Las shells no heredan el entorno de quien abrió AlphaTerm (Claude Code salía sin colores)": {
+    "subject": "Shells don't inherit the environment of whoever opened AlphaTerm (Claude Code had no colors)",
+    "body": "- pty/env.rs: NO_COLOR, FORCE_COLOR, CLICOLOR, CI, CLAUDECODE and CLAUDE_CODE_* / CLAUDE_AGENT_* (with tokens and the child-session marker) are removed when creating the shell, unless they're in Windows' persistent environment.\n- build.rs: CARGO_MANIFEST_DIR at run time (not env!()), so it keeps copying the ConPTY if the folder is moved."
+  },
+  "0.2.0: consumo en vivo, panel de modificaciones, instalador por versión": {
+    "subject": "0.2.0: live usage, Changes panel, per-version installer",
+    "body": "- The cmd window that showed up every 10 min was agy's updater, launched by the quota check: agy now runs with AGY_CLI_DISABLE_AUTO_UPDATE=true (like the System dashboard).\n- Live usage like the dashboard (usage_live.rs): on open and every N minutes, claude (/usage) and codex (/status) are opened in a windowless ConPTY and the screen is read with vt100; agy via /quota. The newest figure wins between the query and the files. Plan, model, windows per model, extra usage, \"what else is using it\" and weekly forecast.\n- Agents panel: usage details under each agent.\n- Changes panel (changes.rs, Ctrl+Shift+M): what agents change, with or without git, PDFs by their text, unified or side-by-side diff, expand/collapse all, edit and save (keeps encoding and line endings, doesn't overwrite if the file changed). Sources: Claude Code's Pre/PostToolUse hook and a copy + watcher of the tab's folder for any agent.\n- RAM as a percentage; in the vertical bar, the graph below the number and, when collapsed, numbers only.\n- Collapsible vertical tab bar.\n- Paste images: with no text on the clipboard, the image is saved as a PNG and its path is pasted.\n- Version in the footer (commit, date and exe path in the tooltip).\n- compilar-version.bat + scripts/release.mjs + scripts/instalar.mjs: builds (in target\\prueba if the old version is open), installs in %LOCALAPPDATA%\\AlphaTerm\\versiones\\<v> and points the \"AlphaTerm <v>\" desktop shortcut and the taskbar pin there.\n- ALPHATERM_DATA_DIR to test a version next to the open one.\n- Rust tests: the Windows manifest is embedded by the linker (without it, STATUS_ENTRYPOINT_NOT_FOUND).\n\nTests: Rust 72 (+6 ignored), Vitest 104."
+  },
+  "Barra vertical ajustable y opciones de arranque de los agentes": {
+    "subject": "Resizable vertical bar and agent launch options",
+    "body": "- Drawn collapse button; draggable vertical bar width (160-480 px, double click 220).\n- Launch options per agent (model, effort, permissions, session, more options) with the command line that will run; catalog in agentLaunch.ts gathered from the installed --help output, live models (agent_models), conflicts between options, quoting according to the shell; saved per agent.\n- The agents panel iterates ids (it no longer loses focus when the settings change).\n\nTests: Rust 74 (+6 ignored), Vitest 111."
+  },
+  "Versiones automáticas y Novedades (changelog entre versiones con sus commits)": {
+    "subject": "Automatic versions and What's new (changelog between versions with their commits)",
+    "body": "- compilar-version.bat / scripts/release.mjs: bump the version on their own (patch by default, --minor, --major, --misma), commit \"Version X\" + tag vX, build and install; if something fails, they undo the commit and the tag.\n- scripts/changelog.mjs: changelog from git grouped by vX.Y.Z tags in src/generated/changelog.json (runs with dev, build and typecheck). Tags v0.1.0 and v0.2.0 set on their commits.\n- Footer: \"What's new\" button with each version, its date and its commits (body when expanded, hash to copy), \"after X up to Y\" filter, expand/collapse all and the running version highlighted."
+  },
+  "Navegador integrado con marcado de elementos para pedirle cambios al agente": {
+    "subject": "Built-in browser with element marking to ask the agent for changes",
+    "body": "- Browser panel (child WebView2 inside the window, driven through DevTools): URL, back, forward, reload, console errors; hides under menus and modals and in other tabs.\n- Edit mode: highlight on hover, click to mark (several), Alt+click for the parent, \"Whole site\" for global changes. Each mark carries selector, HTML, styles, position, screenshot and, when possible, the component and its file (React, Vue, Svelte, Angular).\n- The request is pasted into the terminal of the tab's agent with the screenshots and a pedido.md; \"working… done\" with Claude Code's Stop hook (or by silence for other agents), and a reload if the page has no hot reload.\n- API and MCP: browser_open/list/navigate/reload/screenshot/snapshot/click/type/key/scroll/eval/console/marks.\n- Opens with Ctrl+Shift+U, from Servers or through the API; saved in the session.\n- Fix: with a child WebView, the control API, the Guardian and window closing use app.windows() (webview_windows() stopped seeing the window)."
+  },
+  "Configuración dentro de la misma ventana": {
+    "subject": "Settings inside the same window",
+    "body": "Opens on top of the tabs and panes (Ctrl+, the gear or the version in the footer) instead of in a separate window; closes with Esc, the × or Ctrl+, and focus goes back to the terminal. While it's open, shortcuts don't touch the tabs behind it and the built-in browser hides."
+  },
+  "Predicciones: diseño, plan y completados de PowerShell por F12,e (OSC 7717)": {
+    "subject": "Suggestions: design, plan and PowerShell completions via F12,e (OSC 7717)"
+  },
+  "Predicciones: mensajes de la sesión de PowerShell (parse7717)": {
+    "subject": "Suggestions: PowerShell session messages (parse7717)"
+  },
+  "Predicciones: leer la línea del prompt y separar palabras": {
+    "subject": "Suggestions: read the prompt line and split words"
+  },
+  "Predicciones: comandos de Rust (carpetas, router, PATH, npm, procesos)": {
+    "subject": "Suggestions: Rust commands (folders, router, PATH, npm, processes)"
+  },
+  "Predicciones: teclas del menú": {
+    "subject": "Suggestions: menu keys"
+  },
+  "Predicciones: catálogo de comandos, motor e inserción": {
+    "subject": "Suggestions: command catalog, engine and insertion"
+  },
+  "Predicciones: opciones en la configuración": {
+    "subject": "Suggestions: options in Settings"
+  },
+  "Predicciones: controlador, menú y cableado en la terminal": {
+    "subject": "Suggestions: controller, menu and wiring into the terminal"
+  },
+  "Predicciones: recalcular por cambio de línea (no por aviso), historial de cd solo de esta carpeta": {
+    "subject": "Suggestions: recompute on line change (not on notification), cd history only for this folder"
+  },
+  "Predicciones: historial de cmd sin el espacio de más del título; parámetros de PowerShell con guion y resaltado": {
+    "subject": "Suggestions: cmd history without the title's extra space; PowerShell parameters with dash and highlighting"
+  },
+  "Predicciones: en la primera palabra, el catálogo antes que PowerShell; programas sin repetir por la extensión": {
+    "subject": "Suggestions: on the first word, the catalog before PowerShell; programs not repeated because of the extension"
+  },
+  "Predicciones: en cmd, /x es una opción y no la raíz del disco": {
+    "subject": "Suggestions: in cmd, /x is an option, not the drive root"
+  },
+  "Informe: predicciones de comandos": {
+    "subject": "Report: command suggestions"
+  },
+  "Predicciones: arreglos de la revisión (inserción pendiente tras Enter, eco por línea esperada, sin caracteres de control, comillas con barra final, caché de generadores, historial de cmdlets)": {
+    "subject": "Suggestions: review fixes (pending insertion after Enter, echo by expected line, no control characters, quotes with a trailing backslash, generator cache, cmdlet history)"
+  },
+  "Informe: arreglos de la revisión de predicciones": {
+    "subject": "Report: fixes from the suggestions review"
+  },
+  "Perfiles de desarrollo livianos (target\\debug llegaba a 28 GB)": {
+    "subject": "Lightweight dev profiles (target\\debug reached 28 GB)",
+    "body": "debug = \"line-tables-only\" for our own code and no debug info for dependencies, build scripts and macros. Release builds don't change."
+  },
+  "Paneles: diseño de la barra con botones y mover como snap": {
+    "subject": "Panes: design of the bar with buttons and snap-style moving"
+  },
+  "Paneles: plan de implementación": {
+    "subject": "Panes: implementation plan"
+  },
+  "Paneles: mover, intercambiar e igualar en el modelo": {
+    "subject": "Panes: move, swap and equalize in the model"
+  },
+  "Paneles: zonas para soltar, frenado del divisor y panel ocupado": {
+    "subject": "Panes: drop zones, divider snapping and busy pane"
+  },
+  "Paneles: barrita con dividir y cerrar, y menú del clic derecho": {
+    "subject": "Panes: pane bar with split and close, and right-click menu"
+  },
+  "Paneles: mover arrastrando la barrita (mitades o intercambio)": {
+    "subject": "Panes: move by dragging the pane bar (halves or swap)"
+  },
+  "Paneles: divisor más ancho, se frena en ⅓ ½ ⅔ y doble clic iguala": {
+    "subject": "Panes: wider divider, snaps at ⅓ ½ ⅔ and double click equalizes"
+  },
+  "Paneles: confirmación propia al cerrar un panel ocupado (window.confirm no pregunta en AlphaTerm)": {
+    "subject": "Panes: our own confirmation when closing a busy pane (window.confirm doesn't ask in AlphaTerm)",
+    "body": "Tauri's dialog plugin replaces window.confirm with an async function: it returns a promise (always \"yes\") and the permission is missing too. askConfirm + ConfirmModal ask inside the app. The × on the pane bar becomes ×."
+  },
+  "Informe: paneles con barrita, mover y divisores": {
+    "subject": "Report: panes with a pane bar, moving and dividers"
+  },
+  "Las 13 confirmaciones viejas pasan a askConfirm (window.confirm no preguntaba)": {
+    "subject": "The 13 old confirmations move to askConfirm (window.confirm didn't ask)",
+    "body": "Stopping servers, deleting containers, resetting to defaults, changing Claude Code's statusline, deleting themes/recipes/presets/agents, switching branches with changes, creating a repo, clearing or discarding changes and closing a tab group happened without asking. scripts/sin-confirm.test.mjs fails if a stray confirm() shows up again."
+  },
+  "README en inglés con logo y capturas": {
+    "subject": "README in English with logo and screenshots"
+  },
+  "Idiomas: base (t/k, idioma en la configuración, detección y verificador)": {
+    "subject": "Languages: foundation (t/k, language in settings, detection and checker)"
+  },
+  "Idiomas: toda la interfaz en inglés y portugués": {
+    "subject": "Languages: the whole interface in English and Portuguese"
+  },
+  "Idiomas: backend, API de control y scripts de agentes en tres idiomas": {
+    "subject": "Languages: backend, control API and agent scripts in three languages"
+  },
+  "Idiomas: Novedades en tres idiomas; release.mjs frena si falta una traducción": {
+    "subject": "Languages: What's new in three languages; release.mjs stops if a translation is missing"
+  },
+  "Documentación en inglés y portugués": {
+    "subject": "Documentation in English and Portuguese"
+  },
+  "Licencia MIT y avisos de terceros": {
+    "subject": "MIT license and third-party notices"
+  }
+}

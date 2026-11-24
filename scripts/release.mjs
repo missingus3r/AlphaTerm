@@ -6,10 +6,13 @@
 //   node scripts/release.mjs --major      → 0.3.0 → 1.0.0
 //   node scripts/release.mjs --misma      → recompila la versión actual sin subirla
 //
-// Pasos: 1) sube `version` en package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml y
-// Cargo.lock; 2) commit "Versión X" (solo esos archivos) y tag anotado vX; 3) genera el changelog;
-// 4) compila; 5) instala (scripts/instalar.mjs). Si falla la compilación o la instalación, deshace
-// el commit y el tag que creó (son locales y recién hechos) y deja los archivos como estaban.
+// Pasos: 0) antes de tocar nada, revisa que los commits desde el último tag tengan su traducción
+// de Novedades (src/i18n/changelog/en.json y pt.json; `node scripts/changelog.mjs --faltan`): si
+// falta alguna, frena sin cambiar nada; 1) sube `version` en package.json, src-tauri/tauri.conf.json,
+// src-tauri/Cargo.toml y Cargo.lock; 2) commit "Versión X" (solo esos archivos) y tag anotado vX;
+// 3) genera el changelog; 4) compila; 5) instala (scripts/instalar.mjs). Si falla la compilación o la
+// instalación, deshace el commit y el tag que creó (son locales y recién hechos) y deja los archivos
+// como estaban.
 //
 // Si `src-tauri\target\release\alphaterm.exe` está abierto (una AlphaTerm vieja que corre desde ahí),
 // no se puede pisar: se compila en `src-tauri\target\prueba` y se instala desde ahí.
@@ -79,6 +82,22 @@ if (kind) {
     process.exit(1);
   } catch {
     /* no existe: bien */
+  }
+  // Novedades en los tres idiomas: los commits que entran en esta versión tienen que estar traducidos.
+  let since = null;
+  try {
+    since = git("describe", "--tags", "--abbrev=0", "--match", "v[0-9]*");
+  } catch {
+    /* sin tags: se revisa todo el historial */
+  }
+  try {
+    execFileSync(process.execPath, [path.join(repo, "scripts", "changelog.mjs"), "--faltan", ...(since ? ["--desde", since] : [])], { cwd: repo, stdio: "inherit" });
+  } catch {
+    console.error(
+      `\nNo se subió la versión: faltan las traducciones de Novedades de los commits de arriba${since ? ` (los posteriores a ${since})` : ""}.\n` +
+        `Agregalas en src/i18n/changelog/en.json y pt.json y volvé a correr la versión. No se cambió nada.`,
+    );
+    process.exit(1);
   }
   const dirty = git("status", "--porcelain").split("\n").filter(Boolean);
   if (dirty.length) {

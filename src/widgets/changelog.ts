@@ -1,5 +1,12 @@
 /** Changelog: viene de src/generated/changelog.json (lo genera scripts/changelog.mjs al compilar). */
 import data from "../generated/changelog.json";
+import { lang, locale, type Lang } from "../i18n";
+
+/** Un commit traducido (src/i18n/changelog/<idioma>.json): solo lo que está traducido. */
+export interface CommitText {
+  subject?: string;
+  body?: string;
+}
 
 export interface ChangeCommit {
   hash: string;
@@ -7,6 +14,8 @@ export interface ChangeCommit {
   date: string;
   subject: string;
   body: string;
+  /** Traducciones por idioma (las junta scripts/changelog.mjs); lo que falta se muestra en español. */
+  tr?: Partial<Record<Exclude<Lang, "es">, CommitText>>;
 }
 
 export interface ChangeVersion {
@@ -18,6 +27,12 @@ export interface ChangeVersion {
 }
 
 export const CHANGELOG: ChangeVersion[] = (data as { versions: ChangeVersion[] }).versions;
+
+/** Asunto y cuerpo de un commit en un idioma (por defecto el actual); lo que no esté traducido, en español. */
+export function commitText(c: ChangeCommit, l: Lang = lang()): { subject: string; body: string } {
+  const tr = l === "es" ? undefined : c.tr?.[l];
+  return { subject: tr?.subject ?? c.subject, body: c.body ? (tr?.body ?? c.body) : "" };
+}
 
 /** "0.10.2" > "0.9.9": compara números, no texto. */
 export function cmpVersion(a: string, b: string): number {
@@ -41,5 +56,6 @@ export function between(list: ChangeVersion[], from?: string, to?: string): Chan
   });
 }
 
+/** Fecha corta en el formato del idioma de la interfaz. */
 export const fmtDate = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString("es-UY", { day: "2-digit", month: "2-digit", year: "numeric" }) : "";
+  iso ? new Date(iso).toLocaleDateString(locale(), { day: "2-digit", month: "2-digit", year: "numeric" }) : "";

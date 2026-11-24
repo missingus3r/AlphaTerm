@@ -1,0 +1,20 @@
+{
+  "Novedades de AlphaTerm": "What's new in AlphaTerm",
+  "Novedades": "What's new",
+  "{n} commits en {v} versiones": "{n} commits in {v} versions",
+  "1 commit en 1 versión": "1 commit in 1 version",
+  "{n} commits en 1 versión": "{n} commits in 1 version",
+  "Cerrar (Esc)": "Close (Esc)",
+  "Después de": "After",
+  "el principio": "the start",
+  "hasta": "up to",
+  "lo último": "the latest",
+  "abrir todas": "expand all",
+  "cerrar todas": "collapse all",
+  "No hay versiones en ese rango.": "No versions in that range.",
+  "Sin publicar": "Unreleased",
+  "la que usás": "current",
+  "1 commit": "1 commit",
+  "{n} commits": "{n} commits",
+  "Clic: copiar": "Click: copy"
+}
