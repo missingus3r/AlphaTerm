@@ -112,6 +112,32 @@ the code guide is in `Documentacion\en\Code_Guide.txt` (and its PDF); the log of
   by the terminal going silent after having worked. With `--remote-debugging-port`, the
   child browser shows up as another target in `/json` (useful for testing).
 
+## Languages (Spanish, English and Portuguese, since 0.7.0)
+- Interface: every visible text goes through `t("Spanish text")` (`src/i18n/index.ts`); in module
+  constants it is marked with `k("…")` and translated with `t(value)` when shown. Variables in braces:
+  `t("Cerrar {n} pestañas", { n })`, never concatenating. Translations in `src/i18n/en/*.json` and
+  `src/i18n/pt/*.json` (one file per area; key = the EXACT Spanish text). Changing a Spanish text means
+  changing its key in both languages: `node scripts/i18n-check.mjs` (and its test) fails if something
+  is missing, left over, has different {variables}, or one text has two translations. Terms and
+  style: `src/i18n/GLOSARIO.md`. Dates and numbers with `locale()`.
+- Rust: `tr("…", "…", "…")` and `tr!(…)` from `src-tauri/src/i18n.rs` (es, en, pt). The language
+  arrives through `set_locale` and is read from settings.json at startup. In tests: `tr_in!`/
+  `Lang::pick`, never change the global (other tests expect Spanish).
+- Kept in Spanish on purpose because they are compared (translated only when shown): the usage window
+  labels ("5 h", "semana"…), the Guardian log decisions ("bloqueado"…) and the "Símbolo del sistema"
+  profile (`profileLabel`).
+- Agent scripts (MCP, Guardian hook, browser overlay): the language comes from `ALPHATERM_LANG` (new
+  tabs get it) or from settings.json.
+- Initial language: new install = the Windows language; settings.json without the `language` key =
+  Spanish.
+- What's new: each commit's translation in `src/i18n/changelog/en|pt.json` (key = Spanish subject).
+  `node scripts/changelog.mjs --faltan` lists what's missing and `release.mjs` won't bump the version
+  if a commit since the last tag isn't translated.
+- Documentation: the English and Portuguese versions are in `Documentacion/en|pt`, `CLAUDE.en.md`,
+  `CLAUDE.pt.md`, `README.md` (English), `README.es.md` and `README.pt.md`. When a document changes,
+  update all three (and their PDFs: `python Documentacion/generar_pdfs.py es en pt`, needs fpdf2).
+  README screenshots per language in `Documentacion/capturas/<language>/`.
+
 ## Decisions already made (don't re-discuss without a reason)
 - Tauri 2 + Rust; Vite + TypeScript + SolidJS 1.9; xterm.js 6 with WebGL (DOM fallback).
 - Tab name: manual > the program's OSC title > model summary (optional) > heuristic.

@@ -110,6 +110,31 @@ la guía de código en `Documentacion\Guia_de_codigo.txt` (y su PDF); el registr
   por el silencio de la terminal después de haber trabajado. Con `--remote-debugging-port`, el
   navegador hijo aparece como otro target en `/json` (sirve para probar).
 
+## Idiomas (español, inglés y portugués, desde 0.7.0)
+- Interfaz: cada texto visible pasa por `t("texto en español")` (`src/i18n/index.ts`); en constantes
+  de módulo se marca con `k("…")` y se traduce con `t(valor)` al mostrarlo. Variables con llaves:
+  `t("Cerrar {n} pestañas", { n })`, nunca concatenando. Traducciones en `src/i18n/en/*.json` y
+  `src/i18n/pt/*.json` (un archivo por área; clave = el texto en español EXACTO). Cambiar un texto en
+  español es cambiar su clave en los dos idiomas: `node scripts/i18n-check.mjs` (y su test) falla si
+  falta, sobra o no coinciden las {variables}, o si un texto tiene dos traducciones. Términos y
+  estilo: `src/i18n/GLOSARIO.md`. Fechas y números con `locale()`.
+- Rust: `tr("…", "…", "…")` y `tr!(…)` de `src-tauri/src/i18n.rs` (es, en, pt). El idioma llega por
+  `set_locale` y al arrancar se lee de settings.json. En tests: `tr_in!`/`Lang::pick`, nunca cambiar
+  el global (otros tests esperan español).
+- Quedan en español a propósito porque se comparan (se traducen solo al mostrarlos): las etiquetas
+  de las ventanas de consumo ("5 h", "semana"…), las decisiones del registro del guardián
+  ("bloqueado"…) y el perfil "Símbolo del sistema" (`profileLabel`).
+- Scripts de agentes (MCP, hook del guardián, capa del navegador): el idioma sale de
+  `ALPHATERM_LANG` (lo reciben las pestañas nuevas) o de settings.json.
+- Idioma inicial: instalación nueva = el de Windows; settings.json sin la clave `language` = español.
+- Novedades: traducción de cada commit en `src/i18n/changelog/en|pt.json` (clave = asunto en
+  español). `node scripts/changelog.mjs --faltan` lista lo que falta y `release.mjs` no sube la
+  versión si un commit desde el último tag no está traducido.
+- Documentación: las versiones en inglés y portugués están en `Documentacion/en|pt`, `CLAUDE.en.md`,
+  `CLAUDE.pt.md`, `README.md` (inglés), `README.es.md` y `README.pt.md`. Al cambiar un documento,
+  actualizar las tres (y sus PDF: `python Documentacion/generar_pdfs.py es en pt`, necesita fpdf2).
+  Capturas del README por idioma en `Documentacion/capturas/<idioma>/`.
+
 ## Decisiones ya tomadas (no re-discutir sin motivo)
 - Tauri 2 + Rust; Vite + TypeScript + SolidJS 1.9; xterm.js 6 con WebGL (fallback DOM).
 - Nombre de pestaña: manual > título OSC del programa > resumen por modelo (opcional) > heurística.

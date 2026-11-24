@@ -830,3 +830,41 @@ barrinha fixa em cima de cada painel (em vez de botões flutuantes).
 ### Stats
 - Testes: Vitest 229 (+23: modelo 11, sessão 1, estado 1, arraste 7, confirmação 3, guarda de
   `confirm()` 1). Sem mudanças no Rust.
+
+## Idiomas: espanhol, inglês e português (24/11/2026, branch `i18n`, versão 0.7.0)
+
+Pedido do Bruno: o AlphaTerm tem que poder ser usado inteiro em espanhol, inglês ou português, com a
+documentação, as Novidades e as descrições da API também nos três, para publicar o repositório como
+open source.
+
+### O que foi feito
+- Base (`src/i18n/index.ts`): `t("texto em espanhol")` traduz para o idioma atual (um sinal do Solid:
+  no JSX atualiza sozinho ao trocar o idioma), `k()` marca textos de constantes, `locale()` para
+  datas e números. Dicionários por área em `src/i18n/en|pt/*.json` com o texto em espanhol como
+  chave. `scripts/i18n-check.mjs` (com teste) confere faltantes, sobras, {variáveis} e conflitos.
+- Configurações: seção nova "Idioma" (a primeira da lista, com 🌐) com Español / English /
+  Português; a troca vale na hora em todas as janelas. Instalação nova: o idioma do Windows;
+  configuração antiga: espanhol.
+- Interface completa: 1179 textos traduzidos para inglês e português (configurações e atalhos,
+  agentes, painéis laterais, janela e abas, navegador, terminal, uso, Guardião, sugestões com todo o
+  catálogo, Novidades).
+- Backend Rust (`src-tauri/src/i18n.rs`): ~195 mensagens com as três versões (erros, Guardião, uso,
+  API de controle, pedido do navegador). `set_locale` a partir do frontend; lido do settings.json ao
+  iniciar. As abas novas recebem `ALPHATERM_LANG`.
+- Scripts para agentes: o servidor MCP (27 ferramentas, ~62 textos), o hook do Guardião e a camada do
+  navegador, nos três idiomas.
+- Novidades: os 60 commits anteriores traduzidos (`src/i18n/changelog/en|pt.json`, chave = assunto);
+  `changelog.mjs --faltan`, e o `release.mjs` para se faltar uma tradução.
+- Documentação em inglês e português (`Documentacion/en|pt`, `CLAUDE.en.md`, `CLAUDE.pt.md`, avisos
+  do ConPTY) e seus PDFs (`generar_pdfs.py` agora gera por idioma: `python Documentacion/generar_pdfs.py
+  en pt`), README em três idiomas com capturas por idioma, licença MIT e avisos de terceiros.
+- O trabalho foi feito em paralelo por área (dez agentes, cada um com seus arquivos e dicionários); a
+  integração unificou traduções repetidas e corrigiu o que cruzava áreas: o atalho de cada painel é
+  buscado pelo id (antes comparava rótulos), e os rótulos de uso, as decisões do Guardião e "Símbolo
+  del sistema" ficam em espanhol como ids e são traduzidos ao exibir.
+
+### Pendente / não verificado
+- Revisão das traduções por alguém que fale inglês ou português.
+
+### Stats
+- Testes: Vitest 241 (+12), cargo 86 ok + 6 ignorados (+2). tsc sem erros.

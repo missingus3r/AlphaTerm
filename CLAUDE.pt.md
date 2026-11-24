@@ -112,6 +112,31 @@ o guia de código em `Documentacion\pt\Guia_de_Codigo.txt` (e seu PDF); o regist
   pelo silêncio da terminal depois de terem trabalhado. Com `--remote-debugging-port`, o
   navegador filho aparece como outro target em `/json` (serve para testar).
 
+## Idiomas (espanhol, inglês e português, desde 0.7.0)
+- Interface: todo texto visível passa por `t("texto em espanhol")` (`src/i18n/index.ts`); em
+  constantes de módulo é marcado com `k("…")` e traduzido com `t(valor)` ao ser exibido. Variáveis
+  entre chaves: `t("Cerrar {n} pestañas", { n })`, nunca concatenando. Traduções em
+  `src/i18n/en/*.json` e `src/i18n/pt/*.json` (um arquivo por área; chave = o texto em espanhol
+  EXATO). Mudar um texto em espanhol é mudar a chave nos dois idiomas: `node scripts/i18n-check.mjs`
+  (e seu teste) falha se faltar, sobrar, as {variáveis} não baterem ou um texto tiver duas traduções.
+  Termos e estilo: `src/i18n/GLOSARIO.md`. Datas e números com `locale()`.
+- Rust: `tr("…", "…", "…")` e `tr!(…)` de `src-tauri/src/i18n.rs` (es, en, pt). O idioma chega por
+  `set_locale` e é lido do settings.json ao iniciar. Nos testes: `tr_in!`/`Lang::pick`, nunca mudar o
+  global (outros testes esperam espanhol).
+- Ficam em espanhol de propósito porque são comparados (traduzidos só ao exibir): os rótulos das
+  janelas de uso ("5 h", "semana"…), as decisões do registro do Guardião ("bloqueado"…) e o perfil
+  "Símbolo del sistema" (`profileLabel`).
+- Scripts de agentes (MCP, hook do Guardião, camada do navegador): o idioma vem de `ALPHATERM_LANG`
+  (as abas novas recebem) ou do settings.json.
+- Idioma inicial: instalação nova = o do Windows; settings.json sem a chave `language` = espanhol.
+- Novidades: a tradução de cada commit em `src/i18n/changelog/en|pt.json` (chave = assunto em
+  espanhol). `node scripts/changelog.mjs --faltan` lista o que falta e o `release.mjs` não sobe a
+  versão se algum commit desde a última tag não estiver traduzido.
+- Documentação: as versões em inglês e português ficam em `Documentacion/en|pt`, `CLAUDE.en.md`,
+  `CLAUDE.pt.md`, `README.md` (inglês), `README.es.md` e `README.pt.md`. Ao mudar um documento,
+  atualize as três (e os PDFs: `python Documentacion/generar_pdfs.py es en pt`, precisa do fpdf2).
+  Capturas do README por idioma em `Documentacion/capturas/<idioma>/`.
+
 ## Decisões já tomadas (não rediscutir sem motivo)
 - Tauri 2 + Rust; Vite + TypeScript + SolidJS 1.9; xterm.js 6 com WebGL (fallback DOM).
 - Nome da aba: manual > título OSC do programa > resumo por modelo (opcional) > heurística.

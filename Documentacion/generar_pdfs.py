@@ -1,11 +1,15 @@
-"""Genera Especificación.pdf y Plan.pdf a partir de Plan_Terminal_NovaTerm.txt.
+"""Genera los PDF de la documentación (especificación, plan y guía de código) en cada idioma.
 
-El txt es la fuente de verdad: si cambia, se vuelve a correr este script.
-Uso:  python Documentacion/generar_pdfs.py   (necesita fpdf2: pip install fpdf2)
+Los txt son la fuente de verdad: si cambian, se vuelve a correr este script.
+- es: Plan_Terminal_NovaTerm.txt y Documentacion/Guia_de_codigo.txt → Documentacion/
+- en: Documentacion/en/Terminal_Plan.txt y Code_Guide.txt → Documentacion/en/
+- pt: Documentacion/pt/Plano_do_Terminal.txt y Guia_de_Codigo.txt → Documentacion/pt/
+Uso:  python Documentacion/generar_pdfs.py [es] [en] [pt]   (sin idiomas: los tres; necesita fpdf2)
 """
 from __future__ import annotations
 
 import re
+import sys
 from datetime import date
 from pathlib import Path
 
@@ -99,7 +103,7 @@ class Doc(FPDF):
         self.set_text_color(*GRIS)
         self.cell(0, 6, f"{self.page_no()}", align="C")
 
-    def portada(self, subtitulo: str, guardado: str):
+    def portada(self, subtitulo: str, guardado: str, generado: str):
         self.add_page()
         self.ln(60)
         self.set_font("Segoe", "B", 30)
@@ -115,8 +119,8 @@ class Doc(FPDF):
         self.ln(30)
         self.set_font("Segoe", "", 9)
         fuente = getattr(self, "fuente", "Plan_Terminal_NovaTerm.txt")
-        self.multi_cell(0, 5, f"{guardado}\nGenerado el {date.today():%d/%m/%Y} desde {fuente}",
-                        new_x="LMARGIN", new_y="NEXT")
+        pie = generado.format(fecha=f"{date.today():%d/%m/%Y}", fuente=fuente)
+        self.multi_cell(0, 5, f"{guardado}\n{pie}", new_x="LMARGIN", new_y="NEXT")
 
     def seccion(self, titulo: str):
         self.add_page()
@@ -166,47 +170,76 @@ class Doc(FPDF):
 
 
 def construir(nombre: str, titulo: str, subtitulo: str, guardado: str,
-              secciones: dict[str, list[str]], orden: list[str], fuente: str = "Plan_Terminal_NovaTerm.txt"):
+              secciones: dict[str, list[str]], orden: list[str], fuente: str = "Plan_Terminal_NovaTerm.txt",
+              salida: Path = SALIDA, generado: str = "Generado el {fecha} desde {fuente}"):
     doc = Doc(titulo)
     doc.fuente = fuente
-    doc.portada(subtitulo, guardado)
+    doc.portada(subtitulo, guardado, generado)
     for clave in orden:
         reales = [k for k in secciones if k.startswith(clave)]
         for k in reales:
             doc.seccion(k)
             doc.bloques(agrupar(secciones[k]))
-    destino = SALIDA / nombre
+    destino = salida / nombre
     doc.output(str(destino))
     print(f"{destino.name}: {doc.page_no()} páginas")
 
 
+# Por idioma: fuentes, carpeta de salida, nombres, títulos y cómo empiezan las secciones de cada PDF.
+IDIOMAS = {
+    "es": {
+        "plan": "Plan_Terminal_NovaTerm.txt", "guia": "Documentacion/Guia_de_codigo.txt", "salida": "Documentacion",
+        "guardado": "Guardado:", "generado": "Generado el {fecha} desde {fuente}",
+        "espec": ("Especificación.pdf", "Especificación funcional y de arquitectura",
+                  "Terminal propia estilo Warp, liviana y rápida, para trabajar con agentes de IA.",
+                  ["CONTEXTO", "ARQUITECTURA", "FUNCIONALIDADES", "ADENDA"]),
+        "fases": ("Plan.pdf", "Plan de implementación por fases", "Fases F0 a F9, criterios de cierre y verificación.",
+                  ["FASES", "VERIFICACIÓN", "ADENDA"]),
+        "codigo": ("Guía de código.pdf", "Guía de código", "Cómo está armado AlphaTerm, dónde está cada cosa y cómo extenderlo."),
+    },
+    "en": {
+        "plan": "Documentacion/en/Terminal_Plan.txt", "guia": "Documentacion/en/Code_Guide.txt", "salida": "Documentacion/en",
+        "guardado": "Saved:", "generado": "Generated on {fecha} from {fuente}",
+        "espec": ("Specification.pdf", "Functional and architecture specification",
+                  "A Warp-style terminal of our own, light and fast, for working with AI agents.",
+                  ["CONTEXT", "ARCHITECTURE", "FEATURES", "ADDENDUM"]),
+        "fases": ("Plan.pdf", "Phased implementation plan", "Phases F0 to F9, completion criteria and verification.",
+                  ["PHASES", "VERIFICATION", "ADDENDUM"]),
+        "codigo": ("Code_Guide.pdf", "Code guide", "How AlphaTerm is built, where everything lives and how to extend it."),
+    },
+    "pt": {
+        "plan": "Documentacion/pt/Plano_do_Terminal.txt", "guia": "Documentacion/pt/Guia_de_Codigo.txt", "salida": "Documentacion/pt",
+        "guardado": "Salvo em:", "generado": "Gerado em {fecha} a partir de {fuente}",
+        "espec": ("Especificacao.pdf", "Especificação funcional e de arquitetura",
+                  "Terminal próprio no estilo Warp, leve e rápido, para trabalhar com agentes de IA.",
+                  ["CONTEXTO", "ARQUITETURA", "FUNCIONALIDADES", "ADENDO"]),
+        "fases": ("Plano.pdf", "Plano de implementação por fases", "Fases F0 a F9, critérios de conclusão e verificação.",
+                  ["FASES", "VERIFICAÇÃO", "ADENDO"]),
+        "codigo": ("Guia_de_Codigo.pdf", "Guia de código", "Como o AlphaTerm é feito, onde fica cada coisa e como estendê-lo."),
+    },
+}
+
+
+def generar(idioma: str):
+    c = IDIOMAS[idioma]
+    salida = RAIZ / c["salida"]
+    encabezado, secciones = leer_secciones((RAIZ / c["plan"]).read_text(encoding="utf-8"))
+    guardado = next((l.strip() for l in encabezado if l.startswith(c["guardado"])), "")
+    for clave in ("espec", "fases"):
+        nombre, titulo, subtitulo, orden = c[clave]
+        construir(nombre, titulo, subtitulo, guardado, secciones, orden, c["plan"], salida, c["generado"])
+    enc, secs = leer_secciones((RAIZ / c["guia"]).read_text(encoding="utf-8"))
+    nombre, titulo, subtitulo = c["codigo"]
+    construir(nombre, titulo, subtitulo, next((l.strip() for l in enc if l.startswith(c["guardado"])), ""), secs,
+              list(secs.keys()), c["guia"], salida, c["generado"])
+
+
 def main():
-    encabezado, secciones = leer_secciones(PLAN.read_text(encoding="utf-8"))
-    guardado = next((l.strip() for l in encabezado if l.startswith("Guardado:")), "")
-    construir(
-        "Especificación.pdf",
-        "Especificación funcional y de arquitectura",
-        "Terminal propia estilo Warp, liviana y rápida, para trabajar con agentes de IA.",
-        guardado, secciones,
-        ["CONTEXTO", "ARQUITECTURA", "FUNCIONALIDADES", "ADENDA"],
-    )
-    construir(
-        "Plan.pdf",
-        "Plan de implementación por fases",
-        "Fases F0 a F9, criterios de cierre y verificación.",
-        guardado, secciones,
-        ["FASES", "VERIFICACIÓN", "ADENDA"],
-    )
-    guia = RAIZ / "Documentacion" / "Guia_de_codigo.txt"
-    enc, secs = leer_secciones(guia.read_text(encoding="utf-8"))
-    construir(
-        "Guía de código.pdf",
-        "Guía de código",
-        "Cómo está armado AlphaTerm, dónde está cada cosa y cómo extenderlo.",
-        next((l.strip() for l in enc if l.startswith("Guardado:")), ""), secs,
-        list(secs.keys()),
-        "Documentacion/Guia_de_codigo.txt",
-    )
+    pedidos = sys.argv[1:] or list(IDIOMAS)
+    for idioma in pedidos:
+        if idioma not in IDIOMAS:
+            raise SystemExit(f"Idioma desconocido: {idioma} (es, en o pt)")
+        generar(idioma)
 
 
 if __name__ == "__main__":

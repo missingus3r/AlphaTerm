@@ -832,3 +832,42 @@ fixed bar on top of each pane (instead of floating buttons).
 ### Stats
 - Tests: Vitest 229 (+23: model 11, session 1, state 1, drag 7, confirmation 3, `confirm()`
   guard 1). No Rust changes.
+
+## Languages: Spanish, English and Portuguese (24/11/2026, branch `i18n`, version 0.7.0)
+
+Bruno's request: AlphaTerm should be fully usable in Spanish, English or Portuguese, with the
+documentation, What's new and the API descriptions also in all three, so the repo can be published as
+open source.
+
+### What was done
+- Foundation (`src/i18n/index.ts`): `t("Spanish text")` translates into the current language (a Solid
+  signal: in JSX it updates as soon as the language changes), `k()` marks texts in constants,
+  `locale()` for dates and numbers. Dictionaries per area in `src/i18n/en|pt/*.json` with the Spanish
+  text as the key. `scripts/i18n-check.mjs` (with a test) checks missing and left-over entries,
+  {variables} and conflicts.
+- Settings: new "Language" section (first in the list, with 🌐) with Español / English / Português;
+  the change applies live in every window. New install: the Windows language; older settings: Spanish.
+- Whole interface: 1179 texts translated into English and Portuguese (settings and shortcuts, agents,
+  side panels, window and tabs, browser, terminal, usage, Guardian, command suggestions with their
+  whole catalog, What's new).
+- Rust backend (`src-tauri/src/i18n.rs`): ~195 messages with their three versions (errors, Guardian,
+  usage, control API, browser request). `set_locale` from the frontend; read from settings.json at
+  startup. New tabs get `ALPHATERM_LANG`.
+- Agent scripts: the MCP server (27 tools, ~62 texts), the Guardian hook and the browser overlay, in
+  all three languages.
+- What's new: the 60 earlier commits translated (`src/i18n/changelog/en|pt.json`, key = subject);
+  `changelog.mjs --faltan`, and `release.mjs` stops if a translation is missing.
+- Documentation in English and Portuguese (`Documentacion/en|pt`, `CLAUDE.en.md`, `CLAUDE.pt.md`,
+  ConPTY notices) and their PDFs (`generar_pdfs.py` now generates per language:
+  `python Documentacion/generar_pdfs.py en pt`), README in three languages with screenshots per
+  language, MIT license and third-party notices.
+- Work was done in parallel by area (ten agents, each with its own files and dictionaries); the
+  integration unified repeated translations and fixed what crossed areas: each panel's shortcut is
+  looked up by id (it used to compare labels), and the usage labels, the Guardian decisions and
+  "Símbolo del sistema" stay in Spanish as ids and are translated when shown.
+
+### Pending / not verified
+- Review of the translations by an English or Portuguese speaker.
+
+### Stats
+- Tests: Vitest 241 (+12), cargo 86 ok + 6 ignored (+2). tsc without errors.
