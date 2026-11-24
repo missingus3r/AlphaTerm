@@ -3,6 +3,7 @@
  * `normalize` acepta cualquier cosa (un archivo editado a mano, de una versión vieja o roto)
  * y devuelve una configuración completa y válida, sin perder claves que no conoce.
  */
+import { isLang, type Lang } from "../i18n";
 import type { ThemeColors } from "./themes";
 
 export type ThemeMode = "dark" | "light" | "auto";
@@ -71,6 +72,8 @@ export interface SuggestSettings {
 
 export interface Settings {
   version: 1;
+  /** Idioma de la interfaz. Sin la clave (configuración de antes de 0.7.0): español. */
+  language: Lang;
   appearance: {
     /** Tema cuando el modo es oscuro (o fijo). */
     theme: string;
@@ -150,6 +153,7 @@ export const DEFAULT_FONT = "Cascadia Mono";
 
 export const DEFAULTS: Settings = {
   version: 1,
+  language: "es",
   appearance: {
     theme: "nova-dark",
     themeLight: "nova-light",
@@ -339,6 +343,7 @@ export function normalize(raw: unknown, baseColors: ThemeColors): Settings {
   return {
     ...r, // claves de otras fases o versiones: se conservan tal cual
     version: 1,
+    language: isLang(r.language) ? r.language : D.language,
     appearance: {
       theme: str(a.theme, D.appearance.theme),
       themeLight: str(a.themeLight, D.appearance.themeLight),

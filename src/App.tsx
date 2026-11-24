@@ -7,6 +7,7 @@ import { loadSettings, type SettingsStore } from "./settings/store";
 import { termLook, useAppearance } from "./settings/apply";
 import { invoke } from "@tauri-apps/api/core";
 import { newWindow } from "./terminal/pty";
+import { setLang, t } from "./i18n";
 
 // La ventana de configuración se carga solo cuando se abre.
 const SettingsView = lazy(() => import("./settings/SettingsView"));
@@ -53,6 +54,13 @@ function Themed(props: { store: SettingsStore }) {
     const u = props.store.settings().usage;
     void invoke("usage_config", { claude: u.claude, codex: u.codex, agy: u.agy, everyMin: u.liveEveryMin }).catch(() => {});
   });
+  // Idioma: el de la configuración (también cuando lo cambia otra ventana). El backend lo usa para
+  // sus mensajes y se lo pasa a las pestañas nuevas (ALPHATERM_LANG) para los scripts de agentes.
+  createEffect(() => {
+    const l = props.store.settings().language;
+    setLang(l);
+    void invoke("set_locale", { lang: l }).catch(() => {});
+  });
   createEffect(() => {
     const c = props.store.settings().changes;
     void invoke("changes_config", { enabled: c.enabled, claude: c.claude, folders: c.folders }).catch(() => {});
@@ -60,7 +68,7 @@ function Themed(props: { store: SettingsStore }) {
   return (
     <>
       <Show when={info.error}>
-        <div class="error">No se pudo hablar con el backend: {String(info.error)}</div>
+        <div class="error">{t("No se pudo hablar con el backend: {error}", { error: String(info.error) })}</div>
       </Show>
       <Show when={!initial.loading && info()}>
         {(ti) =>
@@ -83,7 +91,7 @@ export function App() {
   return (
     <div class="app" classList={{ "settings-window": IS_SETTINGS }}>
       <Show when={store.error}>
-        <div class="error">No se pudo leer la configuración: {String(store.error)}</div>
+        <div class="error">{t("No se pudo leer la configuración: {error}", { error: String(store.error) })}</div>
       </Show>
       <Show when={store()}>{(s) => <Themed store={s()} />}</Show>
     </div>

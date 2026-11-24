@@ -9,18 +9,20 @@ import { COLOR_KEYS, DEFAULT_FONT, LIMITS, type ColorKey, type Effect, type Sett
 import { revealSettings, type SettingsStore } from "./store";
 import { appInfo, versionTooltip } from "../widgets/appInfo";
 import { allThemes, findTheme, importThemes, themeId, type Theme } from "./themes";
+import { k, LANGS, t, type Lang } from "../i18n";
 import "./settings.css";
 
-type Section = "apariencia" | "fuente" | "fondo" | "terminal" | "agentes" | "consumo" | "atajos" | "proximo";
+type Section = "idioma" | "apariencia" | "fuente" | "fondo" | "terminal" | "agentes" | "consumo" | "atajos" | "proximo";
 const SECTIONS: [Section, string][] = [
-  ["apariencia", "Tema y colores"],
-  ["fuente", "Fuente y cursor"],
-  ["fondo", "Fondo de la ventana"],
-  ["terminal", "Terminal e interfaz"],
-  ["agentes", "Agentes y guardián"],
-  ["consumo", "Consumo y widgets"],
-  ["atajos", "Atajos de teclado"],
-  ["proximo", "Acerca y límites"],
+  ["idioma", k("Idioma")],
+  ["apariencia", k("Tema y colores")],
+  ["fuente", k("Fuente y cursor")],
+  ["fondo", k("Fondo de la ventana")],
+  ["terminal", k("Terminal e interfaz")],
+  ["agentes", k("Agentes y guardián")],
+  ["consumo", k("Consumo y widgets")],
+  ["atajos", k("Atajos de teclado")],
+  ["proximo", k("Acerca y límites")],
 ];
 const SECTION_PREF = "alphaterm.settings.section";
 
@@ -157,7 +159,8 @@ export default function SettingsView(props: { info: TermInfo; store: SettingsSto
         <For each={SECTIONS}>
           {([id, label]) => (
             <button classList={{ on: section() === id }} onClick={() => go(id)}>
-              {label}
+              {id === "idioma" ? <span class="lang-globe" aria-hidden="true">🌐 </span> : null}
+              {t(label)}
             </button>
           )}
         </For>
@@ -181,6 +184,9 @@ export default function SettingsView(props: { info: TermInfo; store: SettingsSto
       <main class="settings-main">
         <Show when={props.store.warning()}>
           <div class="banner">{props.store.warning()}</div>
+        </Show>
+        <Show when={section() === "idioma"}>
+          <LanguageSection s={s()} set={set} />
         </Show>
         <Show when={section() === "apariencia"}>
           <ThemeSection s={s()} set={set} osDark={osDark()} />
@@ -214,6 +220,22 @@ export default function SettingsView(props: { info: TermInfo; store: SettingsSto
 interface SectionProps {
   s: Settings;
   set: (f: (d: Settings) => void) => void;
+}
+
+// --- Idioma ----------------------------------------------------------------------------------------
+
+function LanguageSection(props: SectionProps) {
+  return (
+    <section>
+      <h2>{t("Idioma")}</h2>
+      <Row
+        label={t("Idioma de la interfaz")}
+        hint={t("Menús, paneles, avisos y los textos que AlphaTerm les pasa a los agentes. Lo que muestran los programas dentro de la terminal no cambia.")}
+      >
+        <Segmented<Lang> value={props.s.language} options={LANGS} onChange={(v) => props.set((d) => void (d.language = v))} />
+      </Row>
+    </section>
+  );
 }
 
 // --- Tema y colores ------------------------------------------------------------------------------

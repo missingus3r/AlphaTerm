@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { clone, DEFAULTS, normalize, type Settings } from "./schema";
 import { BASE_COLORS } from "./themes";
+import { detectLang, setLang, t } from "../i18n";
 
 interface Loaded {
   path: string;
@@ -37,11 +38,18 @@ export function loadSettings(): Promise<SettingsStore> {
 async function create(): Promise<SettingsStore> {
   const me = getCurrentWindow().label;
   const loaded = await invoke<Loaded>("settings_load");
-  const [settings, setSettings] = createSignal<Settings>(normalize(loaded.value, BASE_COLORS));
+  // Instalación nueva (sin settings.json): el idioma del sistema. Una configuración de antes de que
+  // hubiera idiomas no trae la clave y queda en español (lo pone `normalize`).
+  const fresh = loaded.value == null && !loaded.warning;
+  const [settings, setSettings] = createSignal<Settings>(normalize(fresh ? { language: detectLang() } : loaded.value, BASE_COLORS));
+  setLang(settings().language);
   // Al arrancar con el archivo roto se usan los valores de fábrica; si se rompe después, sigue
   // valiendo lo último que andaba. En los dos casos, guardar desde acá lo reemplaza (con copia .bak).
   const [warning, setWarning] = createSignal<string | null>(
-    loaded.warning && `${loaded.warning} Mientras tanto se usan los valores de fábrica; si cambiás algo acá, se guarda un archivo nuevo y el roto queda como settings.json.bak.`,
+    loaded.warning &&
+      t("{warning} Mientras tanto se usan los valores de fábrica; si cambiás algo acá, se guarda un archivo nuevo y el roto queda como settings.json.bak.", {
+        warning: loaded.warning,
+      }),
   );
 
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -50,7 +58,7 @@ async function create(): Promise<SettingsStore> {
     timer = setTimeout(() => {
       invoke("settings_save", { value: settings() })
         .then(() => setWarning(null))
-        .catch((e) => setWarning(`No se pudo guardar: ${e}`));
+        .catch((e) => setWarning(t("No se pudo guardar: {error}", { error: String(e) })));
     }, SAVE_DELAY_MS);
   };
 
@@ -61,8 +69,8 @@ async function create(): Promise<SettingsStore> {
     save();
   };
 
-  // Migración: la barra vertical de F2 vivía en localStorage.
-  if (loaded.value == null && !loaded.warning) {
+  // Instalación nueva. Migración: la barra vertical de F2 vivía en localStorage.
+  if (fresh) {
     let vertical = false;
     try {
       vertical = localStorage.getItem(OLD_VERTICAL_PREF) === "1";
@@ -71,6 +79,7 @@ async function create(): Promise<SettingsStore> {
       /* sin almacenamiento */
     }
     if (vertical && me !== "settings") update((d) => void (d.tabBar.position = "left"));
+    else if (me !== "settings") save(); // que el idioma detectado quede guardado
   }
 
   await listen<{ source: string; value: unknown }>("settings-changed", (e) => {
@@ -79,7 +88,7 @@ async function create(): Promise<SettingsStore> {
     setWarning(null);
   });
   await listen<string | null>("settings-error", (e) =>
-    setWarning(e.payload && `${e.payload} Sigue valiendo la última configuración que andaba hasta que se corrija.`),
+    setWarning(e.payload && t("{warning} Sigue valiendo la última configuración que andaba hasta que se corrija.", { warning: e.payload })),
   );
 
   return {

@@ -1,0 +1,10 @@
+{
+  "{warning} Mientras tanto se usan los valores de fábrica; si cambiás algo acá, se guarda un archivo nuevo y el roto queda como settings.json.bak.": "{warning} Enquanto isso, são usados os valores padrão; se você mudar algo aqui, um arquivo novo é salvo e o quebrado fica como settings.json.bak.",
+  "No se pudo guardar: {error}": "Não foi possível salvar: {error}",
+  "{warning} Sigue valiendo la última configuración que andaba hasta que se corrija.": "{warning} A última configuração que funcionava continua valendo até que seja corrigida.",
+  "No se pudo hablar con el backend: {error}": "Não foi possível falar com o backend: {error}",
+  "No se pudo leer la configuración: {error}": "Não foi possível ler a configuração: {error}",
+  "Idioma": "Idioma",
+  "Idioma de la interfaz": "Idioma da interface",
+  "Menús, paneles, avisos y los textos que AlphaTerm les pasa a los agentes. Lo que muestran los programas dentro de la terminal no cambia.": "Menus, painéis, avisos e os textos que o AlphaTerm passa para os agentes. O que os programas mostram dentro do terminal não muda."
+}
