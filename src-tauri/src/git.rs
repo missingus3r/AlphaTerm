@@ -2,6 +2,7 @@
 //! Todo se corre sin consola visible, sin prompts en la terminal (GIT_TERMINAL_PROMPT=0) y con
 //! rutas sin escapar (core.quotepath=false, para que las ñ se vean bien).
 
+use crate::i18n::tr;
 use serde::Serialize;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -34,7 +35,7 @@ fn git_cmd(dir: &Path, args: &[&str]) -> Command {
 
 /// Corre git con un límite de tiempo (los comandos de red pueden colgarse).
 pub fn run(dir: &Path, args: &[&str], limit: Duration) -> Result<Out, String> {
-    let mut child = git_cmd(dir, args).spawn().map_err(|e| format!("No se pudo ejecutar git: {e}"))?;
+    let mut child = git_cmd(dir, args).spawn().map_err(|e| tr!("No se pudo ejecutar git: {e}", "Couldn't run git: {e}", "Não foi possível executar o git: {e}"))?;
     let mut so = child.stdout.take().unwrap();
     let mut se = child.stderr.take().unwrap();
     let ro = std::thread::spawn(move || {
@@ -54,7 +55,8 @@ pub fn run(dir: &Path, args: &[&str], limit: Duration) -> Result<Out, String> {
         }
         if start.elapsed() > limit {
             let _ = child.kill();
-            return Err(format!("git {} tardó más de {} s", args.first().unwrap_or(&""), limit.as_secs()));
+            let (cmd, secs) = (args.first().unwrap_or(&""), limit.as_secs());
+            return Err(tr!("git {cmd} tardó más de {secs} s", "git {cmd} took longer than {secs} s", "git {cmd} demorou mais de {secs} s"));
         }
         std::thread::sleep(Duration::from_millis(20));
     };
@@ -73,7 +75,7 @@ fn ok(dir: &Path, args: &[&str], limit: Duration) -> Result<String, String> {
     if o.ok {
         Ok(o.stdout)
     } else {
-        Err(if o.stderr.is_empty() { format!("git {} falló", args.join(" ")) } else { o.stderr })
+        Err(if o.stderr.is_empty() { tr!("git {} falló", "git {} failed", "git {} falhou"; args.join(" ")) } else { o.stderr })
     }
 }
 
@@ -226,7 +228,7 @@ pub async fn git_stage(root: String, paths: Vec<String>, stage: bool) -> Result<
 #[tauri::command]
 pub async fn git_commit(root: String, message: String) -> Result<String, String> {
     if message.trim().is_empty() {
-        return Err("El mensaje del commit está vacío".into());
+        return Err(tr("El mensaje del commit está vacío", "The commit message is empty", "A mensagem do commit está vazia").into());
     }
     blocking(move || {
         let tmp = std::env::temp_dir().join(format!("alphaterm-commit-{}.txt", std::process::id()));
@@ -288,7 +290,7 @@ pub async fn git_log(root: String, limit: u32) -> Result<Vec<LogRow>, String> {
 #[tauri::command]
 pub async fn git_show(root: String, hash: String) -> Result<String, String> {
     if !hash.chars().all(|c| c.is_ascii_hexdigit()) {
-        return Err("hash inválido".into());
+        return Err(tr("hash inválido", "invalid hash", "hash inválido").into());
     }
     blocking(move || ok(Path::new(&root), &["show", "--no-color", "--stat", "--patch", "--format=fuller", &hash], FAST)).await
 }
@@ -340,7 +342,7 @@ pub fn valid_branch(name: &str) -> bool {
 #[tauri::command]
 pub async fn git_switch(root: String, branch: String, create: bool) -> Result<String, String> {
     if !valid_branch(&branch) {
-        return Err(format!("\"{branch}\" no es un nombre de rama válido"));
+        return Err(tr!("\"{branch}\" no es un nombre de rama válido", "\"{branch}\" isn't a valid branch name", "\"{branch}\" não é um nome de branch válido"));
     }
     blocking(move || {
         let args: Vec<&str> = if create { vec!["switch", "-c", &branch] } else { vec!["switch", &branch] };
@@ -371,11 +373,11 @@ pub async fn git_remote(root: String, op: String) -> Result<String, String> {
                     run(r, &["push", "-u", "origin", "HEAD"], NET)?
                 }
             }
-            other => return Err(format!("operación desconocida: {other}")),
+            other => return Err(tr!("operación desconocida: {other}", "unknown operation: {other}", "operação desconhecida: {other}")),
         };
         let text = [o.stdout.trim(), o.stderr.trim()].iter().filter(|s| !s.is_empty()).cloned().collect::<Vec<_>>().join("\n");
         if o.ok {
-            Ok(if text.is_empty() { "Listo, sin cambios.".into() } else { text })
+            Ok(if text.is_empty() { tr("Listo, sin cambios.", "Done, no changes.", "Pronto, sem alterações.").into() } else { text })
         } else {
             Err(text)
         }
@@ -386,7 +388,7 @@ pub async fn git_remote(root: String, op: String) -> Result<String, String> {
 #[tauri::command]
 pub async fn git_clone(url: String, parent: String) -> Result<String, String> {
     if url.starts_with('-') || url.trim().is_empty() {
-        return Err("URL inválida".into());
+        return Err(tr("URL inválida", "Invalid URL", "URL inválida").into());
     }
     blocking(move || {
         let o = run(Path::new(&parent), &["clone", "--", url.trim()], Duration::from_secs(900))?;

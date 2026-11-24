@@ -77,7 +77,7 @@ impl PtyState {
     }
 
     fn get(&self, id: u32) -> Result<Arc<Session>, String> {
-        self.sessions.lock().unwrap().get(&id).cloned().ok_or_else(|| format!("no existe la sesión {id}"))
+        self.sessions.lock().unwrap().get(&id).cloned().ok_or_else(|| tr!("no existe la sesión {id}", "session {id} doesn't exist", "a sessão {id} não existe"))
     }
 }
 
@@ -180,9 +180,9 @@ pub fn spawn_env(
     let profile = profiles::detect()
         .into_iter()
         .find(|p| p.id == profile_id)
-        .ok_or_else(|| format!("perfil desconocido: {profile_id}"))?;
+        .ok_or_else(|| tr!("perfil desconocido: {profile_id}", "unknown profile: {profile_id}", "perfil desconhecido: {profile_id}"))?;
     if !profile.available {
-        return Err(format!("{} no está instalado en esta máquina", profile.name));
+        return Err(tr!("{} no está instalado en esta máquina", "{} isn't installed on this machine", "{} não está instalado nesta máquina"; profile.name));
     }
 
     let pair = native_pty_system().openpty(size(cols, rows)).map_err(|e| e.to_string())?;
@@ -204,6 +204,7 @@ pub fn spawn_env(
     cmd.env("COLORTERM", "truecolor");
     cmd.env("TERM_PROGRAM", "AlphaTerm");
     cmd.env("TERM_PROGRAM_VERSION", env!("CARGO_PKG_VERSION"));
+    cmd.env("ALPHATERM_LANG", crate::i18n::lang().code());
     for (k, v) in extra_env {
         if !k.is_empty() && !k.contains('=') {
             cmd.env(k, v);

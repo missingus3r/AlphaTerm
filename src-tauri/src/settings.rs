@@ -4,6 +4,7 @@
 //! lo escribe de forma atómica, avisa a todas las ventanas cuando cambia y detecta ediciones
 //! hechas a mano en el archivo. Nunca pisa un archivo roto sin guardar antes una copia.
 
+use crate::i18n::tr;
 use serde::Serialize;
 use serde_json::Value;
 use std::fs;
@@ -84,7 +85,7 @@ pub fn load_from(path: &Path) -> Loaded {
     let text = match fs::read_to_string(path) {
         Ok(t) => t,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Loaded { path: shown, value: None, warning: None },
-        Err(e) => return Loaded { path: shown, value: None, warning: Some(format!("No se pudo leer: {e}")) },
+        Err(e) => return Loaded { path: shown, value: None, warning: Some(tr!("No se pudo leer: {e}", "Couldn't read: {e}", "Não foi possível ler: {e}")) },
     };
     // Un BOM al principio (Bloc de notas viejo) no es un error.
     match serde_json::from_str::<Value>(text.trim_start_matches('\u{feff}')) {
@@ -92,13 +93,15 @@ pub fn load_from(path: &Path) -> Loaded {
         Ok(_) => Loaded {
             path: shown,
             value: None,
-            warning: Some("settings.json no es un objeto JSON.".into()),
+            warning: Some(tr("settings.json no es un objeto JSON.", "settings.json isn't a JSON object.", "settings.json não é um objeto JSON.").into()),
         },
         Err(e) => Loaded {
             path: shown,
             value: None,
-            warning: Some(format!(
+            warning: Some(tr!(
                 "settings.json tiene un error en la línea {}, columna {}.",
+                "settings.json has an error at line {}, column {}.",
+                "settings.json tem um erro na linha {}, coluna {}.";
                 e.line(),
                 e.column()
             )),
@@ -110,18 +113,18 @@ pub fn load_from(path: &Path) -> Loaded {
 /// pero está roto, antes lo copia a `settings.json.bak` para no perder lo que se escribió a mano.
 pub fn save_to(path: &Path, value: &Value) -> Result<(), String> {
     if !value.is_object() {
-        return Err("La configuración tiene que ser un objeto JSON".into());
+        return Err(tr("La configuración tiene que ser un objeto JSON", "Settings must be a JSON object", "As configurações precisam ser um objeto JSON").into());
     }
     if let Some(dir) = path.parent() {
-        fs::create_dir_all(dir).map_err(|e| format!("No se pudo crear {}: {e}", dir.display()))?;
+        fs::create_dir_all(dir).map_err(|e| tr!("No se pudo crear {}: {e}", "Couldn't create {}: {e}", "Não foi possível criar {}: {e}"; dir.display()))?;
     }
     if path.exists() && load_from(path).warning.is_some() {
         let _ = fs::copy(path, path.with_extension("json.bak"));
     }
     let text = serde_json::to_string_pretty(value).map_err(|e| e.to_string())?;
     let tmp = path.with_extension("json.tmp");
-    fs::write(&tmp, text + "\n").map_err(|e| format!("No se pudo escribir: {e}"))?;
-    fs::rename(&tmp, path).map_err(|e| format!("No se pudo reemplazar el archivo: {e}"))
+    fs::write(&tmp, text + "\n").map_err(|e| tr!("No se pudo escribir: {e}", "Couldn't write: {e}", "Não foi possível gravar: {e}"))?;
+    fs::rename(&tmp, path).map_err(|e| tr!("No se pudo reemplazar el archivo: {e}", "Couldn't replace the file: {e}", "Não foi possível substituir o arquivo: {e}"))
 }
 
 pub struct SettingsState {
@@ -203,7 +206,7 @@ pub async fn settings_open(app: AppHandle) -> Result<(), String> {
         return w.set_focus().map_err(|e| e.to_string());
     }
     WebviewWindowBuilder::new(&app, "settings", WebviewUrl::App("index.html".into()))
-        .title("Configuración — AlphaTerm")
+        .title(tr("Configuración — AlphaTerm", "Settings — AlphaTerm", "Configurações — AlphaTerm"))
         .inner_size(920.0, 680.0)
         .min_inner_size(640.0, 420.0)
         .background_color(tauri::webview::Color(13, 16, 23, 255))
@@ -237,14 +240,14 @@ pub fn safe_image_name(name: &str) -> Option<String> {
 #[tauri::command]
 pub fn background_store(request: tauri::ipc::Request) -> Result<String, String> {
     let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
-        return Err("Se esperaban los bytes de la imagen".into());
+        return Err(tr("Se esperaban los bytes de la imagen", "Expected the image bytes", "Esperavam-se os bytes da imagem").into());
     };
     if bytes.len() > MAX_IMAGE {
-        return Err("La imagen pesa más de 25 MB".into());
+        return Err(tr("La imagen pesa más de 25 MB", "The image is larger than 25 MB", "A imagem tem mais de 25 MB").into());
     }
     let raw = request.headers().get("x-name").and_then(|v| v.to_str().ok()).unwrap_or("fondo.png");
     let name = percent_decode(raw);
-    let name = safe_image_name(&name).ok_or("Formato no soportado (png, jpg, webp, gif o bmp)")?;
+    let name = safe_image_name(&name).ok_or(tr("Formato no soportado (png, jpg, webp, gif o bmp)", "Unsupported format (png, jpg, webp, gif or bmp)", "Formato não suportado (png, jpg, webp, gif ou bmp)"))?;
     let dir = backgrounds_dir();
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let path = dir.join(name);
@@ -255,10 +258,10 @@ pub fn background_store(request: tauri::ipc::Request) -> Result<String, String> 
 /// Lee una imagen de fondo. Solo de la carpeta de fondos: no es un lector de archivos genérico.
 #[tauri::command]
 pub fn background_read(path: String) -> Result<tauri::ipc::Response, String> {
-    let dir = fs::canonicalize(backgrounds_dir()).map_err(|_| "No hay imágenes de fondo guardadas".to_string())?;
-    let file = fs::canonicalize(&path).map_err(|_| format!("No existe {path}"))?;
+    let dir = fs::canonicalize(backgrounds_dir()).map_err(|_| tr("No hay imágenes de fondo guardadas", "There are no saved background images", "Não há imagens de fundo salvas").to_string())?;
+    let file = fs::canonicalize(&path).map_err(|_| tr!("No existe {path}", "{path} doesn't exist", "{path} não existe"))?;
     if !file.starts_with(&dir) {
-        return Err("La imagen tiene que estar en la carpeta de fondos de AlphaTerm".into());
+        return Err(tr("La imagen tiene que estar en la carpeta de fondos de AlphaTerm", "The image must be in AlphaTerm's backgrounds folder", "A imagem precisa estar na pasta de fundos do AlphaTerm").into());
     }
     let bytes = fs::read(&file).map_err(|e| e.to_string())?;
     Ok(tauri::ipc::Response::new(bytes))

@@ -277,7 +277,7 @@ pub fn parse_claude_screen(screen: &str) -> Option<(Vec<UsageWindow>, Vec<String
                 out.push(win(label, p, resets_in(&lines, i, 4), detail));
                 if label == "uso extra" {
                     if let Some(sp) = lines.iter().skip(i).take(3).find_map(|x| spent(x)) {
-                        extras.push(format!("Uso extra: {sp}"));
+                        extras.push(tr!("Uso extra: {sp}", "Extra usage: {sp}", "Uso extra: {sp}"));
                     }
                 }
             }
@@ -321,10 +321,11 @@ pub fn parse_claude_tables(screen: &str) -> (Vec<Table>, Vec<String>) {
         let (title, row): (Option<String>, fn(&str) -> Option<(String, f64)>) = if low.ends_with("% of usage") {
             (Some(t[..t.len() - "% of usage".len()].trim().to_string()), name_pct)
         } else if low.starts_with("what's contributing to your usage") {
-            (Some("Qué más consume".into()), pct_name)
+            (Some(crate::i18n::tr("Qué más consume", "What uses the most", "O que mais consome").into()), pct_name)
         } else {
             if low.starts_with("per-model breakdown unavailable") {
-                notes.push(format!("Desglose por modelo no disponible ahora{}", t.find('(').map(|k| format!(" {}", &t[k..])).unwrap_or_default()));
+                let why = t.find('(').map(|k| format!(" {}", &t[k..])).unwrap_or_default();
+                notes.push(tr!("Desglose por modelo no disponible ahora{why}", "Per-model breakdown unavailable right now{why}", "Detalhamento por modelo indisponível agora{why}"));
             }
             (None, name_pct)
         };
@@ -352,7 +353,7 @@ pub fn parse_claude_tables(screen: &str) -> (Vec<Table>, Vec<String>) {
             let title = match title.as_str() {
                 "Skills" => "Skills".to_string(),
                 "Plugins" => "Plugins".to_string(),
-                "Models" => "Modelos".to_string(),
+                "Models" => crate::i18n::tr("Modelos", "Models", "Modelos").to_string(),
                 other => other.to_string(),
             };
             tables.push(Table { title, rows });
@@ -370,7 +371,7 @@ fn spent(line: &str) -> Option<String> {
     let slash = head.rfind('/')?;
     let a = head[..slash].rsplit(|c: char| c.is_whitespace()).find(|s| !s.is_empty())?.trim();
     let b = head[slash + 1..].trim();
-    (!a.is_empty() && !b.is_empty()).then(|| format!("{a} de {b}"))
+    (!a.is_empty() && !b.is_empty()).then(|| tr!("{a} de {b}", "{a} of {b}", "{a} de {b}"))
 }
 
 /// Banner de Claude Code: "Opus 5.5 · Claude Max" → ("Opus 5.5", "Max").
@@ -402,16 +403,20 @@ fn claude_effort() -> Option<String> {
 fn blocked(screen: &str) -> Option<&'static str> {
     let low = screen.to_ascii_lowercase();
     if low.contains("do you trust the files in this folder") || low.contains("trust this folder") || low.contains("one you trust") {
-        return Some("pide confirmar que confiás en la carpeta del Escritorio: abrilo ahí una vez a mano.");
+        return Some(crate::i18n::tr(
+            "pide confirmar que confiás en la carpeta del Escritorio: abrilo ahí una vez a mano.",
+            "asks you to confirm you trust the Desktop folder: open it there once by hand.",
+            "pede para confirmar que você confia na pasta da Área de Trabalho: abra-o lá uma vez manualmente.",
+        ));
     }
     if low.contains("select login method") || low.contains("sign in with chatgpt") || low.contains("please run /login") {
-        return Some("no tiene una sesión iniciada.");
+        return Some(crate::i18n::tr("no tiene una sesión iniciada.", "isn't signed in.", "não está com uma sessão iniciada."));
     }
     None
 }
 
 pub fn claude_live() -> Result<Usage, String> {
-    let exe = crate::agents::resolve_in("claude", &crate::agents::search_dirs()).ok_or("Claude Code no está instalado.")?;
+    let exe = crate::agents::resolve_in("claude", &crate::agents::search_dirs()).ok_or(crate::i18n::tr("Claude Code no está instalado.", "Claude Code isn't installed.", "O Claude Code não está instalado."))?;
     // Sin servidores MCP ni hooks: es solo para mirar el consumo.
     let args: Vec<String> = vec!["--strict-mcp-config".into(), "--settings".into(), r#"{"disableAllHooks":true}"#.into()];
     let mut stage = 0;
@@ -445,7 +450,7 @@ pub fn claude_live() -> Result<Usage, String> {
     if let Some(p) = problem {
         return Err(format!("Claude Code {p}"));
     }
-    let (windows, mut extras) = parse_claude_screen(&screen).ok_or("No se pudo leer la pantalla de /usage de Claude Code.")?;
+    let (windows, mut extras) = parse_claude_screen(&screen).ok_or(crate::i18n::tr("No se pudo leer la pantalla de /usage de Claude Code.", "Couldn't read Claude Code's /usage screen.", "Não foi possível ler a tela de /usage do Claude Code."))?;
     let (tables, notes) = parse_claude_tables(&screen);
     extras.extend(notes);
     let (model, plan) = banner.map(|(m, p)| (Some(m), Some(p))).unwrap_or((None, None));
@@ -457,7 +462,7 @@ pub fn claude_live() -> Result<Usage, String> {
     Ok(Usage {
         provider: "claude".into(),
         exact: true,
-        source: "Claude Code /usage (consulta en vivo)".into(),
+        source: crate::i18n::tr("Claude Code /usage (consulta en vivo)", "Claude Code /usage (live query)", "Claude Code /usage (consulta ao vivo)").into(),
         updated_at: Some(now_ms()),
         windows,
         note: None,
@@ -535,7 +540,7 @@ fn codex_config_model() -> Option<String> {
 }
 
 pub fn codex_live() -> Result<Usage, String> {
-    let exe = crate::agents::resolve_in("codex", &crate::agents::search_dirs()).ok_or("Codex no está instalado.")?;
+    let exe = crate::agents::resolve_in("codex", &crate::agents::search_dirs()).ok_or(crate::i18n::tr("Codex no está instalado.", "Codex isn't installed.", "O Codex não está instalado."))?;
     let mut stage = 0;
     let mut at = Instant::now();
     let mut problem = None;
@@ -569,11 +574,11 @@ pub fn codex_live() -> Result<Usage, String> {
     if let Some(p) = problem {
         return Err(format!("Codex {p}"));
     }
-    let (windows, plan, model) = parse_codex_status(&screen).ok_or("No se pudo leer la pantalla de /status de Codex.")?;
+    let (windows, plan, model) = parse_codex_status(&screen).ok_or(crate::i18n::tr("No se pudo leer la pantalla de /status de Codex.", "Couldn't read Codex's /status screen.", "Não foi possível ler a tela de /status do Codex."))?;
     Ok(Usage {
         provider: "codex".into(),
         exact: true,
-        source: "Codex /status (consulta en vivo)".into(),
+        source: crate::i18n::tr("Codex /status (consulta en vivo)", "Codex /status (live query)", "Codex /status (consulta ao vivo)").into(),
         updated_at: Some(now_ms()),
         windows,
         note: None,
@@ -611,7 +616,7 @@ fn agy_model() -> Option<String> {
 }
 
 pub fn agy_live() -> Result<Usage, String> {
-    let exe = crate::agents::resolve_in("agy", &crate::agents::search_dirs()).ok_or("agy no está instalado.")?;
+    let exe = crate::agents::resolve_in("agy", &crate::agents::search_dirs()).ok_or(crate::i18n::tr("agy no está instalado.", "agy isn't installed.", "O agy não está instalado."))?;
     let mut cmd = std::process::Command::new(&exe);
     // Directo, sin shell: desde Git Bash, MSYS convierte "/quota" en una ruta y agy lo toma como prompt.
     cmd.args(["-p", "/quota", "--output-format", "json"]).stdin(std::process::Stdio::null()).env(AGY_NO_UPDATE.0, AGY_NO_UPDATE.1);
@@ -620,19 +625,19 @@ pub fn agy_live() -> Result<Usage, String> {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
     }
-    let out = crate::usage::run_with_timeout(cmd, Duration::from_secs(45)).map_err(|e| format!("No se pudo consultar agy: {e}"))?;
-    let v = serde_json::from_slice::<Value>(&out).map_err(|_| "agy respondió algo que no es JSON.".to_string())?;
+    let out = crate::usage::run_with_timeout(cmd, Duration::from_secs(45)).map_err(|e| tr!("No se pudo consultar agy: {e}", "Couldn't query agy: {e}", "Não foi possível consultar o agy: {e}"))?;
+    let v = serde_json::from_slice::<Value>(&out).map_err(|_| crate::i18n::tr("agy respondió algo que no es JSON.", "agy answered with something that isn't JSON.", "O agy respondeu algo que não é JSON.").to_string())?;
     let now = now_ms() / 1000;
-    let windows = crate::usage::parse_agy(&v, now).filter(|w| !w.is_empty()).ok_or("La respuesta de agy no trae grupos de cuota.")?;
+    let windows = crate::usage::parse_agy(&v, now).filter(|w| !w.is_empty()).ok_or(crate::i18n::tr("La respuesta de agy no trae grupos de cuota.", "agy's answer has no quota groups.", "A resposta do agy não traz grupos de cota."))?;
     // Defensa: si por algún motivo agy corrió un turno (gastó), se avisa.
     let tokens = v.pointer("/usage/total_tokens").and_then(Value::as_u64).unwrap_or(0);
     Ok(Usage {
         provider: "agy".into(),
         exact: true,
-        source: "agy /quota (oficial, consulta en vivo)".into(),
+        source: crate::i18n::tr("agy /quota (oficial, consulta en vivo)", "agy /quota (official, live query)", "agy /quota (oficial, consulta ao vivo)").into(),
         updated_at: Some(now_ms()),
         windows,
-        note: (tokens > 0).then(|| format!("Atención: la consulta usó {tokens} tokens.")),
+        note: (tokens > 0).then(|| tr!("Atención: la consulta usó {tokens} tokens.", "Heads up: the query used {tokens} tokens.", "Atenção: a consulta usou {tokens} tokens.")),
         refreshing: false,
         plan: None,
         model: agy_model(),

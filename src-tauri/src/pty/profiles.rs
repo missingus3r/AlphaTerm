@@ -74,6 +74,7 @@ pub fn detect() -> Vec<Profile> {
             &["-NoLogo"],
         ),
         make("pwsh", "PowerShell 7", pwsh, "pwsh.exe", &["-NoLogo"]),
+        // El nombre queda en español: el frontend lo traduce y lo reconoce en el historial (matchesShell).
         make("cmd", "Símbolo del sistema", cmd.or_else(|| first_existing([sys32.join("cmd.exe")])), "cmd.exe", &[]),
         make("gitbash", "Git Bash", git_bash(), "bash.exe", &["--login", "-i"]),
         make("wsl", "WSL", first_existing([sys32.join("wsl.exe")]), "wsl.exe", &[]),

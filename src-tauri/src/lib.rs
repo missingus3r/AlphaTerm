@@ -1,3 +1,6 @@
+// Primero: sus macros (`tr!`) quedan a mano en los demás módulos.
+#[macro_use]
+pub mod i18n;
 pub mod agents;
 pub mod browser;
 pub mod changes;
@@ -82,7 +85,12 @@ pub fn run() {
         .manage(changes::ChangesState::new(settings::data_dir().join("changes.json")))
         .manage({
             settings::migrate_from_novaterm();
-            settings::SettingsState::new(settings::data_dir().join("settings.json"))
+            let path = settings::data_dir().join("settings.json");
+            // El idioma de la configuración, hasta que el frontend lo confirme con set_locale.
+            if let Some(l) = settings::load_from(&path).value.as_ref().and_then(i18n::from_settings) {
+                i18n::set_lang(l);
+            }
+            settings::SettingsState::new(path)
         })
         .setup(|app| {
             settings::SettingsState::watch(app.handle().clone());
@@ -206,6 +214,7 @@ pub fn run() {
             browser::browser_request,
             browser::browser_set_owner,
             browser::browser_close,
+            i18n::set_locale,
         ])
         .run(tauri::generate_context!())
         .expect("no se pudo iniciar AlphaTerm");

@@ -154,7 +154,7 @@ pub struct Entry {
 /// (también los de carpetas superiores dentro del repo) y escondiendo `.git`.
 pub fn list_dir(dir: &Path) -> Result<Vec<Entry>, String> {
     if !dir.is_dir() {
-        return Err(format!("No existe la carpeta {}", dir.display()));
+        return Err(tr!("No existe la carpeta {}", "The folder {} doesn't exist", "A pasta {} não existe"; dir.display()));
     }
     let walker = ignore::WalkBuilder::new(dir)
         .max_depth(Some(1))
@@ -273,11 +273,11 @@ pub fn fs_head(path: String, max: u64, whole_if_under: Option<bool>) -> Result<t
     use std::io::Read;
     let md = std::fs::metadata(&path).map_err(|e| e.to_string())?;
     if !md.is_file() {
-        return Err("No es un archivo".into());
+        return Err(crate::i18n::tr("No es un archivo", "Not a file", "Não é um arquivo").into());
     }
     let limit = if whole_if_under.unwrap_or(false) {
         if md.len() > PREVIEW_IMAGE_MAX {
-            return Err("La imagen es muy grande para la vista previa".into());
+            return Err(crate::i18n::tr("La imagen es muy grande para la vista previa", "The image is too large to preview", "A imagem é grande demais para a visualização").into());
         }
         md.len()
     } else {
@@ -295,7 +295,7 @@ pub fn fs_head(path: String, max: u64, whole_if_under: Option<bool>) -> Result<t
 pub fn fs_open(path: String, with: String) -> Result<(), String> {
     let p = PathBuf::from(&path);
     if !p.exists() {
-        return Err(format!("No existe {path}"));
+        return Err(tr!("No existe {path}", "{path} doesn't exist", "{path} não existe"));
     }
     let mut cmd = match with.as_str() {
         "explorer" => {
@@ -308,7 +308,7 @@ pub fn fs_open(path: String, with: String) -> Result<(), String> {
             c
         }
         "vscode" => {
-            let code = crate::agents::resolve_in("code", &crate::agents::search_dirs()).ok_or("No se encontró VS Code (code) en el PATH")?;
+            let code = crate::agents::resolve_in("code", &crate::agents::search_dirs()).ok_or(crate::i18n::tr("No se encontró VS Code (code) en el PATH", "VS Code (code) wasn't found in the PATH", "O VS Code (code) não foi encontrado no PATH"))?;
             // code.cmd es un script: se corre con cmd /c para que funcione sin consola visible.
             let mut c = std::process::Command::new("cmd.exe");
             c.arg("/c").arg(code).arg(&p);
@@ -319,7 +319,7 @@ pub fn fs_open(path: String, with: String) -> Result<(), String> {
             c.arg(&p);
             c
         }
-        other => return Err(format!("No sé abrir con {other}")),
+        other => return Err(tr!("No sé abrir con {other}", "Don't know how to open with {other}", "Não sei abrir com {other}")),
     };
     #[cfg(windows)]
     {

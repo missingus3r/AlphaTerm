@@ -256,7 +256,7 @@ fn run_hidden(exe: &Path, args: &[&str], limit: std::time::Duration) -> Result<S
         }
         if start.elapsed() > limit {
             let _ = child.kill();
-            return Err("tardó demasiado".into());
+            return Err(crate::i18n::tr("tardó demasiado", "took too long", "demorou demais").into());
         }
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
@@ -265,15 +265,22 @@ fn run_hidden(exe: &Path, args: &[&str], limit: std::time::Duration) -> Result<S
 
 fn models_for(kind: &str, command: &str) -> Result<Vec<ModelInfo>, String> {
     let limit = std::time::Duration::from_secs(25);
-    let exe = || resolve_in(&first_token(command), &search_dirs()).ok_or_else(|| format!("no se encontró {}", first_token(command)));
+    let exe = || resolve_in(&first_token(command), &search_dirs()).ok_or_else(|| tr!("no se encontró {}", "{} wasn't found", "{} não foi encontrado"; first_token(command)));
     match kind {
         "codex" => {
             let home = std::env::var_os("CODEX_HOME")
                 .map(PathBuf::from)
                 .or_else(|| std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join(".codex")))
-                .ok_or("no se encontró la carpeta de Codex")?;
+                .ok_or(crate::i18n::tr("no se encontró la carpeta de Codex", "Codex's folder wasn't found", "a pasta do Codex não foi encontrada"))?;
             let json = std::fs::read_to_string(home.join("models_cache.json"))
-                .map_err(|_| "Codex todavía no guardó su lista de modelos (la baja al abrirlo)".to_string())?;
+                .map_err(|_| {
+                    crate::i18n::tr(
+                        "Codex todavía no guardó su lista de modelos (la baja al abrirlo)",
+                        "Codex hasn't saved its model list yet (it downloads it when it opens)",
+                        "O Codex ainda não salvou sua lista de modelos (ele a baixa ao abrir)",
+                    )
+                    .to_string()
+                })?;
             Ok(parse_codex_cache(&json))
         }
         "agy" => run_hidden(&exe()?, &["models"], limit).map(|o| parse_agy_models(&o)),

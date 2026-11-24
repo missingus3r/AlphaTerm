@@ -79,8 +79,8 @@ pub fn fonts_list() -> Vec<String> {
 #[tauri::command]
 pub fn font_file(family: String) -> Result<tauri::ipc::Response, String> {
     let t = table();
-    let path = t.get(&family).ok_or_else(|| format!("No se encontró la fuente {family}"))?;
-    let bytes = std::fs::read(path).map_err(|e| format!("No se pudo leer {}: {e}", path.display()))?;
+    let path = t.get(&family).ok_or_else(|| tr!("No se encontró la fuente {family}", "Font {family} wasn't found", "A fonte {family} não foi encontrada"))?;
+    let bytes = std::fs::read(path).map_err(|e| tr!("No se pudo leer {}: {e}", "Couldn't read {}: {e}", "Não foi possível ler {}: {e}"; path.display()))?;
     Ok(tauri::ipc::Response::new(bytes))
 }
 

@@ -14,6 +14,7 @@
 //! codificación y fin de línea, y no se pisa si cambió desde que se abrió). Todo se guarda en
 //! `%APPDATA%\AlphaTerm\changes.json` (7 días).
 
+use crate::i18n::tr;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -130,7 +131,15 @@ pub fn encode_text(text: &str, enc: Enc) -> Result<Vec<u8>, String> {
         Enc::Utf16Be => [0xFE, 0xFF].into_iter().chain(text.encode_utf16().flat_map(|u| u.to_be_bytes())).collect(),
         Enc::Latin1 => text
             .chars()
-            .map(|c| u8::try_from(c as u32).map_err(|_| format!("El archivo está en ANSI y «{c}» no entra en esa codificación.")))
+            .map(|c| {
+                u8::try_from(c as u32).map_err(|_| {
+                    tr!(
+                        "El archivo está en ANSI y «{c}» no entra en esa codificación.",
+                        "The file is in ANSI and \"{c}\" doesn't fit that encoding.",
+                        "O arquivo está em ANSI e \"{c}\" não cabe nessa codificação."
+                    )
+                })
+            })
             .collect::<Result<Vec<_>, _>>()?,
     })
 }
@@ -783,7 +792,7 @@ pub struct DiffOut {
 
 #[tauri::command]
 pub fn changes_diff(state: tauri::State<ChangesState>, id: u64) -> Result<DiffOut, String> {
-    let e = state.0.entries.lock().unwrap().iter().find(|e| e.id == id).cloned().ok_or("Ese cambio ya no está en la lista.")?;
+    let e = state.0.entries.lock().unwrap().iter().find(|e| e.id == id).cloned().ok_or(tr("Ese cambio ya no está en la lista.", "That change is no longer in the list.", "Essa alteração não está mais na lista."))?;
     let name = Path::new(&e.path).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let size = |c: &Content| match c {
         Content::Binary { size } | Content::TooBig { size } => Some(*size),
@@ -793,20 +802,42 @@ pub fn changes_diff(state: tauri::State<ChangesState>, id: u64) -> Result<DiffOu
     let kb = |n: Option<u64>| n.map(|n| format!("{:.1} KB", n as f64 / 1024.0)).unwrap_or_else(|| "—".into());
     match (&e.before, &e.after) {
         (_, Content::Binary { .. }) | (Some(Content::Binary { .. }), _) => {
-            Ok(DiffOut { text: String::new(), note: Some(format!("Archivo binario: {} → {}.", kb(e.before.as_ref().and_then(size)), kb(size(&e.after)))) })
+            let (a, b) = (kb(e.before.as_ref().and_then(size)), kb(size(&e.after)));
+            Ok(DiffOut { text: String::new(), note: Some(tr!("Archivo binario: {a} → {b}.", "Binary file: {a} → {b}.", "Arquivo binário: {a} → {b}.")) })
         }
-        (_, Content::TooBig { size }) => Ok(DiffOut { text: String::new(), note: Some(format!("Demasiado grande para mostrar el cambio ({}).", kb(Some(*size)))) }),
-        (_, Content::Unreadable) => Ok(DiffOut { text: String::new(), note: Some("No se pudo leer el archivo (otro programa lo tenía abierto).".into()) }),
+        (_, Content::TooBig { size }) => {
+            let s = kb(Some(*size));
+            Ok(DiffOut { text: String::new(), note: Some(tr!("Demasiado grande para mostrar el cambio ({s}).", "Too large to show the change ({s}).", "Grande demais para mostrar a alteração ({s}).")) })
+        }
+        (_, Content::Unreadable) => Ok(DiffOut {
+            text: String::new(),
+            note: Some(
+                tr(
+                    "No se pudo leer el archivo (otro programa lo tenía abierto).",
+                    "Couldn't read the file (another program had it open).",
+                    "Não foi possível ler o arquivo (outro programa estava com ele aberto).",
+                )
+                .into(),
+            ),
+        }),
         (before, after) => {
             let a = before.as_ref().and_then(|c| c.text()).unwrap_or("");
             let b = after.text().unwrap_or("");
             let note = match (e.base_from.as_str(), before) {
-                ("ninguna", _) | (_, None) => Some("No había copia de cómo era antes: se muestra el contenido actual entero.".into()),
-                ("git", _) => Some("Comparado con el último commit (el archivo no entró en la copia de la carpeta).".into()),
-                _ if e.after == Content::Missing => Some("El archivo se borró.".into()),
+                ("ninguna", _) | (_, None) => Some(tr(
+                    "No había copia de cómo era antes: se muestra el contenido actual entero.",
+                    "There was no copy of how it was before: showing the whole current content.",
+                    "Não havia cópia de como era antes: mostrando todo o conteúdo atual.",
+                )),
+                ("git", _) => Some(tr(
+                    "Comparado con el último commit (el archivo no entró en la copia de la carpeta).",
+                    "Compared with the last commit (the file wasn't in the folder's copy).",
+                    "Comparado com o último commit (o arquivo não entrou na cópia da pasta).",
+                )),
+                _ if e.after == Content::Missing => Some(tr("El archivo se borró.", "The file was deleted.", "O arquivo foi apagado.")),
                 _ => None,
             };
-            Ok(DiffOut { text: unified(a, b, &name), note })
+            Ok(DiffOut { text: unified(a, b, &name), note: note.map(str::to_string) })
         }
     }
 }
@@ -947,10 +978,10 @@ fn fingerprint(b: &[u8]) -> String {
 }
 
 fn editable_path(state: &ChangesState, id: u64) -> Result<PathBuf, String> {
-    let e = state.0.entries.lock().unwrap().iter().find(|e| e.id == id).map(|e| e.path.clone()).ok_or("Ese archivo ya no está en la lista.")?;
+    let e = state.0.entries.lock().unwrap().iter().find(|e| e.id == id).map(|e| e.path.clone()).ok_or(tr("Ese archivo ya no está en la lista.", "That file is no longer in the list.", "Esse arquivo não está mais na lista."))?;
     let p = PathBuf::from(e);
     if is_pdf(&p) {
-        return Err("Los PDF no se pueden editar desde acá.".into());
+        return Err(tr("Los PDF no se pueden editar desde acá.", "PDFs can't be edited here.", "PDFs não podem ser editados aqui.").into());
     }
     Ok(p)
 }
@@ -958,11 +989,11 @@ fn editable_path(state: &ChangesState, id: u64) -> Result<PathBuf, String> {
 #[tauri::command]
 pub fn changes_read(state: tauri::State<ChangesState>, id: u64) -> Result<Editable, String> {
     let p = editable_path(&state, id)?;
-    let b = std::fs::read(&p).map_err(|e| format!("No se pudo abrir {}: {e}", p.display()))?;
+    let b = std::fs::read(&p).map_err(|e| tr!("No se pudo abrir {}: {e}", "Couldn't open {}: {e}", "Não foi possível abrir {}: {e}"; p.display()))?;
     if b.len() as u64 > MAX_TEXT {
-        return Err("El archivo es demasiado grande para editarlo acá.".into());
+        return Err(tr("El archivo es demasiado grande para editarlo acá.", "The file is too large to edit here.", "O arquivo é grande demais para editar aqui.").into());
     }
-    let (text, enc) = decode_text(&b).ok_or("El archivo no es de texto.")?;
+    let (text, enc) = decode_text(&b).ok_or(tr("El archivo no es de texto.", "The file isn't text.", "O arquivo não é de texto."))?;
     let crlf = text.contains("\r\n");
     Ok(Editable { text: text.replace("\r\n", "\n"), token: fingerprint(&b), enc, crlf })
 }
@@ -971,20 +1002,25 @@ pub fn changes_read(state: tauri::State<ChangesState>, id: u64) -> Result<Editab
 #[tauri::command]
 pub fn changes_save(state: tauri::State<ChangesState>, id: u64, text: String, token: String, enc: Enc, crlf: bool) -> Result<(), String> {
     let p = editable_path(&state, id)?;
-    let now = std::fs::read(&p).map_err(|e| format!("No se pudo leer {}: {e}", p.display()))?;
+    let now = std::fs::read(&p).map_err(|e| tr!("No se pudo leer {}: {e}", "Couldn't read {}: {e}", "Não foi possível ler {}: {e}"; p.display()))?;
     if fingerprint(&now) != token {
-        return Err("El archivo cambió desde que lo abriste (¿el agente lo volvió a tocar?). Volvé a abrirlo para no pisar esos cambios.".into());
+        return Err(tr(
+            "El archivo cambió desde que lo abriste (¿el agente lo volvió a tocar?). Volvé a abrirlo para no pisar esos cambios.",
+            "The file changed since you opened it (did the agent touch it again?). Open it again so you don't overwrite those changes.",
+            "O arquivo mudou desde que você o abriu (o agente mexeu nele de novo?). Abra-o de novo para não sobrescrever essas alterações.",
+        )
+        .into());
     }
     let text = text.replace("\r\n", "\n");
     let text = if crlf { text.replace('\n', "\r\n") } else { text };
     let bytes = encode_text(&text, enc)?;
-    std::fs::write(&p, &bytes).map_err(|e| format!("No se pudo guardar: {e}"))?;
+    std::fs::write(&p, &bytes).map_err(|e| tr!("No se pudo guardar: {e}", "Couldn't save: {e}", "Não foi possível salvar: {e}"))?;
     let after = decode(&p, &bytes);
     {
         let mut entries = state.0.entries.lock().unwrap();
         if let Some(e) = entries.iter_mut().find(|e| e.id == id) {
             e.after = after;
-            e.touch("Vos (a mano)", None);
+            e.touch(tr("Vos (a mano)", "You (by hand)", "Você (à mão)"), None);
             e.manual = true;
             e.events += 1;
             e.last_at = now_ms();

@@ -6,6 +6,9 @@
 // - Le avisa a AlphaTerm por la función `__alphaterm` (la agrega AlphaTerm por DevTools).
 (() => {
   if (window.top !== window || window.__alphaOverlay) return;
+  // Idioma de los textos (lo antepone AlphaTerm al crear el navegador: es, en o pt).
+  const LANG = ["es", "en", "pt"].includes(window.__ALPHATERM_LANG__) ? window.__ALPHATERM_LANG__ : "es";
+  const tr = (es, en, pt) => (LANG === "en" ? en : LANG === "pt" ? pt : es);
   const ACCENT = "#8b5cf6";
   const MARK = "#f97316";
   const notify = (msg) => {
@@ -391,7 +394,7 @@
       if (el.shadowRoot) for (const c of el.shadowRoot.children) walk(c, next);
     };
     walk(document.body, 0);
-    if (out.length >= max) out.push(`… (cortado en ${max} líneas)`);
+    if (out.length >= max) out.push(tr(`… (cortado en ${max} líneas)`, `… (cut at ${max} lines)`, `… (cortado em ${max} linhas)`));
     return out.join("\n");
   }
 

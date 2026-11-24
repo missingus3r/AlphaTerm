@@ -9,6 +9,7 @@
 //! Los métodos que hablan con CDP bloquean esperando la respuesta: nunca llamarlos desde el hilo
 //! principal (los comandos son async y van por `spawn_blocking`; la API de control usa sus hilos).
 
+use crate::i18n::{tr, Lang};
 use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
@@ -71,11 +72,11 @@ pub fn normalize_url(raw: &str) -> String {
 }
 
 pub fn get(app: &AppHandle, id: &str) -> Result<Arc<Entry>, String> {
-    app.state::<BrowserState>().0.lock().unwrap().get(id).cloned().ok_or_else(|| format!("No hay un navegador con id {id}"))
+    app.state::<BrowserState>().0.lock().unwrap().get(id).cloned().ok_or_else(|| tr!("No hay un navegador con id {id}", "There's no browser with id {id}", "Não há um navegador com id {id}"))
 }
 
 fn webview(app: &AppHandle, e: &Entry) -> Result<tauri::Webview, String> {
-    app.get_webview(&e.label).ok_or_else(|| "El navegador ya no está abierto".into())
+    app.get_webview(&e.label).ok_or_else(|| tr("El navegador ya no está abierto", "The browser is no longer open", "O navegador não está mais aberto").into())
 }
 
 /// Lista de navegadores abiertos (para la API).
@@ -104,7 +105,14 @@ pub fn resolve(app: &AppHandle, wanted: Option<String>, caller: &Option<String>)
             return Ok(e.clone());
         }
     }
-    all.into_iter().next().ok_or_else(|| "No hay ningún navegador abierto en AlphaTerm. Abrí uno con browser_open y la URL.".into())
+    all.into_iter().next().ok_or_else(|| {
+        tr(
+            "No hay ningún navegador abierto en AlphaTerm. Abrí uno con browser_open y la URL.",
+            "There's no browser open in AlphaTerm. Open one with browser_open and the URL.",
+            "Não há nenhum navegador aberto no AlphaTerm. Abra um com browser_open e a URL.",
+        )
+        .into()
+    })
 }
 
 // --- CDP -------------------------------------------------------------------------------------
@@ -134,13 +142,15 @@ pub fn cdp(app: &AppHandle, e: &Entry, method: &str, params: Value) -> Result<Va
         }
     })
     .map_err(|err| err.to_string())?;
-    let raw = rx.recv_timeout(CDP_TIMEOUT).map_err(|_| format!("El navegador no contestó {method} a tiempo"))??;
-    serde_json::from_str(&raw).map_err(|err| format!("{method}: respuesta inválida ({err})"))
+    let raw = rx
+        .recv_timeout(CDP_TIMEOUT)
+        .map_err(|_| tr!("El navegador no contestó {method} a tiempo", "The browser didn't answer {method} in time", "O navegador não respondeu {method} a tempo"))??;
+    serde_json::from_str(&raw).map_err(|err| tr!("{method}: respuesta inválida ({err})", "{method}: invalid response ({err})", "{method}: resposta inválida ({err})"))
 }
 
 #[cfg(not(windows))]
 pub fn cdp(_app: &AppHandle, _e: &Entry, _method: &str, _params: Value) -> Result<Value, String> {
-    Err("El navegador integrado solo está hecho para Windows".into())
+    Err(tr("El navegador integrado solo está hecho para Windows", "The built-in browser only works on Windows", "O navegador integrado só funciona no Windows").into())
 }
 
 /// Suscribe los eventos de DevTools que interesan (marcas, consola, errores).
@@ -265,7 +275,7 @@ fn push_console(app: &AppHandle, e: &Entry, level: &str, text: String, at: Optio
 pub fn eval(app: &AppHandle, e: &Entry, js: &str) -> Result<Value, String> {
     let r = cdp(app, e, "Runtime.evaluate", json!({ "expression": js, "returnByValue": true, "awaitPromise": true, "userGesture": true }))?;
     if let Some(ex) = r.get("exceptionDetails") {
-        let msg = ex["exception"]["description"].as_str().or(ex["text"].as_str()).unwrap_or("Error en el script");
+        let msg = ex["exception"]["description"].as_str().or(ex["text"].as_str()).unwrap_or(tr("Error en el script", "Script error", "Erro no script"));
         return Err(msg.to_string());
     }
     Ok(r["result"].get("value").cloned().unwrap_or(Value::Null))
@@ -287,8 +297,12 @@ pub fn screenshot(app: &AppHandle, e: &Entry, clip: Option<(f64, f64, f64, f64)>
         params["captureBeyondViewport"] = json!(true);
     }
     let r = cdp(app, e, "Page.captureScreenshot", params)?;
-    let data = r["data"].as_str().ok_or("La captura vino vacía")?;
+    let data = r["data"].as_str().ok_or(tr("La captura vino vacía", "The screenshot came back empty", "A captura veio vazia"))?;
     base64::engine::general_purpose::STANDARD.decode(data).map_err(|err| err.to_string())
+}
+
+fn no_element(selector: &str) -> String {
+    tr!("No encontré ningún elemento con el selector {selector}", "No element matches the selector {selector}", "Nenhum elemento corresponde ao seletor {selector}")
 }
 
 /// Centro de un elemento en la vista (lo trae a la vista antes).
@@ -300,7 +314,7 @@ fn point_of(app: &AppHandle, e: &Entry, selector: &str) -> Result<(f64, f64, Str
     );
     let v = eval(app, e, &js)?;
     if v.is_null() {
-        return Err(format!("No encontré ningún elemento con el selector {selector}"));
+        return Err(no_element(selector));
     }
     Ok((v["x"].as_f64().unwrap_or(0.0), v["y"].as_f64().unwrap_or(0.0), v["what"].as_str().unwrap_or("").to_string()))
 }
@@ -308,7 +322,11 @@ fn point_of(app: &AppHandle, e: &Entry, selector: &str) -> Result<(f64, f64, Str
 pub fn click(app: &AppHandle, e: &Entry, selector: Option<&str>, x: Option<f64>, y: Option<f64>) -> Result<Value, String> {
     let (px, py, what) = match selector {
         Some(s) => point_of(app, e, s)?,
-        None => (x.ok_or("Falta selector o x/y")?, y.ok_or("Falta y")?, String::new()),
+        None => (
+            x.ok_or(tr("Falta selector o x/y", "Missing selector or x/y", "Falta selector ou x/y"))?,
+            y.ok_or(tr("Falta y", "Missing y", "Falta y"))?,
+            String::new(),
+        ),
     };
     // Que la capa de marcado no se trague el clic si está en modo edición.
     let _ = eval(app, e, "window.__alphaPass = true");
@@ -369,7 +387,7 @@ pub fn key(app: &AppHandle, e: &Entry, combo: &str) -> Result<Value, String> {
             let up = c.to_ascii_uppercase();
             (c.to_string(), if c.is_ascii_digit() { format!("Digit{c}") } else { format!("Key{up}") }, up as i64, None)
         }
-        _ => return Err(format!("No conozco la tecla {name}")),
+        _ => return Err(tr!("No conozco la tecla {name}", "Unknown key {name}", "Tecla desconhecida: {name}")),
     };
     let plain_char = text.is_none() && key.chars().count() == 1 && m & 2 == 0 && m & 1 == 0;
     let down_text = text.map(str::to_string).or_else(|| plain_char.then(|| key.clone()));
@@ -389,7 +407,7 @@ pub fn key(app: &AppHandle, e: &Entry, combo: &str) -> Result<Value, String> {
 
 pub fn navigate(app: &AppHandle, e: &Entry, url: &str) -> Result<String, String> {
     let u = normalize_url(url);
-    let parsed: tauri::Url = u.parse().map_err(|err| format!("URL inválida: {err}"))?;
+    let parsed: tauri::Url = u.parse().map_err(|err| tr!("URL inválida: {err}", "Invalid URL: {err}", "URL inválida: {err}"))?;
     webview(app, e)?.navigate(parsed).map_err(|err| err.to_string())?;
     Ok(u)
 }
@@ -434,7 +452,7 @@ fn stamp() -> String {
     format!("pedido-{ms}")
 }
 
-fn line_of_mark(m: &Value) -> String {
+fn line_of_mark(l: Lang, m: &Value) -> String {
     let tag = m["tag"].as_str().unwrap_or("?");
     let mut desc = format!("<{tag}");
     if let Some(id) = m["id"].as_str() {
@@ -448,74 +466,107 @@ fn line_of_mark(m: &Value) -> String {
     let text = m["text"].as_str().unwrap_or("").trim();
     if !text.is_empty() {
         let t: String = text.chars().take(70).collect();
-        desc.push_str(&format!(" «{t}{}»", if text.chars().count() > 70 { "…" } else { "" }));
+        let more = if text.chars().count() > 70 { "…" } else { "" };
+        desc.push_str(&tr_in!(l; " «{t}{more}»", " \"{t}{more}\"", " \"{t}{more}\""));
     }
     if let Some(c) = m.get("component").filter(|c| !c.is_null()) {
-        desc.push_str(&format!(" · componente {} ({})", c["name"].as_str().unwrap_or("?"), c["framework"].as_str().unwrap_or("")));
+        let (name, framework) = (c["name"].as_str().unwrap_or("?"), c["framework"].as_str().unwrap_or(""));
+        desc.push_str(&tr_in!(l; " · componente {name} ({framework})", " · component {name} ({framework})", " · componente {name} ({framework})"));
         if let Some(f) = c["source"]["file"].as_str() {
             match c["source"]["line"].as_i64() {
-                Some(l) => desc.push_str(&format!(" en {f}:{l}")),
-                None => desc.push_str(&format!(" en {f}")),
+                Some(n) => desc.push_str(&tr_in!(l; " en {f}:{n}", " in {f}:{n}", " em {f}:{n}")),
+                None => desc.push_str(&tr_in!(l; " en {f}", " in {f}", " em {f}")),
             }
         }
     }
     if let Some(sel) = m["selector"].as_str() {
-        desc.push_str(&format!(" · selector `{sel}`"));
+        desc.push_str(&tr_in!(l; " · selector `{sel}`", " · selector `{sel}`", " · seletor `{sel}`"));
     }
     desc
 }
 
 /// Texto que se le escribe al agente en su terminal. Puro (testeado).
-pub fn compose(text: &str, url: &str, marks: &[Value], shots: &[(usize, String)], page_shot: Option<&str>, full_shot: Option<&str>, detail: &str, global: bool) -> String {
+#[allow(clippy::too_many_arguments)]
+pub fn compose(l: Lang, text: &str, url: &str, marks: &[Value], shots: &[(usize, String)], page_shot: Option<&str>, full_shot: Option<&str>, detail: &str, global: bool) -> String {
     let mut out = String::new();
-    out.push_str(&format!("Pedido desde el navegador de AlphaTerm (página {url}):\n"));
+    out.push_str(&tr_in!(l;
+        "Pedido desde el navegador de AlphaTerm (página {url}):\n",
+        "Request from AlphaTerm's built-in browser (page {url}):\n",
+        "Pedido do navegador integrado do AlphaTerm (página {url}):\n"
+    ));
     out.push_str(text.trim());
     out.push_str("\n\n");
-    out.push_str("Hacé el cambio en el código fuente del proyecto: el navegador lo muestra al recargar (el servidor de desarrollo recarga solo).\n");
+    out.push_str(l.pick(
+        "Hacé el cambio en el código fuente del proyecto: el navegador lo muestra al recargar (el servidor de desarrollo recarga solo).\n",
+        "Make the change in the project's source code: the browser shows it on reload (the dev server reloads by itself).\n",
+        "Faça a alteração no código-fonte do projeto: o navegador mostra ao recarregar (o servidor de desenvolvimento recarrega sozinho).\n",
+    ));
     if global {
-        out.push_str("Es un cambio global, sobre todo el sitio.\n");
+        out.push_str(l.pick("Es un cambio global, sobre todo el sitio.\n", "It's a global change, across the whole site.\n", "É uma alteração global, em todo o site.\n"));
     }
     if !marks.is_empty() {
-        out.push_str(if global { "Además marqué estos elementos:\n" } else { "Elementos marcados:\n" });
+        out.push_str(if global {
+            l.pick("Además marqué estos elementos:\n", "I also marked these elements:\n", "Também marquei estes elementos:\n")
+        } else {
+            l.pick("Elementos marcados:\n", "Marked elements:\n", "Elementos marcados:\n")
+        });
         for (i, m) in marks.iter().enumerate() {
             let n = m["n"].as_u64().map(|n| n as usize).unwrap_or(i + 1);
-            out.push_str(&format!("{n}. {}", line_of_mark(m)));
+            out.push_str(&format!("{n}. {}", line_of_mark(l, m)));
             if let Some((_, p)) = shots.iter().find(|(k, _)| *k == n) {
-                out.push_str(&format!(" · captura {p}"));
+                out.push_str(&tr_in!(l; " · captura {p}", " · screenshot {p}", " · captura {p}"));
             }
             out.push('\n');
         }
     }
     if let Some(p) = page_shot {
-        out.push_str(&format!("Captura de lo que se ve{}: {p}\n", if marks.is_empty() { "" } else { " (con los elementos numerados)" }));
+        let numbered = if marks.is_empty() { "" } else { l.pick(" (con los elementos numerados)", " (with the elements numbered)", " (com os elementos numerados)") };
+        out.push_str(&tr_in!(l; "Captura de lo que se ve{numbered}: {p}\n", "Screenshot of the visible area{numbered}: {p}\n", "Captura da área visível{numbered}: {p}\n"));
     }
     if let Some(p) = full_shot {
-        out.push_str(&format!("Captura de la página entera: {p}\n"));
+        out.push_str(&tr_in!(l; "Captura de la página entera: {p}\n", "Full-page screenshot: {p}\n", "Captura da página inteira: {p}\n"));
     }
-    out.push_str(&format!("Detalle (HTML, estilos y posición de cada elemento): {detail}"));
+    out.push_str(&tr_in!(l;
+        "Detalle (HTML, estilos y posición de cada elemento): {detail}",
+        "Details (HTML, styles and position of each element): {detail}",
+        "Detalhes (HTML, estilos e posição de cada elemento): {detail}"
+    ));
     out
 }
 
-fn detail_md(text: &str, url: &str, title: &str, marks: &[Value], global: bool) -> String {
-    let mut md = format!("# Pedido desde el navegador de AlphaTerm\n\n- Página: {url}\n- Título: {title}\n- Cambio global: {}\n\n## Pedido\n\n{}\n", if global { "sí" } else { "no" }, text.trim());
+fn detail_md(l: Lang, text: &str, url: &str, title: &str, marks: &[Value], global: bool) -> String {
+    let yes = if global { l.pick("sí", "yes", "sim") } else { l.pick("no", "no", "não") };
+    let text = text.trim();
+    let mut md = tr_in!(l;
+        "# Pedido desde el navegador de AlphaTerm\n\n- Página: {url}\n- Título: {title}\n- Cambio global: {yes}\n\n## Pedido\n\n{text}\n",
+        "# Request from AlphaTerm's built-in browser\n\n- Page: {url}\n- Title: {title}\n- Global change: {yes}\n\n## Request\n\n{text}\n",
+        "# Pedido do navegador integrado do AlphaTerm\n\n- Página: {url}\n- Título: {title}\n- Alteração global: {yes}\n\n## Pedido\n\n{text}\n"
+    );
     for (i, m) in marks.iter().enumerate() {
         let n = m["n"].as_u64().unwrap_or(i as u64 + 1);
-        md.push_str(&format!("\n## Elemento {n}\n\n{}\n\n", line_of_mark(m)));
+        let line = line_of_mark(l, m);
+        md.push_str(&tr_in!(l; "\n## Elemento {n}\n\n{line}\n\n", "\n## Element {n}\n\n{line}\n\n", "\n## Elemento {n}\n\n{line}\n\n"));
         if let Some(c) = m.get("component").filter(|c| !c.is_null()) {
             let chain: Vec<&str> = c["chain"].as_array().map(|a| a.iter().filter_map(Value::as_str).collect()).unwrap_or_default();
             if chain.len() > 1 {
-                md.push_str(&format!("- Componentes (de adentro hacia afuera): {}\n", chain.join(" ← ")));
+                let chain = chain.join(" ← ");
+                md.push_str(&tr_in!(l; "- Componentes (de adentro hacia afuera): {chain}\n", "- Components (innermost first): {chain}\n", "- Componentes (de dentro para fora): {chain}\n"));
             }
         }
         let r = &m["rect"];
-        md.push_str(&format!("- Posición en la página: x={} y={} · tamaño {}×{} px\n", r["x"], r["y"], r["w"], r["h"]));
+        let (x, y, w, h) = (&r["x"], &r["y"], &r["w"], &r["h"]);
+        md.push_str(&tr_in!(l;
+            "- Posición en la página: x={x} y={y} · tamaño {w}×{h} px\n",
+            "- Position on the page: x={x} y={y} · size {w}×{h} px\n",
+            "- Posição na página: x={x} y={y} · tamanho {w}×{h} px\n"
+        ));
         if let Some(attrs) = m["attrs"].as_object().filter(|a| !a.is_empty()) {
-            md.push_str("- Atributos: ");
+            md.push_str(l.pick("- Atributos: ", "- Attributes: ", "- Atributos: "));
             md.push_str(&attrs.iter().map(|(k, v)| format!("{k}=\"{}\"", v.as_str().unwrap_or(""))).collect::<Vec<_>>().join(", "));
             md.push('\n');
         }
         if let Some(st) = m["styles"].as_object().filter(|a| !a.is_empty()) {
-            md.push_str("- Estilos calculados:\n");
+            md.push_str(l.pick("- Estilos calculados:\n", "- Computed styles:\n", "- Estilos calculados:\n"));
             for (k, v) in st {
                 md.push_str(&format!("  - {k}: {}\n", v.as_str().unwrap_or("")));
             }
@@ -529,22 +580,28 @@ fn detail_md(text: &str, url: &str, title: &str, marks: &[Value], global: bool) 
 
 fn write_png(dir: &Path, name: &str, bytes: &[u8]) -> Result<String, String> {
     let p = dir.join(name);
-    std::fs::write(&p, bytes).map_err(|err| format!("No se pudo guardar {}: {err}", p.display()))?;
+    std::fs::write(&p, bytes).map_err(|err| tr!("No se pudo guardar {}: {err}", "Couldn't save {}: {err}", "Não foi possível salvar {}: {err}"; p.display()))?;
     Ok(p.display().to_string())
 }
 
 /// Arma el pedido: capturas (vista con números, cada marca recortada, página entera si es global),
 /// `pedido.md` y `marcas.json`, y el texto para el agente.
-pub fn request(app: &AppHandle, e: &Entry, text: &str, global: bool) -> Result<Value, String> {
+pub fn request(app: &AppHandle, e: &Entry, text: &str, global: bool, l: Lang) -> Result<Value, String> {
     let marks: Vec<Value> = e.marks.lock().unwrap().as_array().cloned().unwrap_or_default();
     if marks.is_empty() && !global {
-        return Err("No hay elementos marcados (o marcá «Todo el sitio»).".into());
+        return Err(l
+            .pick(
+                "No hay elementos marcados (o marcá «Todo el sitio»).",
+                "There are no marked elements (or check \"Whole site\").",
+                "Não há elementos marcados (ou marque \"Todo o site\").",
+            )
+            .into());
     }
     let info = eval(app, e, "({ url: location.href, title: document.title })").unwrap_or(json!({}));
     let url = info["url"].as_str().unwrap_or("").to_string();
     let title = info["title"].as_str().unwrap_or("").to_string();
     let dir: PathBuf = std::env::temp_dir().join("AlphaTerm").join("navegador").join(stamp());
-    std::fs::create_dir_all(&dir).map_err(|err| format!("No se pudo crear {}: {err}", dir.display()))?;
+    std::fs::create_dir_all(&dir).map_err(|err| tr_in!(l; "No se pudo crear {}: {err}", "Couldn't create {}: {err}", "Não foi possível criar {}: {err}"; dir.display()))?;
 
     let _ = eval(app, e, "window.__alphaOverlay && __alphaOverlay.hideHover()");
     std::thread::sleep(Duration::from_millis(60));
@@ -570,9 +627,9 @@ pub fn request(app: &AppHandle, e: &Entry, text: &str, global: bool) -> Result<V
     let _ = eval(app, e, "window.__alphaOverlay && __alphaOverlay.chrome(true)");
 
     let detail = dir.join("pedido.md");
-    std::fs::write(&detail, detail_md(text, &url, &title, &marks, global)).map_err(|err| err.to_string())?;
+    std::fs::write(&detail, detail_md(l, text, &url, &title, &marks, global)).map_err(|err| err.to_string())?;
     let _ = crate::settings::save_to(&dir.join("marcas.json"), &json!({ "url": url, "title": title, "text": text, "global": global, "marks": marks }));
-    let message = compose(text, &url, &marks, &shots, page_shot.as_deref(), full_shot.as_deref(), &detail.display().to_string(), global);
+    let message = compose(l, text, &url, &marks, &shots, page_shot.as_deref(), full_shot.as_deref(), &detail.display().to_string(), global);
     Ok(json!({ "message": message, "dir": dir.display().to_string(), "marks": marks.len() }))
 }
 
@@ -595,14 +652,14 @@ pub async fn browser_open(app: AppHandle, window: tauri::Window, id: String, url
         let _ = wv.show();
         return Ok(u);
     }
-    let parsed: tauri::Url = u.parse().map_err(|err| format!("URL inválida: {err}"))?;
+    let parsed: tauri::Url = u.parse().map_err(|err| tr!("URL inválida: {err}", "Invalid URL: {err}", "URL inválida: {err}"))?;
     let label = label_of(&id);
     let win_label = window.label().to_string();
     let (app_nav, id_nav, win_nav) = (app.clone(), id.clone(), win_label.clone());
     let (app_title, id_title, win_title) = (app.clone(), id.clone(), win_label.clone());
     let (app_new, label_new) = (app.clone(), label.clone());
     let builder = WebviewBuilder::new(&label, WebviewUrl::External(parsed))
-        .initialization_script(OVERLAY_JS)
+        .initialization_script(format!("window.__ALPHATERM_LANG__ = \"{}\";\n{OVERLAY_JS}", crate::i18n::lang().code()))
         .on_page_load(move |_wv, payload| {
             let loading = matches!(payload.event(), PageLoadEvent::Started);
             let url = payload.url().to_string();
@@ -629,7 +686,7 @@ pub async fn browser_open(app: AppHandle, window: tauri::Window, id: String, url
         });
     let wv = window
         .add_child(builder, LogicalPosition::new(x, y), LogicalSize::new(w.max(1.0), h.max(1.0)))
-        .map_err(|err| format!("No se pudo crear el navegador: {err}"))?;
+        .map_err(|err| tr!("No se pudo crear el navegador: {err}", "Couldn't create the browser: {err}", "Não foi possível criar o navegador: {err}"))?;
     let e = Arc::new(Entry {
         id: id.clone(),
         label,
@@ -692,7 +749,7 @@ pub async fn browser_go(app: AppHandle, id: String, action: String) -> Result<()
             "reload" => cdp(&app, &e, "Page.reload", json!({})).map(|_| ()),
             "hard-reload" => cdp(&app, &e, "Page.reload", json!({ "ignoreCache": true })).map(|_| ()),
             "stop" => cdp(&app, &e, "Page.stopLoading", json!({})).map(|_| ()),
-            other => Err(format!("Acción desconocida: {other}")),
+            other => Err(tr!("Acción desconocida: {other}", "Unknown action: {other}", "Ação desconhecida: {other}")),
         }
     })
     .await
@@ -708,10 +765,12 @@ pub async fn browser_eval(app: AppHandle, id: String, js: String) -> Result<Valu
 }
 
 #[tauri::command]
-pub async fn browser_request(app: AppHandle, id: String, text: String, global: bool) -> Result<Value, String> {
+pub async fn browser_request(app: AppHandle, id: String, text: String, global: bool, lang: Option<String>) -> Result<Value, String> {
+    // El idioma de la ventana que lo pide (si lo manda); si no, el de la app.
+    let l = lang.as_deref().and_then(Lang::parse).unwrap_or_else(crate::i18n::lang);
     blocking(move || {
         let e = get(&app, &id)?;
-        request(&app, &e, &text, global)
+        request(&app, &e, &text, global, l)
     })
     .await
 }
@@ -740,6 +799,11 @@ pub fn window_closed(app: &AppHandle, label: &str) {
 
 // --- API de control (agentes) ------------------------------------------------------------------
 
+/// "Falta <parámetro>" (el nombre del parámetro no se traduce).
+fn missing(name: &str) -> String {
+    tr!("Falta {name}", "Missing {name}", "Falta {name}")
+}
+
 fn st(p: &Value, k: &str) -> Option<String> {
     p.get(k).and_then(Value::as_str).map(str::to_string).filter(|s| !s.is_empty())
 }
@@ -753,7 +817,7 @@ pub fn control(app: &AppHandle, method: &str, p: &Value, caller: &Option<String>
     let id = e.id.clone();
     match method {
         "browser_navigate" => {
-            let url = st(p, "url").ok_or("Falta url")?;
+            let url = st(p, "url").ok_or_else(|| missing("url"))?;
             let u = navigate(app, &e, &url)?;
             wait_load(app, &e, p.get("timeout_ms").and_then(Value::as_u64).unwrap_or(10_000));
             Ok(json!({ "browser": id, "url": u, "page": page(&e) }))
@@ -771,7 +835,7 @@ pub fn control(app: &AppHandle, method: &str, p: &Value, caller: &Option<String>
                 );
                 let r = eval(app, &e, &js)?;
                 if r.is_null() {
-                    return Err(format!("No encontré ningún elemento con el selector {sel}"));
+                    return Err(no_element(&sel));
                 }
                 screenshot(app, &e, Some((r["x"].as_f64().unwrap_or(0.0), r["y"].as_f64().unwrap_or(0.0), r["w"].as_f64().unwrap_or(1.0), r["h"].as_f64().unwrap_or(1.0))), false)?
             } else {
@@ -784,8 +848,8 @@ pub fn control(app: &AppHandle, method: &str, p: &Value, caller: &Option<String>
             Ok(json!({ "browser": id, "path": path, "bytes": bytes.len() }))
         }
         "browser_click" => click(app, &e, st(p, "selector").as_deref(), p.get("x").and_then(Value::as_f64), p.get("y").and_then(Value::as_f64)),
-        "browser_type" => type_text(app, &e, &st(p, "text").ok_or("Falta text")?, st(p, "selector").as_deref()),
-        "browser_key" => key(app, &e, &st(p, "key").ok_or("Falta key")?),
+        "browser_type" => type_text(app, &e, &st(p, "text").ok_or_else(|| missing("text"))?, st(p, "selector").as_deref()),
+        "browser_key" => key(app, &e, &st(p, "key").ok_or_else(|| missing("key"))?),
         "browser_scroll" => {
             let dy = p.get("dy").and_then(Value::as_f64).unwrap_or(600.0);
             let dx = p.get("dx").and_then(Value::as_f64).unwrap_or(0.0);
@@ -795,7 +859,7 @@ pub fn control(app: &AppHandle, method: &str, p: &Value, caller: &Option<String>
             };
             Ok(json!({ "browser": id, "scroll": v }))
         }
-        "browser_eval" => Ok(json!({ "browser": id, "value": eval(app, &e, &st(p, "js").ok_or("Falta js")?)? })),
+        "browser_eval" => Ok(json!({ "browser": id, "value": eval(app, &e, &st(p, "js").ok_or_else(|| missing("js"))?)? })),
         "browser_snapshot" => {
             let max = p.get("max_lines").and_then(Value::as_u64).unwrap_or(400);
             let v = eval(app, &e, &format!("window.__alphaOverlay ? __alphaOverlay.snapshot({max}) : document.body.innerText.slice(0, 20000)"))?;
@@ -807,7 +871,7 @@ pub fn control(app: &AppHandle, method: &str, p: &Value, caller: &Option<String>
             Ok(json!({ "browser": id, "entries": console(&e, since, errors) }))
         }
         "browser_marks" => Ok(json!({ "browser": id, "page": page(&e), "marks": marks(&e) })),
-        other => Err(format!("Método desconocido: {other}")),
+        other => Err(tr!("Método desconocido: {other}", "Unknown method: {other}", "Método desconhecido: {other}")),
     }
 }
 
@@ -833,25 +897,34 @@ mod tests {
             "selector": "main > button", "component": { "name": "Submit", "framework": "React", "source": { "file": "src/Submit.tsx", "line": 12 } }
         })];
         let shots = vec![(1usize, "C:\\t\\marca-1.png".to_string())];
-        let m = compose("Hacelo azul", "http://localhost:5173/", &marks, &shots, Some("C:\\t\\pagina.png"), None, "C:\\t\\pedido.md", false);
+        let m = compose(Lang::Es, "Hacelo azul", "http://localhost:5173/", &marks, &shots, Some("C:\\t\\pagina.png"), None, "C:\\t\\pedido.md", false);
         assert!(m.starts_with("Pedido desde el navegador de AlphaTerm (página http://localhost:5173/):\nHacelo azul\n"));
         assert!(m.contains("1. <button class=\"btn primary\"> «Enviar» · componente Submit (React) en src/Submit.tsx:12 · selector `main > button` · captura C:\\t\\marca-1.png\n"));
         assert!(m.contains("con los elementos numerados"));
         assert!(m.ends_with("C:\\t\\pedido.md"));
         assert!(!m.contains("cambio global"));
-        let g = compose("Todo más grande", "http://x/", &[], &[], None, Some("C:\\t\\full.png"), "d.md", true);
+        let g = compose(Lang::Es, "Todo más grande", "http://x/", &[], &[], None, Some("C:\\t\\full.png"), "d.md", true);
         assert!(g.contains("Es un cambio global"));
         assert!(g.contains("Captura de la página entera: C:\\t\\full.png"));
         assert!(!g.contains("Elementos marcados"));
+        let en = compose(Lang::En, "Make it blue", "http://x/", &marks, &shots, Some("p.png"), None, "d.md", false);
+        assert!(en.starts_with("Request from AlphaTerm's built-in browser (page http://x/):\nMake it blue\n"), "{en}");
+        assert!(en.contains("1. <button class=\"btn primary\"> \"Enviar\" · component Submit (React) in src/Submit.tsx:12 · selector `main > button` · screenshot C:\\t\\marca-1.png\n"), "{en}");
+        assert!(en.contains("Screenshot of the visible area (with the elements numbered): p.png"));
+        let pt = compose(Lang::Pt, "x", "u", &[], &[], None, None, "d.md", true);
+        assert!(pt.contains("É uma alteração global"), "{pt}");
     }
 
     #[test]
     fn detalle_con_html_y_estilos() {
         let marks = vec![json!({ "n": 2, "tag": "div", "html": "<div>hola</div>", "styles": { "color": "red" }, "rect": { "x": 1, "y": 2, "w": 3, "h": 4 } })];
-        let md = detail_md("pedido", "u", "t", &marks, false);
+        let md = detail_md(Lang::Es, "pedido", "u", "t", &marks, false);
         assert!(md.contains("## Elemento 2"));
         assert!(md.contains("  - color: red"));
         assert!(md.contains("```html\n<div>hola</div>\n```"));
         assert!(md.contains("x=1 y=2 · tamaño 3×4 px"));
+        let en = detail_md(Lang::En, "request", "u", "t", &marks, true);
+        assert!(en.contains("## Element 2") && en.contains("- Global change: yes") && en.contains("- Computed styles:"), "{en}");
+        assert!(en.contains("x=1 y=2 · size 3×4 px"));
     }
 }

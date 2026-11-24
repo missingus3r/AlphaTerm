@@ -1,6 +1,7 @@
 //! Docker con la CLI: estado del motor, contenedores, imágenes, acciones, logs y "recetas"
 //! (contenedores configurados para iniciar con un clic). Lo usan el panel y la API de control.
 
+use crate::i18n::tr;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
@@ -12,7 +13,11 @@ fn docker() -> Option<PathBuf> {
 }
 
 pub fn run(args: &[&str], limit: Duration) -> Result<String, String> {
-    let exe = docker().ok_or("Docker no está instalado (no se encontró docker en el PATH)")?;
+    let exe = docker().ok_or(tr(
+        "Docker no está instalado (no se encontró docker en el PATH)",
+        "Docker isn't installed (docker wasn't found in the PATH)",
+        "O Docker não está instalado (docker não foi encontrado no PATH)",
+    ))?;
     let mut c = Command::new(exe);
     c.args(args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     #[cfg(windows)]
@@ -40,7 +45,8 @@ pub fn run(args: &[&str], limit: Duration) -> Result<String, String> {
         }
         if start.elapsed() > limit {
             let _ = child.kill();
-            return Err(format!("docker {} tardó demasiado", args.first().unwrap_or(&"")));
+            let cmd = args.first().unwrap_or(&"");
+            return Err(tr!("docker {cmd} tardó demasiado", "docker {cmd} took too long", "docker {cmd} demorou demais"));
         }
         std::thread::sleep(Duration::from_millis(30));
     };
@@ -49,7 +55,7 @@ pub fn run(args: &[&str], limit: Duration) -> Result<String, String> {
     if status.success() {
         Ok(out)
     } else {
-        Err(if err.is_empty() { format!("docker {} falló", args.join(" ")) } else { err })
+        Err(if err.is_empty() { tr!("docker {} falló", "docker {} failed", "docker {} falhou"; args.join(" ")) } else { err })
     }
 }
 
@@ -80,13 +86,13 @@ pub async fn docker_status() -> EngineStatus {
         }
     })
     .await
-    .unwrap_or(EngineStatus { installed: false, running: false, version: None, error: Some("error interno".into()), desktop: false })
+    .unwrap_or(EngineStatus { installed: false, running: false, version: None, error: Some(tr("error interno", "internal error", "erro interno").into()), desktop: false })
 }
 
 /// Abre Docker Desktop (arranca el motor).
 #[tauri::command]
 pub fn docker_desktop() -> Result<(), String> {
-    let exe = desktop_exe().ok_or("No se encontró Docker Desktop")?;
+    let exe = desktop_exe().ok_or(tr("No se encontró Docker Desktop", "Docker Desktop wasn't found", "O Docker Desktop não foi encontrado"))?;
     Command::new(exe).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
@@ -154,14 +160,14 @@ fn valid_ref(s: &str) -> bool {
 /// start | stop | restart | rm (rm fuerza: también si está corriendo).
 pub fn action(target: &str, act: &str) -> Result<String, String> {
     if !valid_ref(target) {
-        return Err("Contenedor inválido".into());
+        return Err(tr("Contenedor inválido", "Invalid container", "Contêiner inválido").into());
     }
     let args: Vec<&str> = match act {
         "start" => vec!["start", target],
         "stop" => vec!["stop", target],
         "restart" => vec!["restart", target],
         "rm" => vec!["rm", "-f", target],
-        other => return Err(format!("Acción desconocida: {other}")),
+        other => return Err(tr!("Acción desconocida: {other}", "Unknown action: {other}", "Ação desconhecida: {other}")),
     };
     run(&args, Duration::from_secs(90)).map(|s| s.trim().to_string())
 }
@@ -173,11 +179,11 @@ pub async fn docker_action(target: String, act: String) -> Result<String, String
 
 pub fn logs(target: &str, tail: u32) -> Result<String, String> {
     if !valid_ref(target) {
-        return Err("Contenedor inválido".into());
+        return Err(tr("Contenedor inválido", "Invalid container", "Contêiner inválido").into());
     }
     let n = tail.clamp(1, 5000).to_string();
     // Los logs salen por stdout y stderr del contenedor: se piden juntos.
-    let exe = docker().ok_or("Docker no está instalado")?;
+    let exe = docker().ok_or(tr("Docker no está instalado", "Docker isn't installed", "O Docker não está instalado"))?;
     let mut c = Command::new(exe);
     c.args(["logs", "--tail", &n, "--timestamps", target]);
     #[cfg(windows)]
@@ -220,29 +226,29 @@ pub struct Preset {
 /// Argumentos de `docker run` para una receta (sin shell: cada valor va como argumento aparte).
 pub fn run_args(p: &Preset) -> Result<Vec<String>, String> {
     if !valid_ref(&p.image) {
-        return Err(format!("Imagen inválida: {}", p.image));
+        return Err(tr!("Imagen inválida: {}", "Invalid image: {}", "Imagem inválida: {}"; p.image));
     }
     let name: String = p.name.chars().map(|c| if c.is_ascii_alphanumeric() || "_.-".contains(c) { c } else { '-' }).collect();
     let name = name.trim_matches('-').to_lowercase();
     if name.is_empty() {
-        return Err("La receta necesita un nombre".into());
+        return Err(tr("La receta necesita un nombre", "The recipe needs a name", "A receita precisa de um nome").into());
     }
     let mut a = vec!["run".to_string(), "-d".into(), "--name".into(), name];
     for port in &p.ports {
         if !port.chars().all(|c| c.is_ascii_digit() || c == ':' || c == '.' || c == '/') || port.is_empty() {
-            return Err(format!("Puerto inválido: {port}"));
+            return Err(tr!("Puerto inválido: {port}", "Invalid port: {port}", "Porta inválida: {port}"));
         }
         a.extend(["-p".into(), port.clone()]);
     }
     for (k, v) in &p.env {
         if k.is_empty() || k.contains('=') {
-            return Err(format!("Variable inválida: {k}"));
+            return Err(tr!("Variable inválida: {k}", "Invalid variable: {k}", "Variável inválida: {k}"));
         }
         a.extend(["-e".into(), format!("{k}={v}")]);
     }
     for vol in &p.volumes {
         if vol.trim().is_empty() || vol.starts_with('-') {
-            return Err(format!("Volumen inválido: {vol}"));
+            return Err(tr!("Volumen inválido: {vol}", "Invalid volume: {vol}", "Volume inválido: {vol}"));
         }
         a.extend(["-v".into(), vol.clone()]);
     }
@@ -256,10 +262,13 @@ pub fn start_preset(p: &Preset) -> Result<String, String> {
     let args = run_args(p)?;
     let name = args[3].clone();
     if containers()?.iter().any(|c| c.name == name) {
-        return action(&name, "start").map(|_| format!("Se inició {name}"));
+        return action(&name, "start").map(|_| tr!("Se inició {name}", "Started {name}", "{name} foi iniciado"));
     }
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    run(&refs, Duration::from_secs(600)).map(|id| format!("Se creó {name} ({})", &id.trim()[..12.min(id.trim().len())]))
+    run(&refs, Duration::from_secs(600)).map(|id| {
+        let short = &id.trim()[..12.min(id.trim().len())];
+        tr!("Se creó {name} ({short})", "Created {name} ({short})", "{name} foi criado ({short})")
+    })
 }
 
 #[tauri::command]

@@ -8,6 +8,7 @@
 //!   (no se lee `.credentials.json` ni se llama a ningún endpoint; sin statusline, se estima con los
 //!   tokens de los transcripts); Codex, el último evento `rate_limits` de sus sesiones.
 
+use crate::i18n::tr;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -78,6 +79,8 @@ fn home() -> PathBuf {
     std::env::var_os("USERPROFILE").map(PathBuf::from).unwrap_or_default()
 }
 
+/// Etiqueta de una ventana de consumo. Queda en español siempre: el frontend la usa como id (largo
+/// de la ventana, pronóstico) y la traduce al mostrarla.
 pub fn window_label(minutes: i64) -> String {
     match minutes {
         300 => "5 h".into(),
@@ -127,9 +130,16 @@ fn claude() -> Usage {
         return Usage {
             provider: "claude".into(),
             exact: true,
-            source: "statusline de Claude Code".into(),
+            source: tr("statusline de Claude Code", "Claude Code statusline", "statusline do Claude Code").into(),
             updated_at: Some(captured),
-            note: (age_h > 1.0).then(|| "Se actualiza cada vez que Claude Code dibuja su statusline.".into()),
+            note: (age_h > 1.0).then(|| {
+                tr(
+                    "Se actualiza cada vez que Claude Code dibuja su statusline.",
+                    "Updates every time Claude Code draws its statusline.",
+                    "Atualiza toda vez que o Claude Code desenha sua statusline.",
+                )
+                .into()
+            }),
             windows,
             ..Default::default()
         };
@@ -138,10 +148,16 @@ fn claude() -> Usage {
     Usage {
         provider: "claude".into(),
         exact: false,
-        source: "transcripts de ~/.claude (estimado)".into(),
+        source: tr("transcripts de ~/.claude (estimado)", "~/.claude transcripts (estimated)", "transcrições de ~/.claude (estimado)").into(),
         updated_at: Some(now * 1000),
         windows: vec![],
-        note: Some(format!("Sin consulta en vivo ni statusline no hay porcentaje: {} tokens en 5 h, {} en 7 días.", fmt_tokens(t5), fmt_tokens(t7))),
+        note: Some(tr!(
+            "Sin consulta en vivo ni statusline no hay porcentaje: {} tokens en 5 h, {} en 7 días.",
+            "Without a live query or the statusline there's no percentage: {} tokens in 5 h, {} in 7 days.",
+            "Sem consulta ao vivo nem statusline não há porcentagem: {} tokens em 5 h, {} em 7 dias.";
+            fmt_tokens(t5),
+            fmt_tokens(t7)
+        )),
         ..Default::default()
     }
 }
@@ -297,7 +313,7 @@ fn codex() -> Usage {
             return Usage {
                 provider: "codex".into(),
                 exact: true,
-                source: "sesiones de Codex (~/.codex/sessions)".into(),
+                source: tr("sesiones de Codex (~/.codex/sessions)", "Codex sessions (~/.codex/sessions)", "sessões do Codex (~/.codex/sessions)").into(),
                 updated_at: Some(ts),
                 windows,
                 plan,
@@ -308,8 +324,8 @@ fn codex() -> Usage {
     Usage {
         provider: "codex".into(),
         exact: false,
-        source: "sesiones de Codex".into(),
-        note: Some("No hay sesiones de Codex con datos de límites.".into()),
+        source: tr("sesiones de Codex", "Codex sessions", "sessões do Codex").into(),
+        note: Some(tr("No hay sesiones de Codex con datos de límites.", "No Codex sessions with limit data.", "Não há sessões do Codex com dados de limites.").into()),
         ..Default::default()
     }
 }
@@ -338,7 +354,7 @@ pub fn parse_agy(v: &Value, now: i64) -> Option<Vec<UsageWindow>> {
 
 pub(crate) fn run_with_timeout(mut cmd: std::process::Command, limit: Duration) -> Result<Vec<u8>, String> {
     let mut child = cmd.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::null()).spawn().map_err(|e| e.to_string())?;
-    let mut stdout = child.stdout.take().ok_or("sin salida")?;
+    let mut stdout = child.stdout.take().ok_or(tr("sin salida", "no output", "sem saída"))?;
     let reader = std::thread::spawn(move || {
         let mut buf = Vec::new();
         let _ = stdout.read_to_end(&mut buf);
@@ -350,20 +366,29 @@ pub(crate) fn run_with_timeout(mut cmd: std::process::Command, limit: Duration) 
             Ok(Some(_)) => break,
             Ok(None) if start.elapsed() > limit => {
                 let _ = child.kill();
-                return Err("tardó demasiado".into());
+                return Err(tr("tardó demasiado", "took too long", "demorou demais").into());
             }
             Ok(None) => std::thread::sleep(Duration::from_millis(100)),
             Err(e) => return Err(e.to_string()),
         }
     }
-    reader.join().map_err(|_| "error leyendo la salida".to_string())
+    reader.join().map_err(|_| tr("error leyendo la salida", "error reading the output", "erro ao ler a saída").to_string())
 }
 
 // --- Cuál se muestra: la consulta en vivo o los archivos ----------------------------------------
 
+fn unknown_provider(p: &str) -> String {
+    tr!("proveedor desconocido: {p}", "unknown provider: {p}", "provedor desconhecido: {p}")
+}
+
 /// Lo leído de los archivos (barato, pero varias ventanas lo piden seguido).
 static CACHE: Mutex<Vec<(String, Instant, Usage)>> = Mutex::new(Vec::new());
 const CACHE_FOR: Duration = Duration::from_secs(30);
+
+/// Se olvida lo leído de los archivos (cambió el idioma: notas y fuentes se vuelven a armar).
+pub fn forget_cache() {
+    CACHE.lock().unwrap().clear();
+}
 
 fn passive(provider: &str) -> Option<Usage> {
     if provider == "agy" {
@@ -416,7 +441,7 @@ pub fn probe(provider: &str) -> Result<(), String> {
         "claude" => &LOCK_CLAUDE,
         "codex" => &LOCK_CODEX,
         "agy" => &LOCK_AGY,
-        other => return Err(format!("proveedor desconocido: {other}")),
+        other => return Err(unknown_provider(other)),
     };
     let asked = Instant::now();
     let _g = lock.lock().unwrap_or_else(|e| e.into_inner());
@@ -471,7 +496,12 @@ pub fn merge(lv: Option<Usage>, pas: Option<Usage>, provider: &str) -> Usage {
         }
         (Some(l), _) => l,
         (None, Some(p)) => p,
-        (None, None) => Usage { provider: provider.into(), source: "consulta en vivo".into(), note: Some("Todavía no hay datos.".into()), ..Default::default() },
+        (None, None) => Usage {
+            provider: provider.into(),
+            source: crate::i18n::tr("consulta en vivo", "live query", "consulta ao vivo").into(),
+            note: Some(tr("Todavía no hay datos.", "No data yet.", "Ainda não há dados.").into()),
+            ..Default::default()
+        },
     }
 }
 
@@ -484,11 +514,11 @@ pub fn best(provider: &str) -> Usage {
     let mut u = merge(lv, passive(provider), provider);
     u.refreshing = running;
     if running && !had_live && u.windows.is_empty() {
-        u.note = Some("Consultando…".into());
+        u.note = Some(tr("Consultando…", "Querying…", "Consultando…").into());
     } else if let Some(e) = err {
         u.note = Some(match u.note {
-            Some(n) => format!("{n} · Consulta en vivo: {e}"),
-            None => format!("Consulta en vivo: {e}"),
+            Some(n) => tr!("{n} · Consulta en vivo: {e}", "{n} · Live query: {e}", "{n} · Consulta ao vivo: {e}"),
+            None => tr!("Consulta en vivo: {e}", "Live query: {e}", "Consulta ao vivo: {e}"),
         });
     }
     let now = now_s();
@@ -504,7 +534,7 @@ pub fn best(provider: &str) -> Usage {
 #[tauri::command]
 pub async fn usage_get(provider: String, force: Option<bool>) -> Result<Usage, String> {
     if !["claude", "codex", "agy"].contains(&provider.as_str()) {
-        return Err(format!("proveedor desconocido: {provider}"));
+        return Err(unknown_provider(&provider));
     }
     tauri::async_runtime::spawn_blocking(move || {
         if force.unwrap_or(false) {
@@ -583,11 +613,17 @@ process.stdin.on("end", () => {
     fs.writeFileSync(file + ".tmp", JSON.stringify({ ...data, _capturedAt: Date.now() }));
     fs.renameSync(file + ".tmp", file);
   } catch {}
+  // Idioma: ALPHATERM_LANG (pestañas de AlphaTerm) o el de la configuración de AlphaTerm.
+  let lang = process.env.ALPHATERM_LANG;
+  if (!["es", "en", "pt"].includes(lang)) {
+    try { lang = JSON.parse(fs.readFileSync(path.join(process.env.APPDATA || "", "AlphaTerm", "settings.json"), "utf8").replace(/^\uFEFF/, "")).language; } catch {}
+  }
+  const week = lang === "en" ? "wk" : "sem";
   const rl = data.rate_limits || {};
   const pct = (w) => (w && typeof w.used_percentage === "number" ? `${Math.round(w.used_percentage)}%` : "–");
   const model = (data.model && data.model.display_name) || "Claude";
   const ctx = data.context_window && typeof data.context_window.used_percentage === "number" ? ` · ctx ${Math.round(data.context_window.used_percentage)}%` : "";
-  process.stdout.write(`${model}${ctx} · 5h ${pct(rl.five_hour)} · sem ${pct(rl.seven_day)}`);
+  process.stdout.write(`${model}${ctx} · 5h ${pct(rl.five_hour)} · ${week} ${pct(rl.seven_day)}`);
 });
 "#;
 
@@ -637,11 +673,11 @@ pub fn usage_statusline_install() -> Result<String, String> {
     std::fs::write(&script, STATUSLINE_JS).map_err(|e| e.to_string())?;
     let path = claude_settings();
     let text = std::fs::read_to_string(&path).unwrap_or_else(|_| "{}".into());
-    let mut v: Value = serde_json::from_str(&text).map_err(|e| format!("~/.claude/settings.json no es JSON válido: {e}"))?;
+    let mut v: Value = serde_json::from_str(&text).map_err(|e| tr!("~/.claude/settings.json no es JSON válido: {e}", "~/.claude/settings.json isn't valid JSON: {e}", "~/.claude/settings.json não é um JSON válido: {e}"))?;
     let backup = path.with_extension("json.antes-de-alphaterm");
     std::fs::write(&backup, &text).map_err(|e| e.to_string())?;
     let cmd = format!("node \"{}\"", script.display().to_string().replace('\\', "/"));
-    v.as_object_mut().ok_or("settings.json no es un objeto")?.insert("statusLine".into(), serde_json::json!({ "type": "command", "command": cmd }));
+    v.as_object_mut().ok_or(tr("settings.json no es un objeto", "settings.json isn't an object", "settings.json não é um objeto"))?.insert("statusLine".into(), serde_json::json!({ "type": "command", "command": cmd }));
     let out = serde_json::to_string_pretty(&v).map_err(|e| e.to_string())?;
     std::fs::write(&path, out + "\n").map_err(|e| e.to_string())?;
     Ok(backup.display().to_string())

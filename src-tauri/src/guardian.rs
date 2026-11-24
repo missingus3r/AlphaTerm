@@ -8,6 +8,7 @@
 //! - Otros agentes: Windows no deja frenar escrituras de otro programa sin un driver; ahí solo se
 //!   registran los cambios que se ven en la carpeta (aviso posterior).
 
+use crate::i18n::tr;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -60,16 +61,16 @@ pub fn classify_command(cmd: &str) -> Option<Risk> {
         let (prog, rest) = program(&seg);
         let rest: Vec<&str> = rest.iter().map(String::as_str).collect();
         match prog.as_str() {
-            "rm" | "rmdir" | "rd" | "del" | "erase" | "remove-item" | "ri" | "unlink" | "shred" => return del("borra archivos o carpetas"),
+            "rm" | "rmdir" | "rd" | "del" | "erase" | "remove-item" | "ri" | "unlink" | "shred" => return del(tr("borra archivos o carpetas", "deletes files or folders", "apaga arquivos ou pastas")),
             "git" => {
                 let sub = rest.iter().find(|s| !s.starts_with('-')).copied();
                 match sub {
-                    Some("clean") => return del("git clean borra archivos sin seguimiento"),
-                    Some("reset") if rest.contains(&"--hard") => return del("git reset --hard descarta cambios"),
-                    Some("checkout") if rest.contains(&"--") || rest.contains(&".") => return modi("git checkout pisa archivos con la versión del repo"),
-                    Some("restore") if !rest.contains(&"--staged") => return modi("git restore descarta cambios"),
-                    Some("stash") if rest.contains(&"drop") || rest.contains(&"clear") => return del("borra cambios guardados con stash"),
-                    Some("push") if rest.iter().any(|s| *s == "-f" || s.starts_with("--force")) => return modi("push forzado reescribe el remoto"),
+                    Some("clean") => return del(tr("git clean borra archivos sin seguimiento", "deletes untracked files (git clean)", "apaga arquivos não rastreados (git clean)")),
+                    Some("reset") if rest.contains(&"--hard") => return del(tr("git reset --hard descarta cambios", "discards changes (git reset --hard)", "descarta alterações (git reset --hard)")),
+                    Some("checkout") if rest.contains(&"--") || rest.contains(&".") => return modi(tr("git checkout pisa archivos con la versión del repo", "overwrites files with the repo version (git checkout)", "sobrescreve arquivos com a versão do repositório (git checkout)")),
+                    Some("restore") if !rest.contains(&"--staged") => return modi(tr("git restore descarta cambios", "discards changes (git restore)", "descarta alterações (git restore)")),
+                    Some("stash") if rest.contains(&"drop") || rest.contains(&"clear") => return del(tr("borra cambios guardados con stash", "deletes stashed changes", "apaga alterações guardadas com stash")),
+                    Some("push") if rest.iter().any(|s| *s == "-f" || s.starts_with("--force")) => return modi(tr("push forzado reescribe el remoto", "force-pushes and rewrites the remote", "faz push forçado e reescreve o remoto")),
                     _ => {}
                 }
             }
@@ -78,16 +79,16 @@ pub fn classify_command(cmd: &str) -> Option<Risk> {
                     || rest.windows(2).any(|p| (p[0] == "volume" || p[0] == "container" || p[0] == "image") && (p[1] == "rm" || p[1] == "prune"))
                     || rest.windows(2).any(|p| p[0] == "system" && p[1] == "prune")
                 {
-                    return del("borra contenedores, imágenes o volúmenes de Docker");
+                    return del(tr("borra contenedores, imágenes o volúmenes de Docker", "deletes Docker containers, images or volumes", "apaga contêineres, imagens ou volumes do Docker"));
                 }
             }
-            "move-item" | "mi" | "mv" | "move" | "ren" | "rename" | "rename-item" => return modi("mueve o renombra archivos"),
+            "move-item" | "mi" | "mv" | "move" | "ren" | "rename" | "rename-item" => return modi(tr("mueve o renombra archivos", "moves or renames files", "move ou renomeia arquivos")),
             "set-content" | "sc" | "out-file" | "clear-content" | "clc" | "add-content" | "ac" | "truncate" | "tee" | "tee-object" => {
-                return modi("escribe sobre archivos")
+                return modi(tr("escribe sobre archivos", "writes over files", "escreve por cima de arquivos"))
             }
-            "copy-item" | "cp" | "copy" | "xcopy" | "robocopy" => return modi("copia sobre archivos (puede pisar)"),
-            "format" | "diskpart" | "format-volume" | "mkfs" => return del("formatea un disco"),
-            "sed" if rest.iter().any(|x| x.starts_with("-i")) => return modi("sed -i edita archivos en el lugar"),
+            "copy-item" | "cp" | "copy" | "xcopy" | "robocopy" => return modi(tr("copia sobre archivos (puede pisar)", "copies over files (may overwrite)", "copia por cima de arquivos (pode sobrescrever)")),
+            "format" | "diskpart" | "format-volume" | "mkfs" => return del(tr("formatea un disco", "formats a disk", "formata um disco")),
+            "sed" if rest.iter().any(|x| x.starts_with("-i")) => return modi(tr("sed -i edita archivos en el lugar", "edits files in place (sed -i)", "edita arquivos no lugar (sed -i)")),
             _ => {}
         }
     }
@@ -104,10 +105,15 @@ pub fn classify_command(cmd: &str) -> Option<Risk> {
             if target.starts_with("$null") || target.starts_with("nul") || target.starts_with("/dev/null") {
                 continue;
             }
-            return modi("redirige la salida a un archivo (lo pisa)");
+            return modi(tr("redirige la salida a un archivo (lo pisa)", "redirects output to a file (overwriting it)", "redireciona a saída para um arquivo (sobrescrevendo-o)"));
         }
     }
     None
+}
+
+/// "Quiere correr un comando que <motivo>" (el motivo es el de `classify_command`).
+pub fn command_summary(reason: &str) -> String {
+    tr!("Quiere correr un comando que {reason}", "Wants to run a command that {reason}", "Quer executar um comando que {reason}")
 }
 
 // --- Pedidos al usuario --------------------------------------------------------------------------
@@ -143,6 +149,7 @@ pub enum Decision {
 pub struct LogEntry {
     pub at: u64,
     pub ask: Ask,
+    /// En español siempre ("permitido…", "bloqueado"): el frontend la compara y la traduce.
     pub decision: String,
 }
 
@@ -255,7 +262,12 @@ pub fn from_claude_hook(v: &Value) -> Option<Ask> {
             let exists = path.as_deref().is_some_and(|p| std::path::Path::new(p).exists());
             let content = input.get("content").and_then(Value::as_str).unwrap_or("");
             let preview: String = content.lines().take(40).collect::<Vec<_>>().join("\n");
-            Some(base(Kind::Modify, if exists { "Quiere reescribir un archivo entero".into() } else { "Quiere crear un archivo".into() }, Some(preview)))
+            let summary = if exists {
+                tr("Quiere reescribir un archivo entero", "Wants to rewrite an entire file", "Quer reescrever um arquivo inteiro")
+            } else {
+                tr("Quiere crear un archivo", "Wants to create a file", "Quer criar um arquivo")
+            };
+            Some(base(Kind::Modify, summary.into(), Some(preview)))
         }
         "Edit" | "MultiEdit" => {
             let detail = if tool == "Edit" {
@@ -264,15 +276,15 @@ pub fn from_claude_hook(v: &Value) -> Option<Ask> {
                 Some(format!("{}\n{}", old.lines().map(|l| format!("- {l}")).collect::<Vec<_>>().join("\n"), new.lines().map(|l| format!("+ {l}")).collect::<Vec<_>>().join("\n")))
             } else {
                 let n = input.get("edits").and_then(Value::as_array).map(|a| a.len()).unwrap_or(0);
-                Some(format!("{n} cambios en el archivo"))
+                Some(tr!("{n} cambios en el archivo", "{n} changes in the file", "{n} alterações no arquivo"))
             };
-            Some(base(Kind::Modify, "Quiere editar un archivo".into(), detail))
+            Some(base(Kind::Modify, tr("Quiere editar un archivo", "Wants to edit a file", "Quer editar um arquivo").into(), detail))
         }
-        "NotebookEdit" => Some(base(Kind::Modify, "Quiere editar un notebook".into(), None)),
+        "NotebookEdit" => Some(base(Kind::Modify, tr("Quiere editar un notebook", "Wants to edit a notebook", "Quer editar um notebook").into(), None)),
         "Bash" | "PowerShell" => {
             let cmd = input.get("command").and_then(Value::as_str).unwrap_or("");
             let r = classify_command(cmd)?;
-            Some(Ask { paths: vec![], ..base(r.kind, format!("Quiere correr un comando que {}", r.reason), Some(cmd.to_string())) })
+            Some(Ask { paths: vec![], ..base(r.kind, command_summary(&r.reason), Some(cmd.to_string())) })
         }
         _ => None,
     }

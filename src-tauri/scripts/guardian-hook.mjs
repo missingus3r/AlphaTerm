@@ -9,6 +9,22 @@
 import fs from "node:fs";
 import path from "node:path";
 
+/** Carpeta de AlphaTerm: la de control.json y settings.json. */
+const DIR = path.join(process.env.APPDATA || "", "AlphaTerm");
+
+// Idioma del motivo (es, en, pt): ALPHATERM_LANG (lo tienen las pestañas de AlphaTerm) o, si no
+// está, la clave `language` de settings.json, en la misma carpeta que control.json; si no, español.
+function detectLang() {
+  const ok = (l) => (typeof l === "string" && ["es", "en", "pt"].includes(l.trim().toLowerCase()) ? l.trim().toLowerCase() : null);
+  const env = ok(process.env.ALPHATERM_LANG);
+  if (env) return env;
+  try {
+    return ok(JSON.parse(fs.readFileSync(path.join(DIR, "settings.json"), "utf8").replace(/^\uFEFF/, "")).language) ?? "es";
+  } catch {
+    return "es";
+  }
+}
+
 let raw = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (d) => (raw += d));
@@ -23,7 +39,7 @@ process.stdin.on("end", async () => {
   let token = process.env.ALPHATERM_CONTROL_TOKEN;
   if (!url || !token) {
     try {
-      const c = JSON.parse(fs.readFileSync(path.join(process.env.APPDATA || "", "AlphaTerm", "control.json"), "utf8"));
+      const c = JSON.parse(fs.readFileSync(path.join(DIR, "control.json"), "utf8"));
       url = c.url;
       token = c.token;
     } catch {
@@ -44,12 +60,18 @@ process.stdin.on("end", async () => {
     const r = await fetch(`${url}/v1/guardian`, { method: "POST", headers, body: JSON.stringify(input), signal: AbortSignal.timeout(595_000) });
     const data = await r.json();
     if (data.decision === "deny") {
+      const lang = detectLang();
+      const reason = {
+        es: "El guardián de AlphaTerm lo bloqueó: el usuario no permitió este cambio. No lo intentes de otra forma; preguntale qué prefiere.",
+        en: "AlphaTerm's Guardian blocked it: the user didn't allow this change. Don't try it another way; ask them what they prefer.",
+        pt: "O Guardião do AlphaTerm bloqueou: o usuário não permitiu esta alteração. Não tente de outra forma; pergunte o que ele prefere.",
+      }[lang];
       process.stdout.write(
         JSON.stringify({
           hookSpecificOutput: {
             hookEventName: "PreToolUse",
             permissionDecision: "deny",
-            permissionDecisionReason: "El guardián de AlphaTerm lo bloqueó: el usuario no permitió este cambio. No lo intentes de otra forma; preguntale qué prefiere.",
+            permissionDecisionReason: reason,
           },
         }),
       );

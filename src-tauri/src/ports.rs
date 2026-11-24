@@ -151,7 +151,7 @@ pub async fn ports_list(state: tauri::State<'_, Arc<crate::pty::PtyState>>) -> R
 #[tauri::command]
 pub async fn ports_kill(pid: u32) -> Result<String, String> {
     if pid <= 4 || pid == std::process::id() {
-        return Err("Ese proceso no se puede detener desde acá.".into());
+        return Err(crate::i18n::tr("Ese proceso no se puede detener desde acá.", "That process can't be stopped from here.", "Esse processo não pode ser encerrado daqui.").into());
     }
     tauri::async_runtime::spawn_blocking(move || {
         let mut cmd = std::process::Command::new("taskkill");
@@ -166,7 +166,7 @@ pub async fn ports_kill(pid: u32) -> Result<String, String> {
         if out.status.success() {
             Ok(text)
         } else {
-            Err(if text.is_empty() { format!("taskkill terminó con {}", out.status) } else { text })
+            Err(if text.is_empty() { tr!("taskkill terminó con {}", "taskkill exited with {}", "taskkill terminou com {}"; out.status) } else { text })
         }
     })
     .await

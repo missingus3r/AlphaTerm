@@ -8,9 +8,9 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 
 pub fn write_png(path: &Path, width: u32, height: u32, rgba: &[u8]) -> Result<(), String> {
     if rgba.len() != (width as usize) * (height as usize) * 4 {
-        return Err("La imagen del portapapeles vino incompleta.".into());
+        return Err(crate::i18n::tr("La imagen del portapapeles vino incompleta.", "The clipboard image was incomplete.", "A imagem da área de transferência veio incompleta.").into());
     }
-    let f = std::fs::File::create(path).map_err(|e| format!("No se pudo crear {}: {e}", path.display()))?;
+    let f = std::fs::File::create(path).map_err(|e| tr!("No se pudo crear {}: {e}", "Couldn't create {}: {e}", "Não foi possível criar {}: {e}"; path.display()))?;
     let mut enc = png::Encoder::new(std::io::BufWriter::new(f), width, height);
     enc.set_color(png::ColorType::Rgba);
     enc.set_depth(png::BitDepth::Eight);

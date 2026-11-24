@@ -8,6 +8,7 @@
 //! - Lo que depende de las ventanas (pestañas, buffers) se le pregunta al frontend por eventos.
 
 use crate::guardian::{self, Ask, Decision, Kind};
+use crate::i18n::tr;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::io::Read;
@@ -113,10 +114,18 @@ fn handle(app: AppHandle, mut req: tiny_http::Request) {
     let token = st.token.lock().unwrap().clone();
     let auth = req.headers().iter().find(|h| h.field.equiv("Authorization")).map(|h| h.value.as_str().to_string()).unwrap_or_default();
     if auth != format!("Bearer {token}") {
-        return respond(req, 401, json!({ "error": "token inválido" }));
+        return respond(req, 401, json!({ "error": tr("token inválido", "invalid token", "token inválido") }));
     }
     if !st.enabled.load(Ordering::SeqCst) {
-        return respond(req, 403, json!({ "error": "La API de control está apagada en la configuración de AlphaTerm" }));
+        return respond(
+            req,
+            403,
+            json!({ "error": tr(
+                "La API de control está apagada en la configuración de AlphaTerm",
+                "The control API is turned off in AlphaTerm's settings",
+                "A API de controle está desligada nas configurações do AlphaTerm"
+            ) }),
+        );
     }
     let method = req.url().trim_start_matches("/v1/").trim_matches('/').to_string();
     let mut body = String::new();
@@ -139,18 +148,36 @@ fn guard_command(app: &AppHandle, cmd: &str, caller: &Option<String>, pane: &Opt
     let ask = Ask {
         id: 0,
         kind: r.kind,
-        agent: format!("Agente vía API{}", caller.as_ref().map(|c| format!(" (desde el panel {c})")).unwrap_or_default()),
+        agent: match caller {
+            Some(c) => tr!("Agente vía API (desde el panel {c})", "Agent via API (from pane {c})", "Agente via API (do painel {c})"),
+            None => api_agent().into(),
+        },
         tool: "run".into(),
-        summary: format!("Quiere correr un comando que {}", r.reason),
+        summary: guardian::command_summary(&r.reason),
         paths: vec![],
         detail: Some(cmd.to_string()),
         cwd: None,
         session: caller.clone().or_else(|| pane.clone()),
     };
     match guardian::ask(app, ask, Duration::from_secs(600)) {
-        Decision::Deny => Err("El guardián de AlphaTerm bloqueó el comando (el usuario no lo permitió).".into()),
+        Decision::Deny => Err(tr(
+            "El guardián de AlphaTerm bloqueó el comando (el usuario no lo permitió).",
+            "AlphaTerm's Guardian blocked the command (the user didn't allow it).",
+            "O Guardião do AlphaTerm bloqueou o comando (o usuário não permitiu).",
+        )
+        .into()),
         _ => Ok(()),
     }
+}
+
+/// Quién pide algo por la API (para el guardián).
+fn api_agent() -> &'static str {
+    tr("Agente vía API", "Agent via API", "Agente via API")
+}
+
+/// "falta <parámetro>" (el nombre del parámetro no se traduce).
+fn missing(name: &str) -> String {
+    tr!("falta {name}", "missing {name}", "falta {name}")
 }
 
 pub fn dispatch(app: &AppHandle, method: &str, p: Value, caller: Option<String>) -> Result<Value, String> {
@@ -185,31 +212,33 @@ pub fn dispatch(app: &AppHandle, method: &str, p: Value, caller: Option<String>)
         }
         // --- Docker (directo en el backend) ---
         "docker_list" => Ok(json!({ "containers": crate::docker::containers()?, "presets": *st.presets.lock().unwrap() })),
-        "docker_logs" => Ok(json!({ "logs": crate::docker::logs(&s(&p, "target").ok_or("falta target")?, p.get("tail").and_then(Value::as_u64).unwrap_or(200) as u32)? })),
+        "docker_logs" => Ok(json!({ "logs": crate::docker::logs(&s(&p, "target").ok_or_else(|| missing("target"))?, p.get("tail").and_then(Value::as_u64).unwrap_or(200) as u32)? })),
         "docker_action" => {
-            let target = s(&p, "target").ok_or("falta target")?;
-            let act = s(&p, "action").ok_or("falta action")?;
+            let target = s(&p, "target").ok_or_else(|| missing("target"))?;
+            let act = s(&p, "action").ok_or_else(|| missing("action"))?;
             if act == "rm" {
                 let ask = Ask {
                     id: 0,
                     kind: Kind::Delete,
-                    agent: "Agente vía API".into(),
+                    agent: api_agent().into(),
                     tool: "docker rm".into(),
-                    summary: format!("Quiere borrar el contenedor {target}"),
+                    summary: tr!("Quiere borrar el contenedor {target}", "Wants to delete the container {target}", "Quer apagar o contêiner {target}"),
                     paths: vec![],
                     detail: None,
                     cwd: None,
                     session: caller.clone(),
                 };
                 if guardian::ask(app, ask, Duration::from_secs(600)) == Decision::Deny {
-                    return Err("El guardián bloqueó el borrado del contenedor.".into());
+                    return Err(tr("El guardián bloqueó el borrado del contenedor.", "The Guardian blocked deleting the container.", "O Guardião bloqueou a exclusão do contêiner.").into());
                 }
             }
             Ok(json!({ "result": crate::docker::action(&target, &act)? }))
         }
         "docker_start" => {
-            let name = s(&p, "name").ok_or("falta name")?;
-            let preset = st.presets.lock().unwrap().iter().find(|x| x.name.eq_ignore_ascii_case(&name)).cloned().ok_or(format!("No hay una receta de Docker llamada {name}"))?;
+            let name = s(&p, "name").ok_or_else(|| missing("name"))?;
+            let preset = st.presets.lock().unwrap().iter().find(|x| x.name.eq_ignore_ascii_case(&name)).cloned().ok_or_else(|| {
+                tr!("No hay una receta de Docker llamada {name}", "There's no Docker recipe named {name}", "Não há uma receita do Docker chamada {name}")
+            })?;
             Ok(json!({ "result": crate::docker::start_preset(&preset)? }))
         }
         // --- Guardián (lo llama el hook de Claude Code) ---
@@ -217,11 +246,13 @@ pub fn dispatch(app: &AppHandle, method: &str, p: Value, caller: Option<String>)
             // Copia de cómo estaba el archivo, para el panel de modificaciones.
             crate::changes::hook_pre(&app.state::<crate::changes::ChangesState>().0, &p);
             if !app.state::<guardian::GuardianState>().claude.load(Ordering::SeqCst) {
-                return Ok(json!({ "decision": "allow", "reason": "el guardián no vigila a Claude Code" }));
+                return Ok(json!({ "decision": "allow", "reason": tr("el guardián no vigila a Claude Code", "the Guardian isn't watching Claude Code", "o Guardião não está vigiando o Claude Code") }));
             }
-            let Some(mut ask) = guardian::from_claude_hook(&p) else { return Ok(json!({ "decision": "allow", "reason": "no hace falta preguntar" })) };
+            let Some(mut ask) = guardian::from_claude_hook(&p) else {
+                return Ok(json!({ "decision": "allow", "reason": tr("no hace falta preguntar", "no need to ask", "não é preciso perguntar") }));
+            };
             if let Some(c) = &caller {
-                ask.agent = format!("{} (panel {c})", ask.agent);
+                ask.agent = tr!("{} (panel {c})", "{} (pane {c})", "{} (painel {c})"; ask.agent);
             }
             let d = guardian::ask(app, ask, Duration::from_secs(590));
             Ok(json!({ "decision": if d == Decision::Deny { "deny" } else { "allow" } }))
@@ -233,7 +264,7 @@ pub fn dispatch(app: &AppHandle, method: &str, p: Value, caller: Option<String>)
         }
         // --- Lo que maneja el frontend ---
         "run" | "send" => {
-            let text = s(&p, if method == "run" { "command" } else { "text" }).ok_or("falta el comando")?;
+            let text = s(&p, if method == "run" { "command" } else { "text" }).ok_or_else(|| tr("falta el comando", "missing command", "falta o comando"))?;
             if method == "run" || p.get("enter").and_then(Value::as_bool).unwrap_or(false) {
                 guard_command(app, &text, &caller, &s(&p, "pane"))?;
             }
@@ -261,7 +292,7 @@ pub fn dispatch(app: &AppHandle, method: &str, p: Value, caller: Option<String>)
             }
             ask_windows(app, method, p, Duration::from_secs(15), false)
         }
-        other => Err(format!("Método desconocido: {other}. Probá 'help'.")),
+        other => Err(tr!("Método desconocido: {other}. Probá 'help'.", "Unknown method: {other}. Try 'help'.", "Método desconhecido: {other}. Tente 'help'.")),
     }
 }
 
@@ -271,7 +302,7 @@ fn ask_windows(app: &AppHandle, method: &str, params: Value, limit: Duration, al
     let st = app.state::<ControlState>();
     let labels: Vec<String> = app.windows().into_keys().filter(|l| l != "settings").collect();
     if labels.is_empty() {
-        return Err("No hay ventanas de terminal abiertas".into());
+        return Err(tr("No hay ventanas de terminal abiertas", "No terminal windows are open", "Não há janelas de terminal abertas").into());
     }
     let (tx, rx) = channel::<Value>();
     let mut ids = Vec::new();
@@ -304,11 +335,15 @@ fn ask_windows(app: &AppHandle, method: &str, params: Value, limit: Duration, al
                         None => Ok(v.get("result").cloned().unwrap_or(Value::Null)),
                     };
                 } else if answered == labels.len() {
-                    break Err("Ese panel no existe (usá list para ver los ids)".into());
+                    break Err(tr("Ese panel no existe (usá list para ver los ids)", "That pane doesn't exist (use list to see the ids)", "Esse painel não existe (use list para ver os ids)").into());
                 }
             }
             Err(_) => {
-                break if all { Ok(json!({ "windows": parts })) } else { Err("Las ventanas no contestaron a tiempo".into()) };
+                break if all {
+                    Ok(json!({ "windows": parts }))
+                } else {
+                    Err(tr("Las ventanas no contestaron a tiempo", "The windows didn't answer in time", "As janelas não responderam a tempo").into())
+                };
             }
         }
     };
