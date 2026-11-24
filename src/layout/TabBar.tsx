@@ -1,8 +1,10 @@
+import { profileLabel } from "../terminal/pty";
 import { createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { Marquee } from "./Marquee";
 import type { Profile } from "../terminal/pty";
 import type { Group } from "./model";
 import { DEFAULTS, LIMITS } from "../settings/schema";
+import { k, t } from "../i18n";
 
 /** Colores para pestañas y carpetas (se ven bien en temas claros y oscuros). */
 export const TAB_COLORS = ["#ef6b73", "#f2a65a", "#e5c07b", "#8bd49c", "#5fd7d7", "#60a5fa", "#a78bfa", "#f472b6"];
@@ -61,12 +63,12 @@ interface Props {
 type Menu = { x: number; y: number; kind: "tab" | "group"; id: string } | null;
 
 const STATUS_LABEL: Record<TabStatus, string> = {
-  idle: "En espera",
-  running: "Ejecutando",
-  waiting: "Un agente espera input",
-  attention: "Un agente te necesita",
-  error: "El último comando falló",
-  exited: "La shell terminó",
+  idle: k("En espera"),
+  running: k("Ejecutando"),
+  waiting: k("Un agente espera input"),
+  attention: k("Un agente te necesita"),
+  error: k("El último comando falló"),
+  exited: k("La shell terminó"),
 };
 
 /** Inicial para la barra plegada (la primera letra o número del título). */
@@ -98,12 +100,12 @@ export function TabBar(props: Props) {
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
-  const help = () => props.help.map(([k, v]) => `${k}: ${v}`).join("\n");
+  const help = () => props.help.map(([keys, label]) => `${t(keys)}: ${t(label)}`).join("\n");
   const [menu, setMenu] = createSignal<Menu>(null);
   const groupOf = (id?: string) => (id ? props.groups.find((g) => g.id === id) : undefined);
   const firstOfGroup = (i: number) => {
-    const t = props.tabs[i];
-    return !!t.groupId && props.tabs[i - 1]?.groupId !== t.groupId;
+    const tab = props.tabs[i];
+    return !!tab.groupId && props.tabs[i - 1]?.groupId !== tab.groupId;
   };
   const openMenu = (e: MouseEvent, kind: "tab" | "group", id: string) => {
     e.preventDefault();
@@ -136,12 +138,12 @@ export function TabBar(props: Props) {
       class="tabbar"
       classList={{ vertical: props.vertical, collapsed: compact() }}
       style={{ width: props.vertical && !compact() ? `${barWidth()}px` : undefined }}
-      aria-label="Pestañas"
+      aria-label={t("Pestañas")}
     >
       <Show when={props.vertical && !compact() && props.onWidth}>
         <div
           class="tabbar-resize"
-          title="Arrastrar para cambiar el ancho (doble clic: ancho normal)"
+          title={t("Arrastrar para cambiar el ancho (doble clic: ancho normal)")}
           onPointerDown={startResize}
           onDblClick={() => props.onWidth?.(DEFAULTS.tabBar.width)}
         />
@@ -149,7 +151,7 @@ export function TabBar(props: Props) {
       <Show when={props.vertical && props.onCollapse}>
         <button
           class="btn collapse-bar"
-          title={compact() ? "Desplegar la barra de pestañas" : "Plegar la barra de pestañas"}
+          title={compact() ? t("Desplegar la barra de pestañas") : t("Plegar la barra de pestañas")}
           aria-expanded={!compact()}
           onClick={() => props.onCollapse?.()}
         >
@@ -162,19 +164,19 @@ export function TabBar(props: Props) {
       </Show>
       <div class="tabs" role="tablist" aria-orientation={props.vertical ? "vertical" : "horizontal"}>
         <For each={props.tabs}>
-          {(t, i) => (
+          {(tab, i) => (
             <>
             <Show when={firstOfGroup(i())}>
               {(() => {
-                const g = () => groupOf(t.groupId);
-                const count = () => props.tabs.filter((x) => x.groupId === t.groupId).length;
-                const hasActive = () => props.tabs.some((x) => x.groupId === t.groupId && x.id === props.activeId);
+                const g = () => groupOf(tab.groupId);
+                const count = () => props.tabs.filter((x) => x.groupId === tab.groupId).length;
+                const hasActive = () => props.tabs.some((x) => x.groupId === tab.groupId && x.id === props.activeId);
                 return (
                   <div
                     class="tab-group"
                     classList={{ collapsed: g()?.collapsed, "has-active": hasActive() }}
                     style={{ "--gcolor": g()?.color ?? "var(--muted)" }}
-                    title={`${g()?.name ?? "Carpeta"} · ${count()} pestañas (clic: plegar/desplegar; clic derecho: opciones)`}
+                    title={t("{name} · {n} pestañas (clic: plegar/desplegar; clic derecho: opciones)", { name: g()?.name ?? t("Carpeta"), n: count() })}
                     onClick={() => g() && props.onGroupUpdate(g()!.id, { collapsed: !g()!.collapsed })}
                     onContextMenu={(e) => g() && openMenu(e, "group", g()!.id)}
                     onDragOver={(e) => e.preventDefault()}
@@ -186,85 +188,85 @@ export function TabBar(props: Props) {
                     }}
                   >
                     <span class="caret">{g()?.collapsed ? "▸" : "▾"}</span>
-                    <span class="group-name">{compact() ? tabInitial(g()?.name ?? "C") : (g()?.name ?? "Carpeta")}</span>
+                    <span class="group-name">{compact() ? tabInitial(g()?.name ?? t("Carpeta")) : (g()?.name ?? t("Carpeta"))}</span>
                     <span class="panes">{count()}</span>
                   </div>
                 );
               })()}
             </Show>
-            <Show when={!groupOf(t.groupId)?.collapsed}>
+            <Show when={!groupOf(tab.groupId)?.collapsed}>
             <div
               class="tab"
-              style={{ "--tcolor": t.color ?? groupOf(t.groupId)?.color ?? "transparent" }}
-              onContextMenu={(e) => openMenu(e, "tab", t.id)}
+              style={{ "--tcolor": tab.color ?? groupOf(tab.groupId)?.color ?? "transparent" }}
+              onContextMenu={(e) => openMenu(e, "tab", tab.id)}
               role="tab"
-              aria-selected={t.id === props.activeId}
-              classList={{ active: t.id === props.activeId, dragging: dragId() === t.id, grouped: !!t.groupId }}
-              title={`${t.tooltip}\n${STATUS_LABEL[t.status]}`}
-              draggable={props.editingId !== t.id}
+              aria-selected={tab.id === props.activeId}
+              classList={{ active: tab.id === props.activeId, dragging: dragId() === tab.id, grouped: !!tab.groupId }}
+              title={`${tab.tooltip}\n${t(STATUS_LABEL[tab.status])}`}
+              draggable={props.editingId !== tab.id}
               onDragStart={(e) => {
-                setDragId(t.id);
-                e.dataTransfer?.setData("text/plain", t.id);
+                setDragId(tab.id);
+                e.dataTransfer?.setData("text/plain", tab.id);
               }}
               onDragEnd={() => setDragId(null)}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault();
                 const id = dragId();
-                if (id && id !== t.id) props.onMove(id, i());
+                if (id && id !== tab.id) props.onMove(id, i());
                 setDragId(null);
               }}
               onMouseDown={(e) => {
                 if (e.button === 1) {
                   e.preventDefault();
-                  props.onClose(t.id); // clic del medio cierra, como en los navegadores
-                } else if (e.button === 0) props.onSelect(t.id);
+                  props.onClose(tab.id); // clic del medio cierra, como en los navegadores
+                } else if (e.button === 0) props.onSelect(tab.id);
               }}
-              onDblClick={() => props.onStartRename(t.id)}
+              onDblClick={() => props.onStartRename(tab.id)}
             >
-              <span class={`dot st-${t.status}`} aria-label={STATUS_LABEL[t.status]} />
+              <span class={`dot st-${tab.status}`} aria-label={t(STATUS_LABEL[tab.status])} />
               <Show
-                when={props.editingId === t.id && !compact()}
+                when={props.editingId === tab.id && !compact()}
                 fallback={
                   compact() ? (
-                    <span class="tab-initial" style={t.color ? { color: t.color } : undefined}>
-                      {tabInitial(t.title)}
+                    <span class="tab-initial" style={tab.color ? { color: tab.color } : undefined}>
+                      {tabInitial(tab.title)}
                     </span>
                   ) : (
-                    <Marquee class="tab-title" text={t.title} style={t.color ? { color: t.color } : undefined} />
+                    <Marquee class="tab-title" text={tab.title} style={tab.color ? { color: tab.color } : undefined} />
                   )
                 }
               >
                 <input
                   class="tab-edit"
-                  value={t.title}
+                  value={tab.title}
                   ref={(el) => queueMicrotask(() => (el.focus(), el.select()))}
                   onKeyDown={(e) => {
                     e.stopPropagation();
                     if (e.key !== "Enter" && e.key !== "Escape") return;
                     // Sin esto, el mismo Enter llega a la terminal cuando recupera el foco.
                     e.preventDefault();
-                    props.onRename(t.id, e.key === "Enter" ? e.currentTarget.value : null);
+                    props.onRename(tab.id, e.key === "Enter" ? e.currentTarget.value : null);
                   }}
-                  onBlur={(e) => props.onRename(t.id, e.currentTarget.value)}
-                  placeholder="Vacío = nombre automático"
+                  onBlur={(e) => props.onRename(tab.id, e.currentTarget.value)}
+                  placeholder={t("Vacío = nombre automático")}
                 />
               </Show>
-              <Show when={t.changes}>
-                <span class="changes" title={`${t.changes} archivos cambiados en git`}>
-                  ±{t.changes}
+              <Show when={tab.changes}>
+                <span class="changes" title={t("{n} archivos cambiados en git", { n: tab.changes ?? 0 })}>
+                  ±{tab.changes}
                 </span>
               </Show>
-              <Show when={t.panes > 1}>
-                <span class="panes" title={`${t.panes} paneles`}>
-                  {t.panes}
+              <Show when={tab.panes > 1}>
+                <span class="panes" title={t("{n} paneles", { n: tab.panes })}>
+                  {tab.panes}
                 </span>
               </Show>
               <button
                 class="close"
-                title="Cerrar pestaña (Ctrl+Shift+W cierra el panel)"
+                title={t("Cerrar pestaña (Ctrl+Shift+W cierra el panel)")}
                 onMouseDown={(e) => e.stopPropagation()}
-                onClick={() => props.onClose(t.id)}
+                onClick={() => props.onClose(tab.id)}
               >
                 ×
               </button>
@@ -274,7 +276,7 @@ export function TabBar(props: Props) {
           )}
         </For>
         <div class="new-tab">
-          <button class="btn add" title="Pestaña nueva (Ctrl+Shift+T)" onClick={() => props.onNew()}>
+          <button class="btn add" title={t("Pestaña nueva (Ctrl+Shift+T)")} onClick={() => props.onNew()}>
             {/* Dibujado: el carácter "+" no queda centrado en todas las fuentes. */}
             <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
               <path d="M6 1.5v9M1.5 6h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
@@ -282,15 +284,15 @@ export function TabBar(props: Props) {
           </button>
           <select
             class="profile"
-            title="Perfil de las pestañas nuevas"
+            title={t("Perfil de las pestañas nuevas")}
             value={props.newTabProfile}
             onChange={(e) => props.onNewTabProfile(e.currentTarget.value)}
           >
             <For each={props.profiles}>
               {(p) => (
                 <option value={p.id} disabled={!p.available}>
-                  {p.name}
-                  {p.available ? "" : " (no detectado)"}
+                  {profileLabel(p.name)}
+                  {p.available ? "" : ` ${t("(no detectado)")}`}
                 </option>
               )}
             </For>
@@ -308,46 +310,46 @@ export function TabBar(props: Props) {
                     onClick={() =>
                       act(() => {
                         const g = groupOf(m().id);
-                        const name = prompt("Nombre de la carpeta:", g?.name ?? "");
+                        const name = prompt(t("Nombre de la carpeta:"), g?.name ?? "");
                         if (name?.trim()) props.onGroupUpdate(m().id, { name: name.trim() });
                       })
                     }
                   >
-                    Renombrar carpeta…
+                    {t("Renombrar carpeta…")}
                   </button>
                   <div class="ctx-colors">
                     <For each={TAB_COLORS}>{(c) => <button class="swatch-btn" style={{ background: c }} title={c} onClick={() => act(() => props.onGroupUpdate(m().id, { color: c }))} />}</For>
-                    <button class="swatch-btn none" title="Sin color" onClick={() => act(() => props.onGroupUpdate(m().id, { color: undefined }))}>
+                    <button class="swatch-btn none" title={t("Sin color")} onClick={() => act(() => props.onGroupUpdate(m().id, { color: undefined }))}>
                       ∅
                     </button>
                   </div>
-                  <button onClick={() => act(() => props.onGroupUngroup(m().id))}>Desarmar la carpeta</button>
+                  <button onClick={() => act(() => props.onGroupUngroup(m().id))}>{t("Desarmar la carpeta")}</button>
                   <button class="danger" onClick={() => act(() => props.onGroupClose(m().id))}>
-                    Cerrar todas sus pestañas…
+                    {t("Cerrar todas sus pestañas…")}
                   </button>
                 </>
               }
             >
-              <button onClick={() => act(() => props.onStartRename(m().id))}>Renombrar pestaña</button>
-              <div class="ctx-label">Color del título</div>
+              <button onClick={() => act(() => props.onStartRename(m().id))}>{t("Renombrar pestaña")}</button>
+              <div class="ctx-label">{t("Color del título")}</div>
               <div class="ctx-colors">
                 <For each={TAB_COLORS}>{(c) => <button class="swatch-btn" style={{ background: c }} title={c} onClick={() => act(() => props.onColor(m().id, c))} />}</For>
-                <button class="swatch-btn none" title="Sin color" onClick={() => act(() => props.onColor(m().id, undefined))}>
+                <button class="swatch-btn none" title={t("Sin color")} onClick={() => act(() => props.onColor(m().id, undefined))}>
                   ∅
                 </button>
               </div>
-              <div class="ctx-label">Carpeta</div>
-              <button onClick={() => act(() => props.onGroupNew(m().id))}>Nueva carpeta con esta pestaña…</button>
-              <For each={props.groups.filter((g) => g.id !== props.tabs.find((t) => t.id === m().id)?.groupId)}>
-                {(g) => <button onClick={() => act(() => props.onGroupMove(m().id, g.id))}>Mover a «{g.name}»</button>}
+              <div class="ctx-label">{t("Carpeta")}</div>
+              <button onClick={() => act(() => props.onGroupNew(m().id))}>{t("Nueva carpeta con esta pestaña…")}</button>
+              <For each={props.groups.filter((g) => g.id !== props.tabs.find((x) => x.id === m().id)?.groupId)}>
+                {(g) => <button onClick={() => act(() => props.onGroupMove(m().id, g.id))}>{t("Mover a «{name}»", { name: g.name })}</button>}
               </For>
-              <Show when={props.tabs.find((t) => t.id === m().id)?.groupId}>
-                <button onClick={() => act(() => props.onGroupMove(m().id, null))}>Sacar de la carpeta</button>
+              <Show when={props.tabs.find((x) => x.id === m().id)?.groupId}>
+                <button onClick={() => act(() => props.onGroupMove(m().id, null))}>{t("Sacar de la carpeta")}</button>
               </Show>
               <div class="ctx-sep" />
-              <button onClick={() => act(props.onRenameWindow)}>Título de la ventana…</button>
+              <button onClick={() => act(props.onRenameWindow)}>{t("Título de la ventana…")}</button>
               <button class="danger" onClick={() => act(() => props.onClose(m().id))}>
-                Cerrar pestaña
+                {t("Cerrar pestaña")}
               </button>
             </Show>
           </div>
@@ -355,17 +357,17 @@ export function TabBar(props: Props) {
       </Show>
       <div class="bar-actions">
         {props.widgets}
-        <button class="btn" title="Ventana nueva (Ctrl+Shift+N)" onClick={props.onNewWindow}>
+        <button class="btn" title={t("Ventana nueva (Ctrl+Shift+N)")} onClick={props.onNewWindow}>
           ⧉
         </button>
         <button
           class="btn"
-          title={props.vertical ? "Pestañas arriba (Ctrl+Shift+B)" : "Pestañas a la izquierda (Ctrl+Shift+B)"}
+          title={props.vertical ? t("Pestañas arriba (Ctrl+Shift+B)") : t("Pestañas a la izquierda (Ctrl+Shift+B)")}
           onClick={props.onToggleBar}
         >
           {props.vertical ? "⬒" : "◧"}
         </button>
-        <button class="btn" title="Configuración (Ctrl+,)" onClick={props.onSettings}>
+        <button class="btn" title={t("Configuración (Ctrl+,)")} onClick={props.onSettings}>
           ⚙
         </button>
         <span class="btn help" title={help()}>

@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { ago } from "../widgets/format";
 import { projectName } from "./projects";
+import { locale, t } from "../i18n";
 
 export interface HistEntry {
   command: string;
@@ -30,44 +31,44 @@ export default function HistoryPanel(props: Props) {
   // El tiempo relativo ("hace 3 min") se refresca cada minuto.
   const [, setTick] = createSignal(0);
   onMount(() => {
-    const t = setInterval(() => setTick((x) => x + 1), 60_000);
-    onCleanup(() => clearInterval(t));
+    const timer = setInterval(() => setTick((x) => x + 1), 60_000);
+    onCleanup(() => clearInterval(timer));
   });
 
   return (
     <div class="panel history-panel">
       <header class="panel-head">
-        <h2>Historial</h2>
-        <button class="icon-btn" title="Actualizar" onClick={() => void refetch()}>
+        <h2>{t("Historial")}</h2>
+        <button class="icon-btn" title={t("Actualizar")} onClick={() => void refetch()}>
           ↻
         </button>
       </header>
       <input
         ref={input}
         class="text"
-        placeholder="Buscar (palabras del comando o de la carpeta)…"
+        placeholder={t("Buscar (palabras del comando o de la carpeta)…")}
         value={query()}
         onInput={(e) => setQuery(e.currentTarget.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && items()?.[0]) props.onUse(items()![0].command, e.ctrlKey);
         }}
       />
-      <p class="muted small">Clic: lo escribe en la terminal activa. Doble clic o ▶: lo ejecuta. Enter usa el primero (Ctrl+Enter lo ejecuta).</p>
+      <p class="muted small">{t("Clic: lo escribe en la terminal activa. Doble clic o ▶: lo ejecuta. Enter usa el primero (Ctrl+Enter lo ejecuta).")}</p>
       <ul class="hist-list">
-        <For each={items() ?? []} fallback={<li class="muted small">{items.loading ? "Buscando…" : "Nada todavía: se guardan los comandos de las shells con integración."}</li>}>
+        <For each={items() ?? []} fallback={<li class="muted small">{items.loading ? t("Buscando…") : t("Nada todavía: se guardan los comandos de las shells con integración.")}</li>}>
           {(h) => (
-            <li class="hist" onClick={() => props.onUse(h.command, false)} onDblClick={() => props.onUse(h.command, true)} title={`${h.command}\n${h.cwd ?? ""}\n${new Date(h.at).toLocaleString()}`}>
-              <span class={`hist-mark ${h.exitCode === null || h.exitCode === 0 ? "ok" : "err"}`} title={h.exitCode ? `Código ${h.exitCode}` : "Terminó bien"} />
+            <li class="hist" onClick={() => props.onUse(h.command, false)} onDblClick={() => props.onUse(h.command, true)} title={`${h.command}\n${h.cwd ?? ""}\n${new Date(h.at).toLocaleString(locale())}`}>
+              <span class={`hist-mark ${h.exitCode === null || h.exitCode === 0 ? "ok" : "err"}`} title={h.exitCode ? t("Código {code}", { code: h.exitCode }) : t("Terminó bien")} />
               <div class="agent-info">
                 <code class="hist-cmd">{h.command}</code>
                 <small>
                   {h.cwd ? projectName(h.cwd) : ""} · {ago(h.at)}
-                  {h.exitCode ? ` · código ${h.exitCode}` : ""}
+                  {h.exitCode ? ` · ${t("código {code}", { code: h.exitCode })}` : ""}
                 </small>
               </div>
               <button
                 class="icon-btn tiny show"
-                title="Copiar"
+                title={t("Copiar")}
                 onClick={(e) => {
                   e.stopPropagation();
                   void writeText(h.command);
@@ -77,7 +78,7 @@ export default function HistoryPanel(props: Props) {
               </button>
               <button
                 class="icon-btn tiny show"
-                title="Ejecutar en la terminal activa"
+                title={t("Ejecutar en la terminal activa")}
                 onClick={(e) => {
                   e.stopPropagation();
                   props.onUse(h.command, true);

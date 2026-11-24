@@ -6,6 +6,7 @@ import { parseDiff } from "./diff";
 import { DiffTable } from "./DiffTable";
 import { changeTags, matchesFilter, totals, type ChangeFilter, type ChangeSummary } from "./changes";
 import { ago } from "../widgets/format";
+import { t } from "../i18n";
 
 interface DiffOut {
   text: string;
@@ -54,7 +55,7 @@ function FileCard(props: { c: ChangeSummary; open: boolean; split: boolean; onTo
     try {
       await invoke("changes_save", { id: props.c.id, text: draft(), token: e.token, enc: e.enc, crlf: e.crlf });
       setEdit(null);
-      setMsg({ ok: true, text: "Guardado." });
+      setMsg({ ok: true, text: t("Guardado.") });
       setTimeout(() => setMsg((m) => (m?.ok ? null : m)), 2500);
       void refetch();
     } catch (err) {
@@ -64,7 +65,7 @@ function FileCard(props: { c: ChangeSummary; open: boolean; split: boolean; onTo
     }
   };
   const cancel = async () => {
-    if (dirty() && !(await askConfirm("¿Descartar lo que editaste en este archivo?", "Descartar"))) return;
+    if (dirty() && !(await askConfirm(t("¿Descartar lo que editaste en este archivo?"), t("Descartar")))) return;
     setEdit(null);
     setMsg(null);
   };
@@ -81,31 +82,31 @@ function FileCard(props: { c: ChangeSummary; open: boolean; split: boolean; onTo
           <b>{name()}</b> <small>{dir()}</small>
         </span>
         <span class="diff-count">
-          <Show when={props.c.kind === "text"} fallback={<span class="muted small">{props.c.kind === "binary" ? "binario" : props.c.kind === "tooBig" ? "grande" : "?"}</span>}>
+          <Show when={props.c.kind === "text"} fallback={<span class="muted small">{props.c.kind === "binary" ? t("binario") : props.c.kind === "tooBig" ? t("grande") : "?"}</span>}>
             <span class="add">+{props.c.adds}</span> <span class="del">−{props.c.dels}</span>
           </Show>
         </span>
       </div>
       <div class="change-meta">
-        <For each={changeTags(props.c)}>{(t) => <span class={`badge ${t.cls}`} title={t.title}>{t.label}</span>}</For>
+        <For each={changeTags(props.c)}>{(tag) => <span class={`badge ${tag.cls}`} title={t(tag.title)}>{t(tag.label)}</span>}</For>
         <span class="muted small">
           {props.c.agents.join(" + ")} · {ago(props.c.lastAt)}
         </span>
         <span class="grow" />
         <Show when={props.c.editable && !edit()}>
-          <button class="link small" onClick={() => void startEdit()} title="Editar el archivo acá">
-            Editar
+          <button class="link small" onClick={() => void startEdit()} title={t("Editar el archivo acá")}>
+            {t("Editar")}
           </button>
         </Show>
         <Show when={!props.c.deleted}>
-          <button class="link small" onClick={() => open("default")} title="Abrir con el programa de Windows">
-            Abrir
+          <button class="link small" onClick={() => open("default")} title={t("Abrir con el programa de Windows")}>
+            {t("Abrir")}
           </button>
         </Show>
-        <button class="link small" onClick={() => open("explorer")} title="Mostrar la carpeta">
-          Carpeta
+        <button class="link small" onClick={() => open("explorer")} title={t("Mostrar la carpeta")}>
+          {t("Carpeta")}
         </button>
-        <button class="icon-btn tiny-x" onClick={props.onRemove} title="Sacar de la lista (no toca el archivo)">
+        <button class="icon-btn tiny-x" onClick={props.onRemove} title={t("Sacar de la lista (no toca el archivo)")}>
           ×
         </button>
       </div>
@@ -119,7 +120,7 @@ function FileCard(props: { c: ChangeSummary; open: boolean; split: boolean; onTo
           when={edit()}
           fallback={
             <div class="change-body">
-              <Show when={!diff.loading || diff()} fallback={<p class="muted small">Cargando…</p>}>
+              <Show when={!diff.loading || diff()} fallback={<p class="muted small">{t("Cargando…")}</p>}>
                 <Show when={!diff.error} fallback={<div class="banner">{String(diff.error)}</div>}>
                   <Show when={diff()?.note}>
                     <p class="muted small change-note">{diff()!.note}</p>
@@ -149,24 +150,24 @@ function FileCard(props: { c: ChangeSummary; open: boolean; split: boolean; onTo
                 } else if (e.key === "Tab" && !e.shiftKey) {
                   // Tab inserta una tabulación (no salta al botón de al lado).
                   e.preventDefault();
-                  const t = e.currentTarget;
-                  const [a, b] = [t.selectionStart, t.selectionEnd];
-                  t.setRangeText("\t", a, b, "end");
-                  setDraft(t.value);
+                  const ta = e.currentTarget;
+                  const [a, b] = [ta.selectionStart, ta.selectionEnd];
+                  ta.setRangeText("\t", a, b, "end");
+                  setDraft(ta.value);
                 }
               }}
             />
             <div class="change-edit-bar">
               <span class="muted small">
                 {edit()!.enc === "utf8" ? "UTF-8" : edit()!.enc} · {edit()!.crlf ? "CRLF" : "LF"}
-                {dirty() ? " · sin guardar" : ""}
+                {dirty() ? ` · ${t("sin guardar")}` : ""}
               </span>
               <span class="grow" />
               <button class="btn" onClick={cancel}>
-                Cancelar
+                {t("Cancelar")}
               </button>
               <button class="btn commit" disabled={!dirty() || saving()} onClick={() => void save()} title="Ctrl+S">
-                {saving() ? "Guardando…" : "Guardar"}
+                {saving() ? t("Guardando…") : t("Guardar")}
               </button>
             </div>
           </div>
@@ -205,7 +206,7 @@ export default function ChangesPanel() {
   // se pierde lo que se está editando.
   const byId = createMemo(() => new Map((list() ?? []).map((c) => [c.id, c])));
   const shownIds = createMemo(() => shown().map((c) => c.id));
-  const t = createMemo(() => totals(shown()));
+  const tot = createMemo(() => totals(shown()));
   const toggle = (id: number) => {
     const s = new Set(open());
     if (s.has(id)) s.delete(id);
@@ -217,39 +218,39 @@ export default function ChangesPanel() {
   return (
     <div class="panel changes-panel">
       <header class="panel-head">
-        <h2>Modificaciones</h2>
-        <button class="icon-btn" classList={{ spin: list.loading }} title="Actualizar" onClick={() => void refetch()}>
+        <h2>{t("Modificaciones")}</h2>
+        <button class="icon-btn" classList={{ spin: list.loading }} title={t("Actualizar")} onClick={() => void refetch()}>
           ↻
         </button>
       </header>
       <div class="changes-tools">
-        <input class="text" placeholder="Filtrar por nombre o carpeta" value={query()} onInput={(e) => setQuery(e.currentTarget.value)} />
-        <select class="text" value={filter()} onChange={(e) => setFilter(e.currentTarget.value as ChangeFilter)} title="Qué archivos mostrar">
-          <option value="all">Todos</option>
-          <option value="nogit">Sin git</option>
-          <option value="git">En git</option>
+        <input class="text" placeholder={t("Filtrar por nombre o carpeta")} value={query()} onInput={(e) => setQuery(e.currentTarget.value)} />
+        <select class="text" value={filter()} onChange={(e) => setFilter(e.currentTarget.value as ChangeFilter)} title={t("Qué archivos mostrar")}>
+          <option value="all">{t("Todos")}</option>
+          <option value="nogit">{t("Sin git")}</option>
+          <option value="git">{t("En git")}</option>
         </select>
       </div>
       <div class="changes-bar">
         <span class="small">
-          {t().files} {t().files === 1 ? "archivo" : "archivos"} · <span class="add">+{t().adds}</span> <span class="del">−{t().dels}</span>
+          {tot().files === 1 ? t("1 archivo") : t("{n} archivos", { n: tot().files })} · <span class="add">+{tot().adds}</span> <span class="del">−{tot().dels}</span>
         </span>
         <span class="grow" />
         <button class="link small" disabled={!shown().length} onClick={() => setOpen(new Set(shown().map((c) => c.id)))}>
-          Abrir todos
+          {t("Abrir todos")}
         </button>
         <button class="link small" disabled={!open().size} onClick={() => setOpen(new Set<number>())}>
-          Colapsar todos
+          {t("Colapsar todos")}
         </button>
         <button class="link small" onClick={() => setSplit(!split())}>
-          {split() ? "Unificado" : "Lado a lado"}
+          {split() ? t("Unificado") : t("Lado a lado")}
         </button>
         <button
           class="link small danger"
           disabled={!(list() ?? []).length}
-          onClick={async () => (await askConfirm("¿Vaciar la lista de modificaciones? Los archivos no se tocan.", "Vaciar")) && remove()}
+          onClick={async () => (await askConfirm(t("¿Vaciar la lista de modificaciones? Los archivos no se tocan."), t("Vaciar"))) && remove()}
         >
-          Limpiar
+          {t("Limpiar")}
         </button>
       </div>
       <ul class="changes">
@@ -258,10 +259,10 @@ export default function ChangesPanel() {
           fallback={
             <li class="muted small changes-empty">
               {list.loading
-                ? "Cargando…"
+                ? t("Cargando…")
                 : (list() ?? []).length
-                  ? "Nada con ese filtro."
-                  : "Todavía nada. Acá aparece lo que cambien los agentes (Claude Code lanzado desde AlphaTerm, y cualquier agente en la carpeta de su pestaña), con o sin git."}
+                  ? t("Nada con ese filtro.")
+                  : t("Todavía nada. Acá aparece lo que cambien los agentes (Claude Code lanzado desde AlphaTerm, y cualquier agente en la carpeta de su pestaña), con o sin git.")}
             </li>
           }
         >

@@ -2,6 +2,7 @@
  * Temas: los de fábrica, la importación (Windows Terminal, iTerm2 o el formato propio)
  * y la paleta de la interfaz, que sale del tema de la terminal.
  */
+import { k, t } from "../i18n";
 import { COLOR_KEYS, HEX, type ColorKey, type CustomTheme } from "./schema";
 
 export type ThemeColors = Record<ColorKey, string>;
@@ -44,11 +45,11 @@ function make(
 }
 
 export const BUILTIN_THEMES: Theme[] = [
-  make("nova-dark", "Alpha oscuro", "#0d1017", "#d6deeb",
+  make("nova-dark", k("Alpha oscuro"), "#0d1017", "#d6deeb",
     ["#1b2230", "#ef6b73", "#8bd49c", "#e5c07b", "#60a5fa", "#c792ea", "#5fd7d7", "#d6deeb"],
     ["#5c6a82", "#ff8a91", "#a8e6b5", "#f2d59b", "#93c5fd", "#ddb6f2", "#8ff0f0", "#ffffff"],
     { cursor: "#60a5fa", selection: "#2563eb66" }),
-  make("nova-light", "Alpha claro", "#f7f8fa", "#24292f",
+  make("nova-light", k("Alpha claro"), "#f7f8fa", "#24292f",
     ["#24292f", "#cf222e", "#116329", "#9a6700", "#0969da", "#8250df", "#1b7c83", "#6e7781"],
     ["#57606a", "#a40e26", "#1a7f37", "#633c01", "#218bff", "#a475f9", "#3192aa", "#8c959f"],
     { cursor: "#0969da", selection: "#0969da33" }),
@@ -93,12 +94,15 @@ export const BUILTIN_THEMES: Theme[] = [
 export const BASE_COLORS: ThemeColors = BUILTIN_THEMES[0].colors;
 
 export function allThemes(custom: CustomTheme[]): Theme[] {
-  return [...BUILTIN_THEMES, ...custom.map((t) => ({ ...t, builtin: false }))];
+  return [...BUILTIN_THEMES, ...custom.map((x) => ({ ...x, builtin: false }))];
 }
+
+/** Nombre para mostrar: los de fábrica propios (Alpha oscuro/claro) se traducen; los demás quedan como son. */
+export const themeLabel = (theme: Theme): string => (theme.builtin ? t(theme.name) : theme.name);
 
 export function findTheme(id: string, custom: CustomTheme[], fallback = "nova-dark"): Theme {
   const all = allThemes(custom);
-  return all.find((t) => t.id === id) ?? all.find((t) => t.id === fallback) ?? BUILTIN_THEMES[0];
+  return all.find((x) => x.id === id) ?? all.find((x) => x.id === fallback) ?? BUILTIN_THEMES[0];
 }
 
 // --- Colores ----------------------------------------------------------------------------------
@@ -238,20 +242,20 @@ function fromItermPlist(xml: string, name: string): ImportedTheme | null {
  * - el formato propio ({ name, colors: {...} }) o un tema de xterm.js;
  * - un .itermcolors de iTerm2.
  */
-export function importThemes(text: string, fileName = "Tema importado"): ImportedTheme[] {
+export function importThemes(text: string, fileName = t("Tema importado")): ImportedTheme[] {
   const baseName = fileName.replace(/\.[^.]+$/, "");
   const trimmed = text.trim();
   if (trimmed.startsWith("<")) {
-    const t = fromItermPlist(trimmed, baseName);
-    if (!t) throw new Error("El .itermcolors no tiene colores de fondo y de texto");
-    return [t];
+    const theme = fromItermPlist(trimmed, baseName);
+    if (!theme) throw new Error(t("El .itermcolors no tiene colores de fondo y de texto"));
+    return [theme];
   }
   let data: unknown;
   try {
     // Windows Terminal permite comentarios en su settings.json.
     data = JSON.parse(trimmed.replace(/^\s*\/\/.*$/gm, ""));
   } catch (e) {
-    throw new Error(`No es un JSON válido: ${(e as Error).message}`);
+    throw new Error(t("No es un JSON válido: {error}", { error: (e as Error).message }));
   }
   const list: unknown[] = Array.isArray(data)
     ? data
@@ -263,10 +267,10 @@ export function importThemes(text: string, fileName = "Tema importado"): Importe
     if (typeof item !== "object" || !item) return;
     const o = item as Record<string, unknown>;
     const flat = typeof o.colors === "object" && o.colors ? { name: o.name, ...(o.colors as object) } : o;
-    const t = fromFlat(flat as Record<string, unknown>, list.length > 1 ? `${baseName} ${i + 1}` : baseName);
-    if (t) out.push(t);
+    const theme = fromFlat(flat as Record<string, unknown>, list.length > 1 ? `${baseName} ${i + 1}` : baseName);
+    if (theme) out.push(theme);
   });
-  if (out.length === 0) throw new Error("No se encontró ningún tema (hace falta al menos background y foreground)");
+  if (out.length === 0) throw new Error(t("No se encontró ningún tema (hace falta al menos background y foreground)"));
   return out;
 }
 

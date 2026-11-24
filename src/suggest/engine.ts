@@ -3,6 +3,7 @@
  * completando y junta las sugerencias de cada fuente (historial, catálogo, carpetas, PATH y la
  * sesión de PowerShell), filtradas por la palabra actual, ordenadas y sin repetidos.
  */
+import { k } from "../i18n";
 import { catalogFor, findSpec, type ArgSource, type CmdSpec, type GenName, type Opt, type Value } from "./catalog";
 import type { Parsed, Word } from "./line";
 import type { PsMsg } from "./pwsh";
@@ -180,7 +181,7 @@ function historyLines(hist: HistEntry[], ctx: Ctx, a: Analysis): Suggestion[] {
     return {
       insert: g.command,
       label: g.command,
-      desc: g.here ? "historial, acá" : "historial",
+      desc: g.here ? k("historial, acá") : k("historial"),
       kind: "history" as const,
       replace: "line" as const,
       score: 1000 + (g.here ? 200 : 0) + Math.min(g.count, 10) * 10 + Math.max(0, 100 - hours),
@@ -196,7 +197,7 @@ function historyArgs(hist: HistEntry[], command: string, shell: Shell): Value[] 
     const words = e.command.trim().split(/\s+/);
     if (norm(words[0] ?? "") !== command) continue;
     for (const w of words.slice(1)) {
-      if (!isOptionLike(w, shell) && !/^\d+$/.test(w)) out.push({ v: w, desc: "usado antes" });
+      if (!isOptionLike(w, shell) && !/^\d+$/.test(w)) out.push({ v: w, desc: k("usado antes") });
     }
   }
   return out;
@@ -217,8 +218,8 @@ async function listing(a: Analysis, ctx: Ctx, src: Sources, dirsOnly: boolean): 
     out.push({ insert: dirPart + label, label, kind: e.dir ? "folder" : "file", dir: e.dir, replace: "word", score: 650 + (e.dir ? 5 : 0) + m.bonus, hits: m.hits });
   }
   if (dirsOnly) {
-    const specials: Value[] = [{ v: "..", desc: "carpeta de arriba" }];
-    if (ctx.shell === "ps" && dirPart === "") specials.push({ v: "~", desc: "tu carpeta de usuario" });
+    const specials: Value[] = [{ v: "..", desc: k("carpeta de arriba") }];
+    if (ctx.shell === "ps" && dirPart === "") specials.push({ v: "~", desc: k("tu carpeta de usuario") });
     for (const s of specials) {
       const m = match(s.v, namePart, false);
       if (m) out.push({ insert: `${dirPart}${s.v}\\`, label: `${s.v}\\`, desc: s.desc, kind: "folder", dir: true, replace: "word", score: 660 + m.bonus, hits: m.hits });
@@ -299,7 +300,7 @@ export async function collect(a: Analysis, ctx: Ctx, src: Sources, ps?: PsMsg): 
       }
       for (const n of await src.pathCommands()) {
         const m = match(n, typed, false);
-        if (m) out.push({ insert: n.toLowerCase(), label: n.toLowerCase(), desc: "programa del PATH", kind: "command", replace: "word", score: 100 + m.bonus, hits: m.hits });
+        if (m) out.push({ insert: n.toLowerCase(), label: n.toLowerCase(), desc: k("programa del PATH"), kind: "command", replace: "word", score: 100 + m.bonus, hits: m.hits });
       }
     }
   } else {
@@ -335,9 +336,9 @@ export async function collect(a: Analysis, ctx: Ctx, src: Sources, ps?: PsMsg): 
   // Sin repetidos: gana el de más puntaje (o el primero).
   const best = new Map<string, Suggestion>();
   for (const s of safe) {
-    const k = dedupeKey(s);
-    const had = best.get(k);
-    if (!had || s.score > had.score) best.set(k, s);
+    const key = dedupeKey(s);
+    const had = best.get(key);
+    if (!had || s.score > had.score) best.set(key, s);
   }
   const keep = new Set(best.values());
   return safe

@@ -1,5 +1,6 @@
 import { onCleanup, onMount } from "solid-js";
 import type { SplitDir } from "./model";
+import { t } from "../i18n";
 
 /**
  * Barrita arriba de cada panel de terminal: nombre, dividir y cerrar. Se agarra para mover el
@@ -29,13 +30,13 @@ export function PaneBar(props: {
       }}
     >
       <span class="pane-title">{props.title}</span>
-      <button class="icon-btn" title="Dividir a la derecha" onPointerDown={stop} onClick={() => props.onSplit("row")}>
+      <button class="icon-btn" title={t("Dividir a la derecha")} onPointerDown={stop} onClick={() => props.onSplit("row")}>
         ⇥
       </button>
-      <button class="icon-btn" title="Dividir abajo" onPointerDown={stop} onClick={() => props.onSplit("column")}>
+      <button class="icon-btn" title={t("Dividir abajo")} onPointerDown={stop} onClick={() => props.onSplit("column")}>
         ⤓
       </button>
-      <button class="icon-btn close" title="Cerrar el panel" onPointerDown={stop} onClick={() => props.onClose()}>
+      <button class="icon-btn close" title={t("Cerrar el panel")} onPointerDown={stop} onClick={() => props.onClose()}>
         ×
       </button>
     </div>
@@ -65,11 +66,11 @@ export function PaneMenu(props: { x: number; y: number; onSplit: (dir: SplitDir)
   };
   return (
     <div class="ctx-menu" style={{ left: `${props.x}px`, top: `${props.y}px` }} role="menu">
-      <button onClick={() => act(() => props.onSplit("row"))}>Dividir a la derecha</button>
-      <button onClick={() => act(() => props.onSplit("column"))}>Dividir abajo</button>
-      <button onClick={() => act(props.onEqualize)}>Igualar tamaños</button>
+      <button onClick={() => act(() => props.onSplit("row"))}>{t("Dividir a la derecha")}</button>
+      <button onClick={() => act(() => props.onSplit("column"))}>{t("Dividir abajo")}</button>
+      <button onClick={() => act(props.onEqualize)}>{t("Igualar tamaños")}</button>
       <button class="danger" onClick={() => act(props.onClose)}>
-        Cerrar panel
+        {t("Cerrar panel")}
       </button>
     </div>
   );

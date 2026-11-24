@@ -1,3 +1,5 @@
+import { k } from "../i18n";
+
 /**
  * Estado de un agente lanzado en una pestaña, a partir de lo que sabe el panel:
  * - integración de la shell (comando en curso o no) o, sin integración, el proceso en primer plano;
@@ -37,13 +39,14 @@ export function agentState(p: AgentPaneInfo): AgentState {
   return p.active ? "working" : "waiting";
 }
 
+/** Etiqueta de cada estado (en español: se muestra con `t`). */
 export const AGENT_STATE_LABEL: Record<AgentState, string> = {
-  starting: "Arrancando",
-  working: "Trabajando",
-  waiting: "Esperando input",
-  attention: "Te necesita",
-  done: "Terminó",
-  exited: "Pestaña cerrada",
+  starting: k("Arrancando"),
+  working: k("Trabajando"),
+  waiting: k("Esperando input"),
+  attention: k("Te necesita"),
+  done: k("Terminó"),
+  exited: k("Pestaña cerrada"),
 };
 
 /** Línea de comando con la que arranca un agente (lo que se escribe en la shell). */

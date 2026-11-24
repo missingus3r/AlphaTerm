@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { AgentDef } from "../settings/schema";
 import { envToText, parseEnvText } from "./agentState";
 import { agentKind, blockedBy, buildCommand, optionsFor, type LaunchOpt, type LaunchValue, type ShellKind } from "./agentLaunch";
+import { t } from "../i18n";
 
 /** Lo que el backend lee de cada agente (`agent_models`). */
 export interface ModelInfo {
@@ -83,20 +84,20 @@ export function AgentOptions(props: Props) {
       <div class="opt" classList={{ off: !!blk() }}>
         <Switch>
           <Match when={o.kind === "bool" && o}>
-            <label class="check" classList={{ danger: o.danger }} title={o.hint ?? ""}>
+            <label class="check" classList={{ danger: o.danger }} title={o.hint ? t(o.hint) : ""}>
               <input type="checkbox" checked={val(o.key) === true} onChange={(e) => setVal(o.key, e.currentTarget.checked)} />
-              {o.label}
+              {t(o.label)}
             </label>
           </Match>
           <Match when={o.kind === "choice" && o}>
             {(c) => (
               <label classList={{ danger: isDanger(o) }}>
-                {c().label}
+                {t(c().label)}
                 <select class="text" value={str(o.key)} onChange={(e) => setVal(o.key, e.currentTarget.value)}>
-                  <option value="">Por defecto</option>
-                  <For each={c().choices}>{(ch) => <option value={ch.value}>{ch.label}</option>}</For>
+                  <option value="">{t("Por defecto")}</option>
+                  <For each={c().choices}>{(ch) => <option value={ch.value}>{t(ch.label)}</option>}</For>
                 </select>
-                <Show when={c().choices.find((ch) => ch.value === str(o.key))?.hint}>{(h) => <small class="muted">{h()}</small>}</Show>
+                <Show when={c().choices.find((ch) => ch.value === str(o.key))?.hint}>{(h) => <small class="muted">{t(h())}</small>}</Show>
               </label>
             )}
           </Match>
@@ -104,14 +105,14 @@ export function AgentOptions(props: Props) {
             {(c) => (
               <label>
                 <span class="opt-head">
-                  {c().label}
+                  {t(c().label)}
                   <Show when={c().models}>
                     <small class="muted">
-                      {models.loading ? "leyendo la lista…" : models.error ? "no se pudo leer la lista" : `${models()?.length ?? 0} disponibles`}
+                      {models.loading ? t("leyendo la lista…") : models.error ? t("no se pudo leer la lista") : t("{n} disponibles", { n: models()?.length ?? 0 })}
                     </small>
                     <button
                       class="icon-btn tiny-x"
-                      title="Volver a leer la lista de modelos del agente"
+                      title={t("Volver a leer la lista de modelos del agente")}
                       onClick={(e) => (e.preventDefault(), setFresh(fresh() + 1))}
                     >
                       ↻
@@ -123,18 +124,18 @@ export function AgentOptions(props: Props) {
                     class="text mono"
                     list={`${id}-${o.key}`}
                     value={str(o.key)}
-                    placeholder="por defecto"
+                    placeholder={t("por defecto")}
                     spellcheck={false}
                     onChange={(e) => setVal(o.key, e.currentTarget.value.trim())}
                   />
                   <Show when={str(o.key)}>
-                    <button class="icon-btn" title="Volver al de por defecto" onClick={(e) => (e.preventDefault(), setVal(o.key, ""))}>
+                    <button class="icon-btn" title={t("Volver al de por defecto")} onClick={(e) => (e.preventDefault(), setVal(o.key, ""))}>
                       ×
                     </button>
                   </Show>
                 </div>
                 <datalist id={`${id}-${o.key}`}>
-                  <For each={c().suggestions}>{(s) => <option value={s.value}>{s.label}</option>}</For>
+                  <For each={c().suggestions}>{(s) => <option value={s.value}>{t(s.label)}</option>}</For>
                   <Show when={c().models}>
                     <For each={models() ?? []}>{(m) => <option value={m.id}>{m.label}</option>}</For>
                   </Show>
@@ -157,9 +158,13 @@ export function AgentOptions(props: Props) {
               return (
                 <label>
                   <span class="opt-head">
-                    {l().label}
+                    {t(l().label)}
                     <b class="level-val">
-                      {shown() === 0 ? `por defecto${modelInfo()?.defaultEffort ? ` (${modelInfo()!.defaultEffort})` : ""}` : levels()[shown() - 1]}
+                      {shown() === 0
+                        ? modelInfo()?.defaultEffort
+                          ? t("por defecto ({effort})", { effort: modelInfo()!.defaultEffort! })
+                          : t("por defecto")
+                        : levels()[shown() - 1]}
                     </b>
                   </span>
                   <input
@@ -185,16 +190,16 @@ export function AgentOptions(props: Props) {
             }}
           </Match>
           <Match when={o.kind === "text" && o}>
-            {(t) => (
-              <label title={t().hint ?? ""}>
-                {t().label}
+            {(tx) => (
+              <label title={tx().hint ? t(tx().hint!) : ""}>
+                {t(tx().label)}
                 <Show
-                  when={t().multiline}
+                  when={tx().multiline}
                   fallback={
                     <input
                       class="text mono"
                       value={str(o.key)}
-                      placeholder={t().placeholder ?? ""}
+                      placeholder={tx().placeholder ? t(tx().placeholder!) : ""}
                       spellcheck={false}
                       onChange={(e) => setVal(o.key, e.currentTarget.value)}
                     />
@@ -204,18 +209,18 @@ export function AgentOptions(props: Props) {
                     class="text mono"
                     rows={2}
                     value={str(o.key)}
-                    placeholder={t().placeholder ?? ""}
+                    placeholder={tx().placeholder ? t(tx().placeholder!) : ""}
                     onChange={(e) => setVal(o.key, e.currentTarget.value)}
                   />
                 </Show>
-                <Show when={t().hint}>
-                  <small class="muted">{t().hint}</small>
+                <Show when={tx().hint}>
+                  {(h) => <small class="muted">{t(h())}</small>}
                 </Show>
               </label>
             )}
           </Match>
         </Switch>
-        <Show when={blk()}>{(b) => <small class="muted">No se usa junto con «{b().label}».</small>}</Show>
+        <Show when={blk()}>{(b) => <small class="muted">{t("No se usa junto con «{label}».", { label: t(b().label) })}</small>}</Show>
       </div>
     );
   };
@@ -226,36 +231,38 @@ export function AgentOptions(props: Props) {
     <li class="agent-edit agent-options">
       <Show
         when={opts().length > 0}
-        fallback={<p class="muted small">No tengo el catálogo de opciones de «{props.agent.command}»: escribilas en el comando (Avanzado).</p>}
+        fallback={
+          <p class="muted small">{t("No tengo el catálogo de opciones de «{command}»: escribilas en el comando (Avanzado).", { command: props.agent.command })}</p>
+        }
       >
         {section("main")}
         <details open={untrack(() => sectionHasValues("session"))}>
-          <summary>Sesión</summary>
+          <summary>{t("Sesión")}</summary>
           <div class="opt-group">{section("session")}</div>
         </details>
         <details open={untrack(() => sectionHasValues("more"))}>
-          <summary>Más opciones</summary>
+          <summary>{t("Más opciones")}</summary>
           <div class="opt-group">{section("more")}</div>
         </details>
       </Show>
 
       <div class="cmd-preview">
-        <small class="muted">Va a correr</small>
+        <small class="muted">{t("Va a correr")}</small>
         <code class="mono">{preview()}</code>
         <Show when={kind() === "claude" || kind() === "codex"}>
-          <small class="muted">AlphaTerm le suma el guardián y su conexión (MCP) al lanzar.</small>
+          <small class="muted">{t("AlphaTerm le suma el guardián y su conexión (MCP) al lanzar.")}</small>
         </Show>
       </div>
 
       <details open={untrack(() => opts().length === 0)}>
-        <summary>Avanzado</summary>
+        <summary>{t("Avanzado")}</summary>
         <div class="opt-group">
           <label>
-            Nombre
+            {t("Nombre")}
             <input class="text" value={props.agent.name} onChange={(e) => props.set((x) => void (x.name = e.currentTarget.value))} />
           </label>
           <label>
-            Comando
+            {t("Comando")}
             <input
               class="text mono"
               value={props.agent.command}
@@ -264,7 +271,7 @@ export function AgentOptions(props: Props) {
             />
           </label>
           <label>
-            Variables de entorno (CLAVE=valor, una por línea)
+            {t("Variables de entorno (CLAVE=valor, una por línea)")}
             <textarea
               class="text mono"
               rows={3}
@@ -276,11 +283,11 @@ export function AgentOptions(props: Props) {
           <div class="row-actions">
             <label class="check">
               <input type="checkbox" checked={props.agent.hidden} onChange={(e) => props.set((x) => void (x.hidden = e.currentTarget.checked))} />
-              Ocultar
+              {t("Ocultar")}
             </label>
             <Show when={props.onDelete}>
               <button class="link danger" onClick={() => props.onDelete?.()}>
-                Borrar
+                {t("Borrar")}
               </button>
             </Show>
           </div>
@@ -292,15 +299,15 @@ export function AgentOptions(props: Props) {
           class="link"
           disabled={!Object.keys(props.agent.launch ?? {}).length}
           onClick={() => props.set((a) => void (a.launch = {}))}
-          title="Sacar todas las opciones elegidas"
+          title={t("Sacar todas las opciones elegidas")}
         >
-          Restablecer
+          {t("Restablecer")}
         </button>
         <button class="link" onClick={() => props.onClose()}>
-          Cerrar
+          {t("Cerrar")}
         </button>
         <button class="btn primary launch" disabled={!props.canLaunch} onClick={() => props.onLaunch()}>
-          Lanzar
+          {t("Lanzar")}
         </button>
       </div>
     </li>

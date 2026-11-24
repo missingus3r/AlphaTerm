@@ -22,6 +22,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { createSuggest, type SuggestCtl } from "../suggest/controller";
 import { SuggestMenu, type Geom } from "../suggest/SuggestMenu";
 import type { SuggestSettings } from "../settings/schema";
+import { t } from "../i18n";
 
 const windowLabel = getCurrentWindow().label;
 
@@ -220,7 +221,7 @@ export function TerminalView(props: Props) {
       });
       deco?.onRender((el) => {
         el.classList.add("nt-mark", ok ? "nt-ok" : "nt-err");
-        el.title = ok ? "Terminó bien" : `Código de salida ${b.exitCode}`;
+        el.title = ok ? t("Terminó bien") : t("Código de salida {code}", { code: String(b.exitCode) });
       });
     };
 
@@ -289,15 +290,15 @@ export function TerminalView(props: Props) {
     );
 
     // Título OSC: vale como resumen si lo puso un programa (no el prompt del shell).
-    term.onTitleChange((t) => {
-      const cmdLine = cmdRunningCommand(t);
+    term.onTitleChange((title) => {
+      const cmdLine = cmdRunningCommand(title);
       if (cmdLine) {
         patch({ lastCommand: preferTyped(typedCmd, cmdLine) });
         return;
       }
-      if (isShellTitle(t)) return;
+      if (isShellTitle(title)) return;
       if (integrated && !running) return;
-      patch({ agentTitle: t });
+      patch({ agentTitle: title });
     });
 
     const promptLines = () => blocks.map((b) => b.prompt.line).filter((l) => l >= 0);
@@ -390,11 +391,11 @@ export function TerminalView(props: Props) {
             patch({ exited: true, running: false, exitCode: ev.code });
             if (props.onExit(ev.code)) return;
             const code = ev.code ?? "?";
-            term.write(`\r\n\x1b[2m[proceso terminado, código ${code}. Enter para reiniciar]\x1b[0m\r\n`);
+            term.write(`\r\n\x1b[2m[${t("proceso terminado, código {code}. Enter para reiniciar", { code })}]\x1b[0m\r\n`);
           },
         });
       } catch (err) {
-        term.write(`\x1b[31mNo se pudo iniciar la shell: ${err}\x1b[0m\r\n`);
+        term.write(`\x1b[31m${t("No se pudo iniciar la shell: {error}", { error: String(err) })}\x1b[0m\r\n`);
         return;
       }
       if (disposed) {
@@ -644,12 +645,12 @@ export function TerminalView(props: Props) {
       <div class="term-host" ref={host} />
       <div class="jumps">
         <Show when={canTop()}>
-          <button class="jump" title="Ir al principio de la salida" onMouseDown={(e) => e.preventDefault()} onClick={() => scrollTo?.("top")}>
+          <button class="jump" title={t("Ir al principio de la salida")} onMouseDown={(e) => e.preventDefault()} onClick={() => scrollTo?.("top")}>
             ⤒
           </button>
         </Show>
         <Show when={canBottom()}>
-          <button class="jump" title="Ir al final (lo último)" onMouseDown={(e) => e.preventDefault()} onClick={() => scrollTo?.("bottom")}>
+          <button class="jump" title={t("Ir al final (lo último)")} onMouseDown={(e) => e.preventDefault()} onClick={() => scrollTo?.("bottom")}>
             ⤓
           </button>
         </Show>

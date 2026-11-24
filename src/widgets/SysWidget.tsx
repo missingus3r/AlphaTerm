@@ -1,6 +1,7 @@
 import { createEffect, createSignal, For, onCleanup, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { fmtBytes, fmtPct, level, pushSample, sparkPoints } from "./format";
+import { t } from "../i18n";
 
 interface Stats {
   cpu: number;
@@ -48,8 +49,8 @@ export function SysWidget(props: { everyMs: number; tabs: TabProcs[]; vertical: 
       }
     };
     void tick();
-    const t = setInterval(tick, ms);
-    onCleanup(() => clearInterval(t));
+    const timer = setInterval(tick, ms);
+    onCleanup(() => clearInterval(timer));
   });
 
   // Mientras el detalle está abierto, el top se pide cada segundo (la CPU por proceso necesita
@@ -58,19 +59,19 @@ export function SysWidget(props: { everyMs: number; tabs: TabProcs[]; vertical: 
     if (!open()) return;
     const tick = async () => {
       try {
-        setTop(await invoke<Top>("sys_top", { shells: props.tabs.map((t) => t.pid) }));
+        setTop(await invoke<Top>("sys_top", { shells: props.tabs.map((tab) => tab.pid) }));
       } catch {
         /* la próxima */
       }
     };
     void tick();
-    const t = setInterval(tick, 1000);
+    const timer = setInterval(tick, 1000);
     const away = (e: MouseEvent) => {
       if (!root.contains(e.target as Node)) setOpen(false);
     };
     window.addEventListener("mousedown", away);
     onCleanup(() => {
-      clearInterval(t);
+      clearInterval(timer);
       window.removeEventListener("mousedown", away);
     });
   });
@@ -78,14 +79,16 @@ export function SysWidget(props: { everyMs: number; tabs: TabProcs[]; vertical: 
   const memPct = () => (stats() ? (stats()!.memUsed / stats()!.memTotal) * 100 : 0);
   /** Parte de la RAM total que usa algo (para pestañas y procesos). */
   const ofTotal = (bytes: number) => (stats()?.memTotal ? fmtPct((bytes / stats()!.memTotal) * 100) : "");
+  /** "12 GB de 32 GB (38 %)". */
+  const ram = () => (stats() ? t("{used} de {total} ({pct})", { used: fmtBytes(stats()!.memUsed), total: fmtBytes(stats()!.memTotal), pct: fmtPct(memPct()) }) : "–");
 
   return (
     <div class="sys-widget" classList={{ vertical: props.vertical }} ref={root}>
       <button
         class="sys-btn"
         onClick={() => setOpen(!open())}
-        title={`CPU ${fmtPct(stats()?.cpu ?? 0)} · RAM ${stats() ? `${fmtBytes(stats()!.memUsed)} de ${fmtBytes(stats()!.memTotal)} (${fmtPct(memPct())})` : "–"}
-Clic: procesos`}
+        title={`CPU ${fmtPct(stats()?.cpu ?? 0)} · RAM ${ram()}
+${t("Clic: procesos")}`}
       >
         {/* Cada medida es un bloque (texto + gráfica): en la barra vertical la gráfica va abajo y
             plegada quedan solo los números. */}
@@ -109,26 +112,26 @@ Clic: procesos`}
         </span>
       </button>
       <Show when={open()}>
-        <div class="sys-pop" role="dialog" aria-label="Procesos">
+        <div class="sys-pop" role="dialog" aria-label={t("Procesos")}>
           <div class="sys-head">
-            <b>CPU {fmtPct(stats()?.cpu ?? 0)}</b> de {stats()?.cores ?? "?"} núcleos ·{" "}
-            <b>RAM {stats() ? `${fmtBytes(stats()!.memUsed)} de ${fmtBytes(stats()!.memTotal)} (${fmtPct(memPct())})` : "–"}</b>
+            <b>CPU {fmtPct(stats()?.cpu ?? 0)}</b> {t("de {n} núcleos", { n: stats()?.cores ?? "?" })} ·{" "}
+            <b>RAM {ram()}</b>
           </div>
-          <h4>Pestañas de esta ventana</h4>
+          <h4>{t("Pestañas de esta ventana")}</h4>
           <table>
             <tbody>
               <For each={props.tabs}>
-                {(t) => {
-                  const u = () => top()?.trees[String(t.pid)];
+                {(tab) => {
+                  const u = () => top()?.trees[String(tab.pid)];
                   return (
                     <tr>
-                      <td class="name" title={`PID ${t.pid}`}>
-                        {t.title}
+                      <td class="name" title={`PID ${tab.pid}`}>
+                        {tab.title}
                       </td>
                       <td>{u() ? fmtPct(u()!.cpu) : "…"}</td>
                       <td>{u() ? fmtBytes(u()!.mem) : ""}</td>
                       <td class="muted">{u() ? ofTotal(u()!.mem) : ""}</td>
-                      <td class="muted">{u() ? `${u()!.count} proc.` : ""}</td>
+                      <td class="muted">{u() ? t("{n} proc.", { n: u()!.count }) : ""}</td>
                     </tr>
                   );
                 }}
@@ -137,7 +140,7 @@ Clic: procesos`}
           </table>
           <div class="sys-cols">
             <div>
-              <h4>Más CPU</h4>
+              <h4>{t("Más CPU")}</h4>
               <table>
                 <tbody>
                   <For each={top()?.topCpu ?? []}>
@@ -152,7 +155,7 @@ Clic: procesos`}
               </table>
             </div>
             <div>
-              <h4>Más RAM</h4>
+              <h4>{t("Más RAM")}</h4>
               <table>
                 <tbody>
                   <For each={top()?.topMem ?? []}>

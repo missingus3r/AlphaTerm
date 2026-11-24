@@ -4,6 +4,7 @@
  * comando por la integración de la shell y la carpeta); también se pueden escribir a mano.
  */
 import type { Recipe } from "../settings/schema";
+import { t } from "../i18n";
 
 export interface Server {
   pid: number;
@@ -71,7 +72,7 @@ export function fmtUptime(sec: number): string {
   if (m < 60) return `${m} min`;
   const h = Math.floor(m / 60);
   if (h < 48) return `${h} h ${m % 60} min`;
-  return `${Math.floor(h / 24)} días`;
+  return t("{n} días", { n: Math.floor(h / 24) });
 }
 
 /** URL para abrir en el navegador (los que escuchan solo en IPv6 usan [::1]). */

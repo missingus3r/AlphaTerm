@@ -5,6 +5,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import * as M from "./model";
 import type { TermHandle } from "../terminal/TerminalView";
+import { t } from "../i18n";
 
 export interface PaneLive {
   cwd?: string;
@@ -60,13 +61,13 @@ async function waitPane(ctx: ControlCtx, id: string, ms = 8000) {
 async function runIn(ctx: ControlCtx, paneId: string, command: string, wait: boolean, timeoutMs: number) {
   const h = ctx.handle(paneId);
   const p = ctx.pane(paneId);
-  if (!h || !p) throw new Error("Ese panel no tiene una terminal lista");
+  if (!h || !p) throw new Error(t("Ese panel no tiene una terminal lista"));
   const before = p.ended ?? 0;
-  if (!h.send(command, true)) throw new Error("La shell de ese panel no está corriendo");
+  if (!h.send(command, true)) throw new Error(t("La shell de ese panel no está corriendo"));
   if (!wait) return { sent: true };
   if (!p.integrated) {
     await sleep(Math.min(timeoutMs, 3000));
-    return { sent: true, integrated: false, note: "La shell no tiene integración: no se sabe cuándo terminó. Esto es lo que se ve:", text: h.text(60) };
+    return { sent: true, integrated: false, note: t("La shell no tiene integración: no se sabe cuándo terminó. Esto es lo que se ve:"), text: h.text(60) };
   }
   const end = Date.now() + timeoutMs;
   while (Date.now() < end) {
@@ -77,7 +78,7 @@ async function runIn(ctx: ControlCtx, paneId: string, command: string, wait: boo
       return { exitCode: out?.exitCode ?? now?.exitCode ?? null, output: out?.output ?? "", command: out?.command ?? command };
     }
   }
-  return { timeout: true, note: `Sigue corriendo después de ${timeoutMs} ms. Esto es lo que se ve:`, text: h.text(80) };
+  return { timeout: true, note: t("Sigue corriendo después de {ms} ms. Esto es lo que se ve:", { ms: timeoutMs }), text: h.text(80) };
 }
 
 /** ¿Esta ventana tiene que contestar? (pedidos sin panel: la ventana pedida o la principal). */
@@ -134,18 +135,18 @@ export async function handleControl(req: Req, ctx: ControlCtx): Promise<unknown>
   if (req.method === "browser_open") {
     // Al lado del panel pedido, o del que llama (el agente); si no, en la pestaña activa.
     const at = str(p.pane) ?? str(p.caller);
-    const t = at ? tabOfPane(l, at) : undefined;
-    if (at && !t) return notMine;
+    const tb = at ? tabOfPane(l, at) : undefined;
+    if (at && !tb) return notMine;
     if (!at && !mineForNew(req, ctx.label)) return notMine;
     const url = str(p.url);
-    if (!url) return { error: "Falta 'url'" };
-    const id = await ctx.openBrowser({ url, tabId: t?.id, pane: at, dir: p.direction === "down" ? "column" : "row", reuse: !p.new, focus: true });
-    if (!id) return { error: "No se pudo abrir el navegador" };
-    return { result: { window: ctx.label, tab: t?.id ?? l.activeTab, browser: id, url } };
+    if (!url) return { error: t("Falta 'url'") };
+    const id = await ctx.openBrowser({ url, tabId: tb?.id, pane: at, dir: p.direction === "down" ? "column" : "row", reuse: !p.new, focus: true });
+    if (!id) return { error: t("No se pudo abrir el navegador") };
+    return { result: { window: ctx.label, tab: tb?.id ?? l.activeTab, browser: id, url } };
   }
 
   // Lo demás es sobre un panel: contesta la ventana que lo tiene.
-  if (!paneId) return { error: "Falta 'pane' (usá list para ver los ids)" };
+  if (!paneId) return { error: t("Falta 'pane' (usá list para ver los ids)") };
   const tab = tabOfPane(l, paneId);
   if (!tab) return notMine;
   const h = ctx.handle(paneId);
@@ -159,7 +160,7 @@ export async function handleControl(req: Req, ctx: ControlCtx): Promise<unknown>
       return { result: h?.lastOutput() ?? null };
     case "run": {
       const command = str(p.command);
-      if (!command) return { error: "Falta 'command'" };
+      if (!command) return { error: t("Falta 'command'") };
       const timeout = typeof p.timeout_ms === "number" ? p.timeout_ms : 120_000;
       return { result: await runIn(ctx, paneId, command, p.wait !== false, timeout) };
     }
@@ -183,5 +184,5 @@ export async function handleControl(req: Req, ctx: ControlCtx): Promise<unknown>
       void getCurrentWindow().setFocus().catch(() => {});
       return { result: { focused: true } };
   }
-  return { error: `Método no soportado por la ventana: ${req.method}` };
+  return { error: t("Método no soportado por la ventana: {method}", { method: req.method }) };
 }

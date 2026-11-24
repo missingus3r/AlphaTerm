@@ -1,39 +1,55 @@
 import { createMemo, For, Show } from "solid-js";
-import { ago, fmtPct, level } from "./format";
+import { ago, fmtPct, fmtSpan, level } from "./format";
 import { forecast, PROVIDER_NAMES, resetOf, windowMs, type ProviderId, type Usage, type UsageWindow } from "./usage";
 import { loadUsage, nowTick, usageBusy, usageError, usageOf } from "./usageStore";
+import { k, locale, t } from "../i18n";
+
+// Las etiquetas de las ventanas las manda el backend en castellano ("5 h", "semana", "semana · Sonnet",
+// "Gemini · semana"): son ids (las compara `windowMs`), se traducen solo al mostrarlas.
+const WINDOW_NAMES = new Map<string, string>([
+  ["semana", k("semana")],
+  ["día", k("día")],
+  ["uso extra", k("uso extra")],
+]);
+/** Una parte de la etiqueta ("semana", "5 h", "Sonnet") en el idioma de la interfaz. */
+export const windowName = (part: string) => {
+  const es = WINDOW_NAMES.get(part);
+  if (es) return t(es);
+  const days = /^(\d+) días$/.exec(part);
+  return days ? t("{n} días", { n: days[1] }) : part;
+};
 
 /** "Sesión (5 h)", "Semana", "Semana · Sonnet", "Uso extra" (en agy, la ventana dentro del grupo). */
 export function prettyLabel(label: string): string {
-  if (label === "5 h") return "Sesión (5 h)";
-  if (label === "semana") return "Semana";
-  if (label === "uso extra") return "Uso extra";
+  if (label === "5 h") return t("Sesión (5 h)");
+  if (label === "semana") return t("Semana");
+  if (label === "uso extra") return t("Uso extra");
   const [a, b] = label.split(" · ");
-  if (a === "semana" && b) return `Semana · ${b}`;
-  if (b) return b === "semana" ? "Semana" : b;
-  return label;
+  if (a === "semana" && b) return t("Semana · {model}", { model: b });
+  if (b) return b === "semana" ? t("Semana") : windowName(b);
+  return windowName(label);
 }
 
 /** "en 2 h 10 min" hasta `ms`. */
 export function untilMs(ms: number, now: number): string {
   const m = Math.ceil((ms - now) / 60_000);
-  if (m <= 0) return "ya se reinició";
-  if (m < 60) return `en ${m} min`;
-  const h = Math.floor(m / 60);
-  if (h < 48) return m % 60 ? `en ${h} h ${m % 60} min` : `en ${h} h`;
-  const d = Math.floor(h / 24);
-  return h % 24 ? `en ${d} días ${h % 24} h` : `en ${d} días`;
+  if (m <= 0) return t("ya se reinició");
+  return t("en {time}", { time: fmtSpan(m, true) });
 }
 
 /** Hora (hoy) o día y hora. */
 function when(ms: number, now: number): string {
   const d = new Date(ms);
-  const time = d.toLocaleTimeString("es-UY", { hour: "2-digit", minute: "2-digit" });
+  const time = d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
   if (new Date(now).toDateString() === d.toDateString()) return time;
-  return `${d.toLocaleDateString("es-UY", { weekday: "short", day: "numeric", month: "short" })} ${time}`;
+  return `${d.toLocaleDateString(locale(), { weekday: "short", day: "numeric", month: "short" })} ${time}`;
 }
 
-const dur = (ms: number) => untilMs(Date.now() + ms, Date.now()).replace(/^en /, "");
+/** "2 h 10 min" (duración, sin el "en"). */
+const dur = (ms: number) => {
+  const m = Math.ceil(ms / 60_000);
+  return m <= 0 ? t("ya se reinició") : fmtSpan(m, true);
+};
 
 function Row(props: { w: UsageWindow; u: Usage }) {
   const reset = () => resetOf(props.w, props.u.updatedAt);
@@ -49,9 +65,9 @@ function Row(props: { w: UsageWindow; u: Usage }) {
       <td class="muted" title={props.w.resetsText ?? ""}>
         {(() => {
           const r = reset();
-          if (!r) return props.w.resetsText ? `reinicia ${props.w.resetsText.replace(/\s*\(.*\)$/, "")}` : "";
-          if (props.w.usedPct <= 0 && props.u.provider === "agy") return "sin usar";
-          return `reinicia ${untilMs(r, nowTick())} · ${when(r, nowTick())}`;
+          if (!r) return props.w.resetsText ? t("reinicia {when}", { when: props.w.resetsText.replace(/\s*\(.*\)$/, "") }) : "";
+          if (props.w.usedPct <= 0 && props.u.provider === "agy") return t("sin usar");
+          return `${t("reinicia {when}", { when: untilMs(r, nowTick()) })} · ${when(r, nowTick())}`;
         })()}
       </td>
     </tr>
@@ -70,11 +86,11 @@ function Forecast(props: { w: UsageWindow; u: Usage }) {
       <div class="usage-forecast" classList={{ bad: !!f()!.exhaustAt }}>
         <b>{prettyLabel(props.w.label)}:</b>{" "}
         {f()!.exhaustAt
-          ? `al ritmo de ahora se agota ${untilMs(f()!.exhaustAt!, nowTick())} (${dur(f()!.resetAt - f()!.exhaustAt!)} antes del reinicio).`
-          : `al ritmo de ahora llega al reinicio con ≈ ${fmtPct(f()!.projected)}.`}
+          ? t("al ritmo de ahora se agota {when} ({time} antes del reinicio).", { when: untilMs(f()!.exhaustAt!, nowTick()), time: dur(f()!.resetAt - f()!.exhaustAt!) })
+          : t("al ritmo de ahora llega al reinicio con ≈ {pct}.", { pct: fmtPct(f()!.projected) })}
         <small class="muted">
           {" "}
-          Ritmo ≈ {fmtPct(f()!.ratePerDay)}/día · disponible {fmtPct(f()!.budgetPerDay)}/día
+          {t("Ritmo ≈ {rate}/día · disponible {budget}/día", { rate: fmtPct(f()!.ratePerDay), budget: fmtPct(f()!.budgetPerDay) })}
         </small>
       </div>
     </Show>
@@ -111,22 +127,22 @@ export function UsageDetail(props: { id: ProviderId; compact?: boolean }) {
           <span class="chip">{u()!.plan}</span>
         </Show>
         <Show when={u()?.model}>
-          <span class="chip model" title="Modelo por defecto">
+          <span class="chip model" title={t("Modelo por defecto")}>
             {u()!.model}
           </span>
         </Show>
         <span class="grow" />
         <Show when={u()}>
-          <span class="badge">{u()!.exact ? "exacto" : "estimado"}</span>
+          <span class="badge">{u()!.exact ? t("exacto") : t("estimado")}</span>
         </Show>
-        <button class="link small" disabled={usageBusy(props.id)} onClick={() => void loadUsage(props.id, true)} title="Consultar en vivo ahora">
-          {usageBusy(props.id) ? "Consultando…" : "Actualizar"}
+        <button class="link small" disabled={usageBusy(props.id)} onClick={() => void loadUsage(props.id, true)} title={t("Consultar en vivo ahora")}>
+          {usageBusy(props.id) ? t("Consultando…") : t("Actualizar")}
         </button>
       </div>
       <Show when={err()}>
         <div class="banner">{err()}</div>
       </Show>
-      <Show when={u()} fallback={<p class="muted small">{err() ? "" : "Cargando…"}</p>}>
+      <Show when={u()} fallback={<p class="muted small">{err() ? "" : t("Cargando…")}</p>}>
         <For each={groups()}>
           {(g) => (
             <>
@@ -153,12 +169,12 @@ export function UsageDetail(props: { id: ProviderId; compact?: boolean }) {
           </ul>
         </Show>
         <For each={u()!.tables}>
-          {(t) => (
+          {(tbl) => (
             <div class="ud-table">
-              <div class="ud-group">{t.title}</div>
+              <div class="ud-group">{tbl.title}</div>
               <table>
                 <tbody>
-                  <For each={t.rows}>
+                  <For each={tbl.rows}>
                     {([name, pct]) => (
                       <tr>
                         <td class="name" title={name}>
@@ -179,7 +195,7 @@ export function UsageDetail(props: { id: ProviderId; compact?: boolean }) {
           )}
         </For>
         <p class="muted small">
-          Fuente: {u()!.source}
+          {t("Fuente: {source}", { source: u()!.source })}
           {u()!.updatedAt ? ` · ${ago(u()!.updatedAt!, nowTick())}` : ""}
         </p>
         <Show when={u()!.note}>

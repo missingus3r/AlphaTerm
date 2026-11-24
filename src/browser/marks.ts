@@ -1,3 +1,5 @@
+import { t } from "../i18n";
+
 /** Datos de un elemento marcado en el navegador (los arma la capa `browser-overlay.js`). */
 export interface Mark {
   n: number;
@@ -16,8 +18,8 @@ export interface Mark {
 /** Nombre corto para el chip: `button.primary «Enviar»` o el componente si lo hay. */
 export function markLabel(m: Mark): string {
   let s = m.component?.name ? `${m.component.name} ‹${m.tag}›` : m.tag + (m.id ? `#${m.id}` : m.classes?.length ? `.${m.classes.slice(0, 2).join(".")}` : "");
-  const t = (m.text ?? "").trim();
-  if (t) s += ` «${t.length > 24 ? t.slice(0, 24) + "…" : t}»`;
+  const text = (m.text ?? "").trim();
+  if (text) s += ` ${t("«{text}»", { text: text.length > 24 ? text.slice(0, 24) + "…" : text })}`;
   return s;
 }
 

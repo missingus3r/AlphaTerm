@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { countChanges, parseDiff, sideBySide, STATUS_WORD, type DiffLine } from "./diff";
 import { projectName } from "./projects";
+import { t } from "../i18n";
 
 interface FileChange {
   path: string;
@@ -92,8 +93,8 @@ export default function GitPanel(props: Props) {
   createEffect(
     on(root, (r) => {
       if (!r) return;
-      const t = setInterval(() => !document.hidden && !busy() && void refetchStatus(), 4000);
-      onCleanup(() => clearInterval(t));
+      const timer = setInterval(() => !document.hidden && !busy() && void refetchStatus(), 4000);
+      onCleanup(() => clearInterval(timer));
     }),
   );
 
@@ -120,23 +121,23 @@ export default function GitPanel(props: Props) {
       () => invoke<string>("git_commit", { root: root(), message: message() }),
       (r) => {
         setMessage("");
-        return `Commit hecho: ${r}`;
+        return t("Commit hecho: {result}", { result: String(r) });
       },
     );
   const remote = (op: "fetch" | "pull" | "push") => act(op, () => invoke<string>("git_remote", { root: root(), op }), (r) => String(r));
   const switchTo = async (name: string, create: boolean) => {
-    if (!create && (status()?.files.length ?? 0) > 0 && !(await askConfirm(`Hay ${status()!.files.length} cambios sin commitear. ¿Cambiar a ${name} igual? Git no deja cambiar si se pisarían.`, "Cambiar"))) return;
-    void act("switch", () => invoke<string>("git_switch", { root: root(), branch: name, create }), () => `Ahora en ${name}`);
+    if (!create && (status()?.files.length ?? 0) > 0 && !(await askConfirm(t("Hay {n} cambios sin commitear. ¿Cambiar a {name} igual? Git no deja cambiar si se pisarían.", { n: status()!.files.length, name }), t("Cambiar")))) return;
+    void act("switch", () => invoke<string>("git_switch", { root: root(), branch: name, create }), () => t("Ahora en {name}", { name }));
   };
   const [newBranch, setNewBranch] = createSignal("");
 
   const [cloneUrl, setCloneUrl] = createSignal("");
   const clone = async () => {
-    const parent = await open({ directory: true, title: "Carpeta donde clonar" });
+    const parent = await open({ directory: true, title: t("Carpeta donde clonar") });
     if (typeof parent !== "string") return;
     void act("clone", () => invoke<string>("git_clone", { url: cloneUrl(), parent }), (r) => {
       props.onTerminal(String(r));
-      return `Clonado en ${r}`;
+      return t("Clonado en {path}", { path: String(r) });
     });
   };
 
@@ -156,7 +157,7 @@ export default function GitPanel(props: Props) {
         class="git-file"
         classList={{ on: isSel() }}
         onClick={() => setSel({ kind: "file", path: fp.f.path, staged: fp.stagedSide, untracked: fp.f.work === "?" && !fp.stagedSide })}
-        title={`${fp.f.path}${fp.f.orig ? ` (antes ${fp.f.orig})` : ""} · ${l().word}`}
+        title={`${fp.f.orig ? t("{path} (antes {orig})", { path: fp.f.path, orig: fp.f.orig }) : fp.f.path} · ${t(l().word)}`}
       >
         <span class={`git-code c-${l().code === "?" ? "U2" : l().code}`}>{l().code === "?" ? "U" : l().code}</span>
         <span class="git-path">
@@ -164,7 +165,7 @@ export default function GitPanel(props: Props) {
         </span>
         <button
           class="icon-btn tiny show"
-          title={fp.stagedSide ? "Sacar del commit (unstage)" : "Agregar al commit (stage)"}
+          title={fp.stagedSide ? t("Sacar del commit (unstage)") : t("Agregar al commit (stage)")}
           onClick={(e) => {
             e.stopPropagation();
             void stage([fp.f.path], !fp.stagedSide);
@@ -180,7 +181,7 @@ export default function GitPanel(props: Props) {
     <div class="panel git-panel">
       <header class="panel-head">
         <h2>Git</h2>
-        <button class="icon-btn" classList={{ spin: !!busy() || status.loading }} title="Actualizar" onClick={refresh}>
+        <button class="icon-btn" classList={{ spin: !!busy() || status.loading }} title={t("Actualizar")} onClick={refresh}>
           ↻
         </button>
       </header>
@@ -190,24 +191,24 @@ export default function GitPanel(props: Props) {
           when={root()}
           fallback={
             <div class="git-empty">
-              <p class="muted small">{props.dir ? `${props.dir} no está en un repo git.` : "Elegí un proyecto o abrí una terminal en un repo."}</p>
+              <p class="muted small">{props.dir ? t("{dir} no está en un repo git.", { dir: props.dir }) : t("Elegí un proyecto o abrí una terminal en un repo.")}</p>
               <Show when={props.dir}>
                 <button
                   class="btn"
                   onClick={async () => {
                     const dir = props.dir;
-                    if (await askConfirm(`¿Crear un repo git nuevo en ${dir}?`, "Crear")) void act("init", () => invoke("git_init", { dir }), () => "Repo creado.");
+                    if (await askConfirm(t("¿Crear un repo git nuevo en {dir}?", { dir: dir ?? "" }), t("Crear"))) void act("init", () => invoke("git_init", { dir }), () => t("Repo creado."));
                   }}
                 >
-                  Inicializar un repo acá
+                  {t("Inicializar un repo acá")}
                 </button>
               </Show>
               <div class="field">
-                <label>Clonar desde una URL</label>
+                <label>{t("Clonar desde una URL")}</label>
                 <div class="dir-row">
-                  <input class="text mono" placeholder="https://github.com/usuario/repo.git" value={cloneUrl()} onInput={(e) => setCloneUrl(e.currentTarget.value)} />
+                  <input class="text mono" placeholder={t("https://github.com/usuario/repo.git")} value={cloneUrl()} onInput={(e) => setCloneUrl(e.currentTarget.value)} />
                   <button class="btn" disabled={!cloneUrl().trim() || !!busy()} onClick={() => void clone()}>
-                    Clonar…
+                    {t("Clonar…")}
                   </button>
                 </div>
               </div>
@@ -217,14 +218,14 @@ export default function GitPanel(props: Props) {
           <div class="git-repo" title={root()!}>
             <b>{projectName(root()!)}</b>
             <span class="git-branch">
-              ⎇ {status()?.branch ?? (status()?.oid ? `(detached ${status()!.oid!.slice(0, 7)})` : "sin commits")}
+              ⎇ {status()?.branch ?? (status()?.oid ? `(detached ${status()!.oid!.slice(0, 7)})` : t("sin commits"))}
               <Show when={status()?.ahead}>
-                <span class="ab" title="Commits para subir">
+                <span class="ab" title={t("Commits para subir")}>
                   ↑{status()!.ahead}
                 </span>
               </Show>
               <Show when={status()?.behind}>
-                <span class="ab" title="Commits para bajar">
+                <span class="ab" title={t("Commits para bajar")}>
                   ↓{status()!.behind}
                 </span>
               </Show>
@@ -237,7 +238,7 @@ export default function GitPanel(props: Props) {
             <button class="btn" disabled={!!busy()} onClick={() => void remote("pull")} title="git pull --ff-only">
               Pull
             </button>
-            <button class="btn" disabled={!!busy()} onClick={() => void remote("push")} title="git push (o push -u origin HEAD si la rama no tiene upstream)">
+            <button class="btn" disabled={!!busy()} onClick={() => void remote("push")} title={t("git push (o push -u origin HEAD si la rama no tiene upstream)")}>
               Push
             </button>
             <Show when={busy()}>
@@ -251,13 +252,13 @@ export default function GitPanel(props: Props) {
           </Show>
           <div class="segmented small">
             <button classList={{ on: view() === "changes" }} onClick={() => setView("changes")}>
-              Cambios{status()?.files.length ? ` (${status()!.files.length})` : ""}
+              {t("Cambios")}{status()?.files.length ? ` (${status()!.files.length})` : ""}
             </button>
             <button classList={{ on: view() === "log" }} onClick={() => setView("log")}>
-              Historial
+              {t("Historial")}
             </button>
             <button classList={{ on: view() === "branches" }} onClick={() => setView("branches")}>
-              Ramas
+              {t("Ramas")}
             </button>
           </div>
 
@@ -265,7 +266,7 @@ export default function GitPanel(props: Props) {
             <textarea
               class="text commit-msg"
               rows={3}
-              placeholder={staged().length ? "Mensaje del commit" : "Agregá archivos al commit (+) para poder commitear"}
+              placeholder={staged().length ? t("Mensaje del commit") : t("Agregá archivos al commit (+) para poder commitear")}
               value={message()}
               onInput={(e) => setMessage(e.currentTarget.value)}
               onKeyDown={(e) => {
@@ -276,28 +277,28 @@ export default function GitPanel(props: Props) {
               Commit ({staged().length})
             </button>
             <h3>
-              Para el commit
+              {t("Para el commit")}
               <Show when={staged().length}>
                 <button class="link small" onClick={() => void stage(staged().map((f) => f.path), false)}>
-                  sacar todos
+                  {t("sacar todos")}
                 </button>
               </Show>
             </h3>
             <ul class="git-files">
-              <For each={staged()} fallback={<li class="muted small">Nada todavía.</li>}>
+              <For each={staged()} fallback={<li class="muted small">{t("Nada todavía.")}</li>}>
                 {(f) => <FileRow f={f} stagedSide={true} />}
               </For>
             </ul>
             <h3>
-              Cambios
+              {t("Cambios")}
               <Show when={unstaged().length}>
                 <button class="link small" onClick={() => void stage(unstaged().map((f) => f.path), true)}>
-                  agregar todos
+                  {t("agregar todos")}
                 </button>
               </Show>
             </h3>
             <ul class="git-files">
-              <For each={unstaged()} fallback={<li class="muted small">Sin cambios.</li>}>
+              <For each={unstaged()} fallback={<li class="muted small">{t("Sin cambios.")}</li>}>
                 {(f) => <FileRow f={f} stagedSide={false} />}
               </For>
             </ul>
@@ -305,7 +306,7 @@ export default function GitPanel(props: Props) {
 
           <Show when={view() === "log"}>
             <ul class="git-log">
-              <For each={log() ?? []} fallback={<li class="muted small">{log.loading ? "Cargando…" : "Sin commits."}</li>}>
+              <For each={log() ?? []} fallback={<li class="muted small">{log.loading ? t("Cargando…") : t("Sin commits.")}</li>}>
                 {(r) => (
                   <li
                     classList={{ on: (() => { const s = sel(); return s?.kind === "commit" && s.hash === r.hash; })(), clickable: !!r.hash }}
@@ -333,7 +334,7 @@ export default function GitPanel(props: Props) {
 
           <Show when={view() === "branches"}>
             <div class="dir-row">
-              <input class="text mono" placeholder="nueva-rama" value={newBranch()} onInput={(e) => setNewBranch(e.currentTarget.value)} />
+              <input class="text mono" placeholder={t("nueva-rama")} value={newBranch()} onInput={(e) => setNewBranch(e.currentTarget.value)} />
               <button
                 class="btn"
                 disabled={!newBranch().trim() || !!busy()}
@@ -342,13 +343,13 @@ export default function GitPanel(props: Props) {
                   setNewBranch("");
                 }}
               >
-                Crear y cambiar
+                {t("Crear y cambiar")}
               </button>
             </div>
             <ul class="git-branches">
               <For each={(branches() ?? []).filter((b) => !b.remote)}>
                 {(b) => (
-                  <li classList={{ current: b.current }} onClick={() => !b.current && switchTo(b.name, false)} title={b.current ? "Rama actual" : `Cambiar a ${b.name}`}>
+                  <li classList={{ current: b.current }} onClick={() => !b.current && switchTo(b.name, false)} title={b.current ? t("Rama actual") : t("Cambiar a {name}", { name: b.name })}>
                     <span>{b.current ? "●" : "○"}</span> {b.name}
                     <Show when={b.upstream}>
                       <small> → {b.upstream}</small>
@@ -357,13 +358,13 @@ export default function GitPanel(props: Props) {
                 )}
               </For>
             </ul>
-            <h3>Remotas</h3>
+            <h3>{t("Remotas")}</h3>
             <ul class="git-branches remote">
-              <For each={(branches() ?? []).filter((b) => b.remote)} fallback={<li class="muted small">Ninguna (¿falta un fetch?).</li>}>
+              <For each={(branches() ?? []).filter((b) => b.remote)} fallback={<li class="muted small">{t("Ninguna (¿falta un fetch?).")}</li>}>
                 {(b) => (
                   <li
                     onClick={() => switchTo(b.name.split("/").slice(1).join("/"), false)}
-                    title={`Cambiar a ${b.name.split("/").slice(1).join("/")} (git crea la rama local que sigue a ${b.name})`}
+                    title={t("Cambiar a {name} (git crea la rama local que sigue a {remote})", { name: b.name.split("/").slice(1).join("/"), remote: b.name })}
                   >
                     <span>○</span> {b.name}
                   </li>
@@ -378,20 +379,20 @@ export default function GitPanel(props: Props) {
                 <span class="mono small">
                   {(() => {
                     const s = sel()!;
-                    return s.kind === "file" ? `${s.path}${s.staged ? " (en el commit)" : ""}` : `commit ${s.hash.slice(0, 10)}`;
+                    return s.kind === "file" ? (s.staged ? t("{path} (en el commit)", { path: s.path }) : s.path) : `commit ${s.hash.slice(0, 10)}`;
                   })()}
                 </span>
                 <span class="diff-count">
                   <span class="add">+{countChanges(lines()).add}</span> <span class="del">−{countChanges(lines()).del}</span>
                 </span>
                 <button class="link small" onClick={() => setSplit(!split())}>
-                  {split() ? "Unificado" : "Lado a lado"}
+                  {split() ? t("Unificado") : t("Lado a lado")}
                 </button>
-                <button class="icon-btn" title="Cerrar" onClick={() => setSel(null)}>
+                <button class="icon-btn" title={t("Cerrar")} onClick={() => setSel(null)}>
                   ×
                 </button>
               </div>
-              <Show when={!diff.loading} fallback={<p class="muted small">Cargando…</p>}>
+              <Show when={!diff.loading} fallback={<p class="muted small">{t("Cargando…")}</p>}>
                 <Show when={!diff.error} fallback={<div class="banner">{String(diff.error)}</div>}>
                   <Show
                     when={split()}

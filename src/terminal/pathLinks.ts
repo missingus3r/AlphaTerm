@@ -1,6 +1,7 @@
 import type { IDisposable, ILink, Terminal } from "@xterm/xterm";
 import { invoke } from "@tauri-apps/api/core";
 import { findPaths, mimeOf, previewKind, resolvePath } from "./paths";
+import { t } from "../i18n";
 
 interface Stat {
   dir: boolean;
@@ -56,7 +57,7 @@ function showPreview(path: string, stat: Stat, x: number, y: number) {
     const head = `<div class="pp-head"><b></b><small></small></div>`;
     pop.innerHTML = head;
     pop.querySelector("b")!.textContent = name;
-    pop.querySelector("small")!.textContent = stat.dir ? "carpeta · clic para abrirla" : `${fmtSize(stat.size)} · clic para abrir`;
+    pop.querySelector("small")!.textContent = stat.dir ? t("carpeta · clic para abrirla") : t("{size} · clic para abrir", { size: fmtSize(stat.size) });
     const body = document.createElement("div");
     body.className = "pp-body";
     pop.appendChild(body);
@@ -67,7 +68,7 @@ function showPreview(path: string, stat: Stat, x: number, y: number) {
         const entries = await invoke<{ name: string; dir: boolean }[]>("fs_list", { dir: path });
         if (my !== token) return;
         body.className = "pp-body pp-list";
-        body.textContent = entries.slice(0, 18).map((e) => (e.dir ? `▸ ${e.name}` : `  ${e.name}`)).join("\n") + (entries.length > 18 ? `\n  … y ${entries.length - 18} más` : "") || "(vacía)";
+        body.textContent = entries.slice(0, 18).map((e) => (e.dir ? `▸ ${e.name}` : `  ${e.name}`)).join("\n") + (entries.length > 18 ? `\n  ${t("… y {n} más", { n: entries.length - 18 })}` : "") || t("(vacía)");
       } else if (previewKind(path) === "image") {
         const bytes = await invoke<ArrayBuffer>("fs_head", { path, max: 0, wholeIfUnder: true });
         if (my !== token) return;
@@ -80,13 +81,13 @@ function showPreview(path: string, stat: Stat, x: number, y: number) {
         const bytes = await invoke<ArrayBuffer>("fs_head", { path, max: 8192 });
         if (my !== token) return;
         const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-        if (/\u0000/.test(text)) body.textContent = "(archivo binario)";
+        if (/\u0000/.test(text)) body.textContent = t("(archivo binario)");
         else {
           body.className = "pp-body pp-text";
           body.textContent = text.split(/\r?\n/).slice(0, 24).join("\n");
         }
       } else {
-        body.textContent = "Sin vista previa para este tipo de archivo.";
+        body.textContent = t("Sin vista previa para este tipo de archivo.");
       }
       place(x, y);
     } catch (e) {

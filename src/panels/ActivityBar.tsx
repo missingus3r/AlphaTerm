@@ -1,4 +1,6 @@
 import { For, type JSX } from "solid-js";
+import { k, t } from "../i18n";
+import { COMMANDS } from "../layout/shortcuts";
 
 export type PanelId = "agents" | "servers" | "projects" | "git" | "history" | "docker" | "changes";
 
@@ -12,7 +14,7 @@ const svg = (d: JSX.Element) => (
 export const PANELS: { id: PanelId; label: string; command: string; icon: () => JSX.Element }[] = [
   {
     id: "agents",
-    label: "Agentes",
+    label: k("Agentes"),
     command: "panelAgents",
     icon: () =>
       svg(
@@ -24,7 +26,7 @@ export const PANELS: { id: PanelId; label: string; command: string; icon: () => 
   },
   {
     id: "servers",
-    label: "Servidores",
+    label: k("Servidores"),
     command: "panelServers",
     icon: () =>
       svg(
@@ -37,7 +39,7 @@ export const PANELS: { id: PanelId; label: string; command: string; icon: () => 
   },
   {
     id: "projects",
-    label: "Proyectos",
+    label: k("Proyectos"),
     command: "panelProjects",
     icon: () => svg(<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />),
   },
@@ -57,7 +59,7 @@ export const PANELS: { id: PanelId; label: string; command: string; icon: () => 
   },
   {
     id: "changes",
-    label: "Modificaciones",
+    label: k("Modificaciones"),
     command: "panelChanges",
     icon: () =>
       svg(
@@ -69,7 +71,7 @@ export const PANELS: { id: PanelId; label: string; command: string; icon: () => 
   },
   {
     id: "history",
-    label: "Historial",
+    label: k("Historial"),
     command: "panelHistory",
     icon: () =>
       svg(
@@ -94,14 +96,19 @@ export const PANELS: { id: PanelId; label: string; command: string; icon: () => 
 ];
 
 export function ActivityBar(props: { isOpen: (p: PanelId) => boolean; onToggle: (p: PanelId) => void; help: [string, string][] }) {
-  const keyOf = (label: string) => props.help.find(([, l]) => l === label)?.[0];
+  // El atajo se busca por el id del comando del panel: su etiqueta (en español o ya traducida, según
+  // cómo arme la ayuda `shortcutHelp`) es la que figura en `help`.
+  const keyOf = (command: string) => {
+    const label = COMMANDS.find((c) => c.id === command)?.label;
+    return label ? props.help.find(([, l]) => l === label || l === t(label))?.[0] : undefined;
+  };
   return (
-    <nav class="activity-bar" aria-label="Paneles">
+    <nav class="activity-bar" aria-label={t("Paneles")}>
       <For each={PANELS}>
         {(p) => (
           <button
             classList={{ on: props.isOpen(p.id) }}
-            title={`${p.label}${keyOf(`Panel de ${p.label.toLowerCase()}`) ? ` (${keyOf(`Panel de ${p.label.toLowerCase()}`)})` : ""}`}
+            title={`${t(p.label)}${keyOf(p.command) ? ` (${keyOf(p.command)})` : ""}`}
             aria-pressed={props.isOpen(p.id)}
             onClick={() => props.onToggle(p.id)}
           >

@@ -2,6 +2,7 @@
  * Modelo de pestañas y paneles. Funciones puras: reciben el estado y devuelven uno nuevo.
  * Cada pestaña tiene un árbol de paneles: hojas (una terminal) y divisiones en dos.
  */
+import { t } from "../i18n";
 
 export type SplitDir = "row" | "column"; // row: lado a lado; column: uno arriba del otro
 
@@ -169,7 +170,7 @@ function compact(l: Layout): Layout {
 
 /** Crea una carpeta con estas pestañas. */
 export function createGroup(l: Layout, name: string, tabIds: string[], color?: string): Layout {
-  const g: Group = { id: newId("g"), name: name.trim() || "Carpeta", color, collapsed: false };
+  const g: Group = { id: newId("g"), name: name.trim() || t("Carpeta"), color, collapsed: false };
   const tabs = l.tabs.map((t) => (tabIds.includes(t.id) ? { ...t, groupId: g.id } : t));
   return pruneGroups(compact({ ...l, tabs, groups: [...(l.groups ?? []), g] }));
 }

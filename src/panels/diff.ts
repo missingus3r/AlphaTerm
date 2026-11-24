@@ -1,4 +1,5 @@
 /** Diff unificado → líneas con número viejo/nuevo, y su versión lado a lado. */
+import { k } from "../i18n";
 
 export type LineKind = "add" | "del" | "ctx" | "hunk" | "meta";
 
@@ -72,13 +73,13 @@ export const countChanges = (lines: DiffLine[]) => ({
   del: lines.filter((l) => l.kind === "del").length,
 });
 
-/** Letra de estado → palabra. */
+/** Letra de estado → palabra (se traduce con `t` al mostrarla). */
 export const STATUS_WORD: Record<string, string> = {
-  M: "modificado",
-  A: "agregado",
-  D: "borrado",
-  R: "renombrado",
-  C: "copiado",
-  U: "en conflicto",
-  "?": "sin seguimiento",
+  M: k("modificado"),
+  A: k("agregado"),
+  D: k("borrado"),
+  R: k("renombrado"),
+  C: k("copiado"),
+  U: k("en conflicto"),
+  "?": k("sin seguimiento"),
 };

@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { t } from "../i18n";
 
 /**
  * Confirmación dentro de la app. `window.confirm` no sirve en AlphaTerm: el complemento de
@@ -15,7 +16,7 @@ const [pending, setPending] = createSignal<PendingConfirm | null>(null);
 export const pendingConfirm = pending;
 
 /** Pregunta y espera. Una pregunta nueva cancela (con "no") la que estuviera abierta. */
-export function askConfirm(message: string, ok = "Aceptar"): Promise<boolean> {
+export function askConfirm(message: string, ok = t("Aceptar")): Promise<boolean> {
   pending()?.resolve(false);
   return new Promise((resolve) => setPending({ message, ok, resolve }));
 }

@@ -1,5 +1,6 @@
 import { onCleanup, onMount, Show } from "solid-js";
 import { answerConfirm, pendingConfirm } from "./confirm";
+import { t } from "../i18n";
 
 /**
  * La pregunta de `askConfirm`. Arranca con el foco en «Cancelar». Mientras está abierta, las
@@ -29,7 +30,7 @@ export function ConfirmModal() {
               <p>{p().message}</p>
               <div class="g-actions">
                 <button class="btn" ref={cancel} onClick={() => answerConfirm(false)}>
-                  Cancelar
+                  {t("Cancelar")}
                 </button>
                 <button class="btn danger" onClick={() => answerConfirm(true)}>
                   {p().ok}

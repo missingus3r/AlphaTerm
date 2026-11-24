@@ -1,8 +1,13 @@
 /**
  * Menú de sugerencias debajo del cursor (o arriba si no entra). Lo posiciona con el tamaño de celda
  * de la terminal; las letras que coinciden con lo escrito van resaltadas.
+ *
+ * Las descripciones llegan en español (marcadas con `k()` en el catálogo, el motor y los
+ * generadores) y se traducen acá. Las que no son textos nuestros (ayuda de PowerShell, el comando de
+ * un script de npm, datos de Docker) no tienen traducción y `t` las deja como vienen.
  */
 import { createEffect, For, Show, type JSX } from "solid-js";
+import { t } from "../i18n";
 import type { Kind } from "./engine";
 import type { MenuView } from "./controller";
 
@@ -70,13 +75,13 @@ export function SuggestMenu(props: { view: MenuView; geom: Geom; font: string; o
             <div
               class="sg-row"
               classList={{ sel: i() === props.view.selected, firm: props.view.navigating }}
-              title={it.desc ?? ""}
+              title={it.desc ? t(it.desc) : ""}
               onClick={() => props.onPick(i())}
             >
               <span class={`sg-ico sg-${it.kind}`}>{ICON[it.kind]}</span>
               <span class="sg-label">{highlight(it.label, it.hits)}</span>
               <Show when={it.desc}>
-                <span class="sg-desc">{it.desc}</span>
+                {(desc) => <span class="sg-desc">{t(desc())}</span>}
               </Show>
             </div>
           )}

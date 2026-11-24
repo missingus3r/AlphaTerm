@@ -5,6 +5,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { Recipe, Settings } from "../settings/schema";
 import { fmtUptime, isRunning, recipeFor, urlFor, type PaneRef, type Server } from "./servers";
+import { t } from "../i18n";
 
 interface Props {
   servers: Server[];
@@ -52,17 +53,17 @@ export default function ServersPanel(props: Props) {
 
   const stop = async (s: Server, restart?: Recipe) => {
     const ours = s.shellPid !== null;
-    const what = `${s.name} (PID ${s.pid}, puerto ${s.ports.join(", ")})`;
+    const what = t("{name} (PID {pid}, puerto {ports})", { name: s.name, pid: s.pid, ports: s.ports.join(", ") });
     const question = ours
-      ? `¿Detener ${what}? Se corta ese proceso y lo que cuelga de él.`
-      : `${what} no lo lanzó AlphaTerm.\n\n¿Detenerlo igual? Se corta ese proceso y lo que cuelga de él; si es de otro programa, ese programa puede fallar.`;
-    if (!(await askConfirm(question, "Detener"))) return;
+      ? t("¿Detener {what}? Se corta ese proceso y lo que cuelga de él.", { what })
+      : t("{what} no lo lanzó AlphaTerm.\n\n¿Detenerlo igual? Se corta ese proceso y lo que cuelga de él; si es de otro programa, ese programa puede fallar.", { what });
+    if (!(await askConfirm(question, t("Detener")))) return;
     try {
       await invoke<string>("ports_kill", { pid: s.pid });
-      setMsg({ ok: true, text: `Se detuvo ${s.name}.` });
+      setMsg({ ok: true, text: t("Se detuvo {name}.", { name: s.name }) });
       if (restart) setTimeout(() => props.onStart(restart), 800);
     } catch (e) {
-      setMsg({ ok: false, text: `No se pudo detener ${s.name}: ${e}` });
+      setMsg({ ok: false, text: t("No se pudo detener {name}: {error}", { name: s.name, error: String(e) }) });
     }
     setTimeout(props.onRefresh, 500);
   };
@@ -74,27 +75,28 @@ export default function ServersPanel(props: Props) {
     });
 
   const addRecipe = async () => {
-    const dir = await open({ directory: true, title: "Carpeta del servidor" });
+    const dir = await open({ directory: true, title: t("Carpeta del servidor") });
     if (typeof dir !== "string") return;
     const id = `m${Date.now().toString(36)}`;
-    props.update((d) => void d.recipes.push({ id, name: "Servidor nuevo", command: "npm run dev", cwd: dir, env: {}, ports: [], auto: false }));
+    // El nombre es solo para mostrar (se puede cambiar): queda en el idioma de cuando se creó.
+    props.update((d) => void d.recipes.push({ id, name: t("Servidor nuevo"), command: "npm run dev", cwd: dir, env: {}, ports: [], auto: false }));
     setEditing(id);
   };
 
   return (
     <div class="panel servers-panel">
       <header class="panel-head">
-        <h2>Servidores</h2>
-        <button class="icon-btn" classList={{ spin: props.loading }} title="Actualizar" onClick={props.onRefresh}>
+        <h2>{t("Servidores")}</h2>
+        <button class="icon-btn" classList={{ spin: props.loading }} title={t("Actualizar")} onClick={props.onRefresh}>
           ↻
         </button>
       </header>
       <div class="segmented small">
         <button classList={{ on: filter() === "all" }} onClick={() => setFilter("all")}>
-          Todos
+          {t("Todos")}
         </button>
         <button classList={{ on: filter() === "alphaterm" }} onClick={() => setFilter("alphaterm")}>
-          De AlphaTerm
+          {t("De AlphaTerm")}
         </button>
       </div>
       <Show when={msg()}>
@@ -107,7 +109,7 @@ export default function ServersPanel(props: Props) {
       </Show>
 
       <ul class="server-list">
-        <For each={visible()} fallback={<li class="muted small">{props.loading ? "Buscando…" : "Nada escuchando."}</li>}>
+        <For each={visible()} fallback={<li class="muted small">{props.loading ? t("Buscando…") : t("Nada escuchando.")}</li>}>
           {(s) => {
             const pane = () => props.paneOf(s.shellPid);
             const recipe = () => recipeFor(s, props.recipes);
@@ -117,7 +119,7 @@ export default function ServersPanel(props: Props) {
                   <span class="ports">
                     <For each={s.ports}>
                       {(p) => (
-                        <button class="port" title={`Abrir ${urlFor(s, p)} en el navegador`} onClick={() => void openUrl(urlFor(s, p))}>
+                        <button class="port" title={t("Abrir {url} en el navegador", { url: urlFor(s, p) })} onClick={() => void openUrl(urlFor(s, p))}>
                           :{p}
                         </button>
                       )}
@@ -127,12 +129,12 @@ export default function ServersPanel(props: Props) {
                     {s.name}
                   </b>
                   <Show when={s.shellPid !== null}>
-                    <span class="badge nt" title="Nació en una pestaña de AlphaTerm">
+                    <span class="badge nt" title={t("Nació en una pestaña de AlphaTerm")}>
                       AlphaTerm
                     </span>
                   </Show>
                 </div>
-                <small class="server-meta" title={`${s.cmdline}\n${s.cwd ?? ""}\nEscucha en ${s.addrs.join(", ")}`}>
+                <small class="server-meta" title={`${s.cmdline}\n${s.cwd ?? ""}\n${t("Escucha en {addrs}", { addrs: s.addrs.join(", ") })}`}>
                   PID {s.pid} · {fmtUptime(s.uptime)}
                   {s.cwd ? ` · ${s.cwd}` : ""}
                 </small>
@@ -140,24 +142,28 @@ export default function ServersPanel(props: Props) {
                   <Show when={props.onBrowse && s.ports.length > 0}>
                     <button
                       class="link"
-                      title={`Abrir ${urlFor(s, s.ports[0])} en el navegador de AlphaTerm${pane() ? ", al lado de su pestaña" : ""} (para verlo, marcar elementos y pedirle cambios al agente)`}
+                      title={
+                        pane()
+                          ? t("Abrir {url} en el navegador de AlphaTerm, al lado de su pestaña (para verlo, marcar elementos y pedirle cambios al agente)", { url: urlFor(s, s.ports[0]) })
+                          : t("Abrir {url} en el navegador de AlphaTerm (para verlo, marcar elementos y pedirle cambios al agente)", { url: urlFor(s, s.ports[0]) })
+                      }
                       onClick={() => props.onBrowse!(urlFor(s, s.ports[0]), pane())}
                     >
-                      Abrir en el navegador
+                      {t("Abrir en el navegador")}
                     </button>
                   </Show>
                   <Show when={pane()}>
                     <button class="link" onClick={() => props.onFocus(pane()!.tabId, pane()!.paneId)}>
-                      Ir a la pestaña
+                      {t("Ir a la pestaña")}
                     </button>
                   </Show>
                   <Show when={recipe()}>
-                    <button class="link" title={`Detener y volver a iniciar con: ${recipe()!.command}`} onClick={() => void stop(s, recipe())}>
-                      Reiniciar
+                    <button class="link" title={t("Detener y volver a iniciar con: {command}", { command: recipe()!.command })} onClick={() => void stop(s, recipe())}>
+                      {t("Reiniciar")}
                     </button>
                   </Show>
                   <button class="link danger" disabled={s.pid <= 4} onClick={() => void stop(s)}>
-                    Detener
+                    {t("Detener")}
                   </button>
                 </div>
               </li>
@@ -167,17 +173,16 @@ export default function ServersPanel(props: Props) {
       </ul>
       <Show when={filter() === "all" && hiddenSystem() > 0}>
         <button class="link small" onClick={() => setShowSystem(!showSystem())}>
-          {showSystem() ? "Esconder los del sistema" : `Ver los del sistema (${hiddenSystem()})`}
+          {showSystem() ? t("Esconder los del sistema") : t("Ver los del sistema ({n})", { n: hiddenSystem() })}
         </button>
       </Show>
 
-      <h3>Recetas</h3>
+      <h3>{t("Recetas")}</h3>
       <p class="muted small">
-        Se guardan solas cuando un servidor nace en una pestaña (comando + carpeta). Un proceso externo sin receta se puede detener, pero no
-        iniciar: no se sabe con qué comando arrancó.
+        {t("Se guardan solas cuando un servidor nace en una pestaña (comando + carpeta). Un proceso externo sin receta se puede detener, pero no iniciar: no se sabe con qué comando arrancó.")}
       </p>
       <ul class="recipe-list">
-        <For each={props.recipes} fallback={<li class="muted small">Todavía no hay recetas.</li>}>
+        <For each={props.recipes} fallback={<li class="muted small">{t("Todavía no hay recetas.")}</li>}>
           {(r) => (
             <>
               <li class="recipe">
@@ -187,32 +192,32 @@ export default function ServersPanel(props: Props) {
                   <small title={r.cwd}>
                     {r.ports.length ? `:${r.ports.join(" :")} · ` : ""}
                     {r.cwd}
-                    {r.auto ? " · vista" : ""}
+                    {r.auto ? ` · ${t("vista")}` : ""}
                   </small>
                 </div>
-                <button class="btn" disabled={isRunning(r, props.servers)} onClick={() => props.onStart(r)} title={`Abre una pestaña de fondo y corre: ${r.command}`}>
-                  Iniciar
+                <button class="btn" disabled={isRunning(r, props.servers)} onClick={() => props.onStart(r)} title={t("Abre una pestaña de fondo y corre: {command}", { command: r.command })}>
+                  {t("Iniciar")}
                 </button>
-                <button class="icon-btn" title="Editar" onClick={() => setEditing(editing() === r.id ? null : r.id)}>
+                <button class="icon-btn" title={t("Editar")} onClick={() => setEditing(editing() === r.id ? null : r.id)}>
                   ✎
                 </button>
               </li>
               <Show when={editing() === r.id}>
                 <li class="agent-edit">
                   <label>
-                    Nombre
+                    {t("Nombre")}
                     <input class="text" value={r.name} onChange={(e) => setRecipe(r.id, (x) => void (x.name = e.currentTarget.value))} />
                   </label>
                   <label>
-                    Comando
+                    {t("Comando")}
                     <input class="text mono" value={r.command} spellcheck={false} onChange={(e) => setRecipe(r.id, (x) => void (x.command = e.currentTarget.value))} />
                   </label>
                   <label>
-                    Carpeta
+                    {t("Carpeta")}
                     <input class="text mono" value={r.cwd} spellcheck={false} onChange={(e) => setRecipe(r.id, (x) => void (x.cwd = e.currentTarget.value))} />
                   </label>
                   <label>
-                    Puertos (separados por coma)
+                    {t("Puertos (separados por coma)")}
                     <input
                       class="text mono"
                       value={r.ports.join(", ")}
@@ -231,15 +236,15 @@ export default function ServersPanel(props: Props) {
                     <button
                       class="link danger"
                       onClick={async () => {
-                        if (!(await askConfirm(`¿Borrar la receta "${r.name}"?`, "Borrar"))) return;
+                        if (!(await askConfirm(t('¿Borrar la receta "{name}"?', { name: r.name }), t("Borrar")))) return;
                         props.update((d) => void (d.recipes = d.recipes.filter((x) => x.id !== r.id)));
                         setEditing(null);
                       }}
                     >
-                      Borrar
+                      {t("Borrar")}
                     </button>
                     <button class="link" onClick={() => setEditing(null)}>
-                      Listo
+                      {t("Listo")}
                     </button>
                   </div>
                 </li>
@@ -250,7 +255,7 @@ export default function ServersPanel(props: Props) {
       </ul>
       <div class="panel-actions">
         <button class="link" onClick={() => void addRecipe()}>
-          + Agregar una receta a mano
+          {t("+ Agregar una receta a mano")}
         </button>
       </div>
     </div>

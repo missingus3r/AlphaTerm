@@ -3,6 +3,7 @@
  * carpetas, historial, PATH y los generadores del catálogo (hosts, ramas, scripts de npm…).
  */
 import { invoke } from "@tauri-apps/api/core";
+import { k } from "../i18n";
 import type { GenName, Value } from "./catalog";
 import type { HistEntry, Sources } from "./engine";
 
@@ -46,12 +47,12 @@ async function branches(cwd: string): Promise<Branch[]> {
 async function hosts(): Promise<Value[]> {
   const gw = await quick(invoke<string | null>("suggest_gateway"), null);
   return [
-    { v: "8.8.8.8", desc: "DNS de Google" },
-    { v: "1.1.1.1", desc: "DNS de Cloudflare" },
-    ...(gw ? [{ v: gw, desc: "tu router" }] : []),
-    { v: "localhost", desc: "esta PC" },
-    { v: "127.0.0.1", desc: "esta PC" },
-    { v: "google.com", desc: "para probar Internet" },
+    { v: "8.8.8.8", desc: k("DNS de Google") },
+    { v: "1.1.1.1", desc: k("DNS de Cloudflare") },
+    ...(gw ? [{ v: gw, desc: k("tu router") }] : []),
+    { v: "localhost", desc: k("esta PC") },
+    { v: "127.0.0.1", desc: k("esta PC") },
+    { v: "google.com", desc: k("para probar Internet") },
   ];
 }
 
@@ -62,14 +63,14 @@ async function gen(name: GenName, cwd: string): Promise<Value[]> {
     case "gitBranches": {
       const b = await quick(branches(cwd), []);
       return [
-        ...b.filter((x) => !x.remote).map((x) => ({ v: x.name, desc: x.current ? "rama actual" : "rama" })),
-        ...b.filter((x) => x.remote && !x.name.endsWith("/HEAD")).map((x) => ({ v: x.name, desc: "rama remota" })),
+        ...b.filter((x) => !x.remote).map((x) => ({ v: x.name, desc: x.current ? k("rama actual") : k("rama") })),
+        ...b.filter((x) => x.remote && !x.name.endsWith("/HEAD")).map((x) => ({ v: x.name, desc: k("rama remota") })),
       ];
     }
     case "gitRemotes": {
       const b = await quick(branches(cwd), []);
       const remotes = [...new Set(b.filter((x) => x.remote).map((x) => x.name.split("/")[0]))];
-      return remotes.map((r) => ({ v: r, desc: "remoto" }));
+      return remotes.map((r) => ({ v: r, desc: k("remoto") }));
     }
     case "npmScripts": {
       const s = await quick(invoke<[string, string][]>("suggest_npm_scripts", { cwd }), []);

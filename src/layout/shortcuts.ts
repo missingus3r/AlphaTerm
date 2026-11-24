@@ -1,3 +1,4 @@
+import { k, t } from "../i18n";
 import type { Direction } from "./model";
 
 /**
@@ -30,38 +31,38 @@ export interface Command {
 }
 
 export const COMMANDS: Command[] = [
-  { id: "newTab", label: "Pestaña nueva", action: { type: "newTab" }, defaults: ["Ctrl+Shift+T"] },
-  { id: "newWindow", label: "Ventana nueva", action: { type: "newWindow" }, defaults: ["Ctrl+Shift+N"] },
-  { id: "closePane", label: "Cerrar panel", action: { type: "closePane" }, defaults: ["Ctrl+Shift+W"] },
+  { id: "newTab", label: k("Pestaña nueva"), action: { type: "newTab" }, defaults: ["Ctrl+Shift+T"] },
+  { id: "newWindow", label: k("Ventana nueva"), action: { type: "newWindow" }, defaults: ["Ctrl+Shift+N"] },
+  { id: "closePane", label: k("Cerrar panel"), action: { type: "closePane" }, defaults: ["Ctrl+Shift+W"] },
   // El "+" del teclado español da "*" con Shift; el del inglés da "=" sin Shift.
-  { id: "splitRight", label: "Dividir a la derecha", action: { type: "split", dir: "row" }, defaults: ["Alt+Shift++", "Alt+Shift+*", "Alt+Shift+="] },
-  { id: "splitDown", label: "Dividir abajo", action: { type: "split", dir: "column" }, defaults: ["Alt+Shift+-", "Alt+Shift+_"] },
-  { id: "splitAuto", label: "Dividir (automático)", action: { type: "split", dir: "auto" }, defaults: ["Alt+Shift+D"] },
-  { id: "focusLeft", label: "Panel de la izquierda", action: { type: "focus", dir: "left" }, defaults: ["Alt+Left"] },
-  { id: "focusRight", label: "Panel de la derecha", action: { type: "focus", dir: "right" }, defaults: ["Alt+Right"] },
-  { id: "focusUp", label: "Panel de arriba", action: { type: "focus", dir: "up" }, defaults: ["Alt+Up"] },
-  { id: "focusDown", label: "Panel de abajo", action: { type: "focus", dir: "down" }, defaults: ["Alt+Down"] },
-  { id: "nextTab", label: "Pestaña siguiente", action: { type: "cycleTab", delta: 1 }, defaults: ["Ctrl+Tab"] },
-  { id: "prevTab", label: "Pestaña anterior", action: { type: "cycleTab", delta: -1 }, defaults: ["Ctrl+Shift+Tab"] },
-  { id: "rename", label: "Renombrar pestaña", action: { type: "rename" }, defaults: ["Ctrl+Shift+R"] },
-  { id: "renameWindow", label: "Cambiar el título de la ventana", action: { type: "renameWindow" }, defaults: ["Ctrl+Shift+F2"] },
-  { id: "toggleTabBar", label: "Barra de pestañas arriba / a la izquierda", action: { type: "toggleTabBar" }, defaults: ["Ctrl+Shift+B"] },
-  { id: "prevPrompt", label: "Ir al comando anterior", action: { type: "jumpPrompt", delta: -1 }, defaults: ["Ctrl+Shift+Up"] },
-  { id: "nextPrompt", label: "Ir al comando siguiente", action: { type: "jumpPrompt", delta: 1 }, defaults: ["Ctrl+Shift+Down"] },
-  { id: "copyLastOutput", label: "Copiar la salida del último comando", action: { type: "copyLastOutput" }, defaults: ["Ctrl+Shift+O"] },
-  { id: "openBrowser", label: "Abrir el navegador al lado (para ver la app y marcar elementos)", action: { type: "openBrowser" }, defaults: ["Ctrl+Shift+U"] },
-  { id: "openSettings", label: "Abrir la configuración", action: { type: "openSettings" }, defaults: ["Ctrl+,"] },
-  { id: "panelAgents", label: "Panel de agentes", action: { type: "togglePanel", panel: "agents" }, defaults: ["Ctrl+Shift+A"] },
-  { id: "panelServers", label: "Panel de servidores", action: { type: "togglePanel", panel: "servers" }, defaults: ["Ctrl+Shift+P"] },
-  { id: "panelProjects", label: "Panel de proyectos", action: { type: "togglePanel", panel: "projects" }, defaults: ["Ctrl+Shift+E"] },
-  { id: "panelGit", label: "Panel de git", action: { type: "togglePanel", panel: "git" }, defaults: ["Ctrl+Shift+G"] },
-  { id: "panelHistory", label: "Panel de historial", action: { type: "togglePanel", panel: "history" }, defaults: ["Ctrl+Shift+H"] },
-  { id: "panelDocker", label: "Panel de docker", action: { type: "togglePanel", panel: "docker" }, defaults: ["Ctrl+Shift+K"] },
-  { id: "panelChanges", label: "Panel de modificaciones", action: { type: "togglePanel", panel: "changes" }, defaults: ["Ctrl+Shift+M"] },
+  { id: "splitRight", label: k("Dividir a la derecha"), action: { type: "split", dir: "row" }, defaults: ["Alt+Shift++", "Alt+Shift+*", "Alt+Shift+="] },
+  { id: "splitDown", label: k("Dividir abajo"), action: { type: "split", dir: "column" }, defaults: ["Alt+Shift+-", "Alt+Shift+_"] },
+  { id: "splitAuto", label: k("Dividir (automático)"), action: { type: "split", dir: "auto" }, defaults: ["Alt+Shift+D"] },
+  { id: "focusLeft", label: k("Panel de la izquierda"), action: { type: "focus", dir: "left" }, defaults: ["Alt+Left"] },
+  { id: "focusRight", label: k("Panel de la derecha"), action: { type: "focus", dir: "right" }, defaults: ["Alt+Right"] },
+  { id: "focusUp", label: k("Panel de arriba"), action: { type: "focus", dir: "up" }, defaults: ["Alt+Up"] },
+  { id: "focusDown", label: k("Panel de abajo"), action: { type: "focus", dir: "down" }, defaults: ["Alt+Down"] },
+  { id: "nextTab", label: k("Pestaña siguiente"), action: { type: "cycleTab", delta: 1 }, defaults: ["Ctrl+Tab"] },
+  { id: "prevTab", label: k("Pestaña anterior"), action: { type: "cycleTab", delta: -1 }, defaults: ["Ctrl+Shift+Tab"] },
+  { id: "rename", label: k("Renombrar pestaña"), action: { type: "rename" }, defaults: ["Ctrl+Shift+R"] },
+  { id: "renameWindow", label: k("Cambiar el título de la ventana"), action: { type: "renameWindow" }, defaults: ["Ctrl+Shift+F2"] },
+  { id: "toggleTabBar", label: k("Barra de pestañas arriba / a la izquierda"), action: { type: "toggleTabBar" }, defaults: ["Ctrl+Shift+B"] },
+  { id: "prevPrompt", label: k("Ir al comando anterior"), action: { type: "jumpPrompt", delta: -1 }, defaults: ["Ctrl+Shift+Up"] },
+  { id: "nextPrompt", label: k("Ir al comando siguiente"), action: { type: "jumpPrompt", delta: 1 }, defaults: ["Ctrl+Shift+Down"] },
+  { id: "copyLastOutput", label: k("Copiar la salida del último comando"), action: { type: "copyLastOutput" }, defaults: ["Ctrl+Shift+O"] },
+  { id: "openBrowser", label: k("Abrir el navegador al lado (para ver la app y marcar elementos)"), action: { type: "openBrowser" }, defaults: ["Ctrl+Shift+U"] },
+  { id: "openSettings", label: k("Abrir la configuración"), action: { type: "openSettings" }, defaults: ["Ctrl+,"] },
+  { id: "panelAgents", label: k("Panel de agentes"), action: { type: "togglePanel", panel: "agents" }, defaults: ["Ctrl+Shift+A"] },
+  { id: "panelServers", label: k("Panel de servidores"), action: { type: "togglePanel", panel: "servers" }, defaults: ["Ctrl+Shift+P"] },
+  { id: "panelProjects", label: k("Panel de proyectos"), action: { type: "togglePanel", panel: "projects" }, defaults: ["Ctrl+Shift+E"] },
+  { id: "panelGit", label: k("Panel de git"), action: { type: "togglePanel", panel: "git" }, defaults: ["Ctrl+Shift+G"] },
+  { id: "panelHistory", label: k("Panel de historial"), action: { type: "togglePanel", panel: "history" }, defaults: ["Ctrl+Shift+H"] },
+  { id: "panelDocker", label: k("Panel de docker"), action: { type: "togglePanel", panel: "docker" }, defaults: ["Ctrl+Shift+K"] },
+  { id: "panelChanges", label: k("Panel de modificaciones"), action: { type: "togglePanel", panel: "changes" }, defaults: ["Ctrl+Shift+M"] },
 ];
 
 /** Ctrl+1…8 van a esa pestaña y Ctrl+9 a la última. No se cambian. */
-export const FIXED_HELP: [string, string] = ["Ctrl+1…8, Ctrl+9", "Ir a la pestaña N / a la última"];
+export const FIXED_HELP: [string, string] = ["Ctrl+1…8, Ctrl+9", k("Ir a la pestaña N / a la última")];
 
 export interface ShortcutKey {
   type: string;
@@ -108,15 +109,15 @@ export function canonical(combo: string): string | null {
 /** Problema de una combinación para usarla de atajo, o null si sirve. */
 export function comboProblem(combo: string): string | null {
   const p = parseCombo(combo);
-  if (!p) return "No se entiende la combinación";
-  if (p.ctrl && p.alt) return "Ctrl+Alt es AltGr en el teclado español: se usa para escribir @, # o [";
+  if (!p) return t("No se entiende la combinación");
+  if (p.ctrl && p.alt) return t("Ctrl+Alt es AltGr en el teclado español: se usa para escribir @, # o [");
   const fKey = /^F([1-9]|1[0-9]|2[0-4])$/.test(p.key);
-  if (!p.ctrl && !p.alt && !fKey) return "Necesita Ctrl o Alt (si no, se come teclas que escribís)";
+  if (!p.ctrl && !p.alt && !fKey) return t("Necesita Ctrl o Alt (si no, se come teclas que escribís)");
   if (p.ctrl && !p.shift && !p.alt && /^[A-Z]$/.test(p.key)) {
-    if (p.key === "C" || p.key === "V") return "Ctrl+C y Ctrl+V ya son copiar/pegar e interrumpir";
+    if (p.key === "C" || p.key === "V") return t("Ctrl+C y Ctrl+V ya son copiar/pegar e interrumpir");
     return null; // se permite, pero ver comboWarning
   }
-  if (p.ctrl && !p.shift && /^[1-9]$/.test(p.key)) return "Ctrl+1…9 ya cambian de pestaña";
+  if (p.ctrl && !p.shift && /^[1-9]$/.test(p.key)) return t("Ctrl+1…9 ya cambian de pestaña");
   return null;
 }
 
@@ -124,7 +125,7 @@ export function comboProblem(combo: string): string | null {
 export function comboWarning(combo: string): string | null {
   const p = parseCombo(combo);
   if (p && p.ctrl && !p.shift && !p.alt && /^[A-Z]$/.test(p.key)) {
-    return `Ctrl+${p.key} ya no le llega a la shell ni a los programas de la terminal`;
+    return t("Ctrl+{key} ya no le llega a la shell ni a los programas de la terminal", { key: p.key });
   }
   return null;
 }
@@ -169,10 +170,13 @@ export function matchShortcut(e: ShortcutKey, keymap: Keymap = DEFAULT_KEYMAP): 
   return null;
 }
 
-/** Texto de ayuda (tooltip del botón "?"). */
+/**
+ * Texto de ayuda (tooltip del botón "?"): [combinaciones, etiqueta]. Las etiquetas quedan en español
+ * (marcadas con `k`): quien las muestra las traduce con `t`.
+ */
 export function shortcutHelp(overrides: Record<string, string[]> = {}): [string, string][] {
   const eff = effectiveBindings(overrides);
-  const rows: [string, string][] = COMMANDS.filter((c) => eff[c.id].length > 0).map((c) => [eff[c.id].join(" o "), c.label]);
-  rows.push(FIXED_HELP, ["Doble clic en la pestaña", "Renombrar pestaña"]);
+  const rows: [string, string][] = COMMANDS.filter((c) => eff[c.id].length > 0).map((c) => [eff[c.id].reduce((a, b) => t("{a} o {b}", { a, b })), c.label]);
+  rows.push(FIXED_HELP, [k("Doble clic en la pestaña"), k("Renombrar pestaña")]);
   return rows;
 }

@@ -1,4 +1,5 @@
-import { createMemo, createResource, createSignal, For, onCleanup, Show, type JSX } from "solid-js";
+import { profileLabel } from "../terminal/pty";
+import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show, type JSX } from "solid-js";
 import { askConfirm } from "../widgets/confirm";
 import type { TermInfo } from "../terminal/pty";
 import { invoke } from "@tauri-apps/api/core";
@@ -8,8 +9,8 @@ import { monospaceFonts } from "./fonts";
 import { COLOR_KEYS, DEFAULT_FONT, LIMITS, type ColorKey, type Effect, type Settings } from "./schema";
 import { revealSettings, type SettingsStore } from "./store";
 import { appInfo, versionTooltip } from "../widgets/appInfo";
-import { allThemes, findTheme, importThemes, themeId, type Theme } from "./themes";
-import { k, LANGS, t, type Lang } from "../i18n";
+import { allThemes, findTheme, importThemes, themeId, themeLabel, type Theme } from "./themes";
+import { k, LANGS, locale, t, type Lang } from "../i18n";
 import "./settings.css";
 
 type Section = "idioma" | "apariencia" | "fuente" | "fondo" | "terminal" | "agentes" | "consumo" | "atajos" | "proximo";
@@ -27,11 +28,11 @@ const SECTIONS: [Section, string][] = [
 const SECTION_PREF = "alphaterm.settings.section";
 
 const COLOR_LABELS: Record<ColorKey, string> = {
-  background: "Fondo", foreground: "Texto", cursor: "Cursor", cursorAccent: "Texto bajo el cursor",
-  selectionBackground: "Selección", black: "Negro", red: "Rojo", green: "Verde", yellow: "Amarillo",
-  blue: "Azul", magenta: "Magenta", cyan: "Cian", white: "Blanco", brightBlack: "Negro claro",
-  brightRed: "Rojo claro", brightGreen: "Verde claro", brightYellow: "Amarillo claro", brightBlue: "Azul claro",
-  brightMagenta: "Magenta claro", brightCyan: "Cian claro", brightWhite: "Blanco brillante",
+  background: k("Fondo"), foreground: k("Texto"), cursor: k("Cursor"), cursorAccent: k("Texto bajo el cursor"),
+  selectionBackground: k("Selección"), black: k("Negro"), red: k("Rojo"), green: k("Verde"), yellow: k("Amarillo"),
+  blue: k("Azul"), magenta: k("Magenta"), cyan: k("Cian"), white: k("Blanco"), brightBlack: k("Negro claro"),
+  brightRed: k("Rojo claro"), brightGreen: k("Verde claro"), brightYellow: k("Amarillo claro"), brightBlue: k("Azul claro"),
+  brightMagenta: k("Magenta claro"), brightCyan: k("Cian claro"), brightWhite: k("Blanco brillante"),
 };
 
 // --- Piezas de formulario -------------------------------------------------------------------
@@ -116,7 +117,7 @@ export default function SettingsView(props: { info: TermInfo; store: SettingsSto
   const s = () => props.store.settings();
   const set = (f: (d: Settings) => void) => props.store.update(f);
   const osDark = createOsDark();
-  if (!props.onClose) document.title = "Configuración — AlphaTerm";
+  if (!props.onClose) createEffect(() => (document.title = t("Configuración — AlphaTerm")));
   // Dentro de la ventana de terminal: Esc cierra (salvo que una tecla la esté usando un campo).
   if (props.onClose) {
     const esc = (e: KeyboardEvent) => {
@@ -149,9 +150,9 @@ export default function SettingsView(props: { info: TermInfo; store: SettingsSto
     <div class="settings">
       <nav class="settings-nav">
         <h1>
-          Configuración
+          {t("Configuración")}
           <Show when={props.onClose}>
-            <button class="icon-btn settings-close" title="Cerrar la configuración (Esc)" onClick={() => props.onClose!()}>
+            <button class="icon-btn settings-close" title={t("Cerrar la configuración (Esc)")} onClick={() => props.onClose!()}>
               ×
             </button>
           </Show>
@@ -165,19 +166,19 @@ export default function SettingsView(props: { info: TermInfo; store: SettingsSto
           )}
         </For>
         <div class="nav-foot">
-          <small title={props.store.path}>Se guarda sola en settings.json y se aplica al instante en todas las ventanas.</small>
+          <small title={props.store.path}>{t("Se guarda sola en settings.json y se aplica al instante en todas las ventanas.")}</small>
           <button class="link" onClick={() => void revealSettings()}>
-            Mostrar el archivo
+            {t("Mostrar el archivo")}
           </button>
           <button
             class="link danger"
             onClick={async () => {
-              if (await askConfirm("¿Volver toda la configuración a los valores de fábrica? Se borran también los temas propios.", "Volver a fábrica")) {
+              if (await askConfirm(t("¿Volver toda la configuración a los valores de fábrica? Se borran también los temas propios."), t("Volver a fábrica"))) {
                 props.store.reset();
               }
             }}
           >
-            Restablecer todo
+            {t("Restablecer todo")}
           </button>
         </div>
       </nav>
@@ -247,7 +248,8 @@ function ThemeSection(props: SectionProps & { osDark: boolean }) {
   const themes = createMemo(() => allThemes(props.s.customThemes));
   const selectedId = () => (target() === "light" ? props.s.appearance.themeLight : props.s.appearance.theme);
   const selected = () => findTheme(selectedId(), props.s.customThemes, target() === "light" ? "nova-light" : "nova-dark");
-  const [message, setMessage] = createSignal<{ ok: boolean; text: string } | null>(null);
+  // El texto se arma al mostrarlo (así sigue el idioma si se cambia con el aviso a la vista).
+  const [message, setMessage] = createSignal<{ ok: boolean; text: () => string } | null>(null);
   let fileInput!: HTMLInputElement;
 
   const choose = (id: string) =>
@@ -256,11 +258,11 @@ function ThemeSection(props: SectionProps & { osDark: boolean }) {
       else d.appearance.theme = id;
     });
 
-  const takenIds = () => new Set(themes().map((t) => t.id));
+  const takenIds = () => new Set(themes().map((x) => x.id));
 
   const duplicate = () => {
     const base = selected();
-    const name = `${base.name} (copia)`;
+    const name = t("{name} (copia)", { name: themeLabel(base) });
     const id = themeId(name, takenIds());
     props.set((d) => {
       d.customThemes.push({ id, name, colors: { ...base.colors } });
@@ -273,68 +275,77 @@ function ThemeSection(props: SectionProps & { osDark: boolean }) {
     try {
       const found = importThemes(await file.text(), file.name);
       const taken = takenIds();
-      const added = found.map((t) => {
-        const id = themeId(t.name, taken);
+      const added = found.map((x) => {
+        const id = themeId(x.name, taken);
         taken.add(id);
-        return { id, name: t.name, colors: t.colors, missing: t.missing };
+        return { id, name: x.name, colors: x.colors, missing: x.missing };
       });
       props.set((d) => {
-        for (const t of added) d.customThemes.push({ id: t.id, name: t.name, colors: t.colors });
+        for (const x of added) d.customThemes.push({ id: x.id, name: x.name, colors: x.colors });
         if (target() === "light") d.appearance.themeLight = added[0].id;
         else d.appearance.theme = added[0].id;
       });
-      const incomplete = added.filter((t) => t.missing.length > 0);
+      const incomplete = added.filter((x) => x.missing.length > 0).length;
       setMessage({
         ok: true,
-        text:
-          `Se importó ${added.length === 1 ? `"${added[0].name}"` : `${added.length} temas`}.` +
-          (incomplete.length ? ` A ${incomplete.length === 1 ? "uno" : incomplete.length} le faltaban colores y se completaron con Alpha oscuro.` : ""),
+        text: () =>
+          [
+            added.length === 1 ? t('Se importó "{name}".', { name: added[0].name }) : t("Se importó {n} temas.", { n: added.length }),
+            incomplete === 0
+              ? ""
+              : incomplete === 1
+                ? t("A uno le faltaban colores y se completaron con Alpha oscuro.")
+                : t("A {n} le faltaban colores y se completaron con Alpha oscuro.", { n: incomplete }),
+          ]
+            .filter(Boolean)
+            .join(" "),
       });
     } catch (e) {
-      setMessage({ ok: false, text: `No se pudo importar ${file.name}: ${(e as Error).message}` });
+      const error = (e as Error).message;
+      setMessage({ ok: false, text: () => t("No se pudo importar {file}: {error}", { file: file.name, error }) });
     }
   };
 
   const editColor = (key: ColorKey, value: string) =>
     props.set((d) => {
-      const t = d.customThemes.find((x) => x.id === selected().id);
-      if (t) t.colors[key] = value;
+      const theme = d.customThemes.find((x) => x.id === selected().id);
+      if (theme) theme.colors[key] = value;
     });
 
   const remove = async () => {
-    const t = selected();
-    if (!(await askConfirm(`¿Borrar el tema "${t.name}"? No se puede deshacer (salvo volviéndolo a importar).`, "Borrar"))) return;
+    const theme = selected();
+    if (!(await askConfirm(t('¿Borrar el tema "{name}"? No se puede deshacer (salvo volviéndolo a importar).', { name: theme.name }), t("Borrar")))) return;
     props.set((d) => {
-      d.customThemes = d.customThemes.filter((x) => x.id !== t.id);
-      if (d.appearance.theme === t.id) d.appearance.theme = "nova-dark";
-      if (d.appearance.themeLight === t.id) d.appearance.themeLight = "nova-light";
+      d.customThemes = d.customThemes.filter((x) => x.id !== theme.id);
+      if (d.appearance.theme === theme.id) d.appearance.theme = "nova-dark";
+      if (d.appearance.themeLight === theme.id) d.appearance.themeLight = "nova-light";
     });
   };
 
   return (
     <section>
-      <h2>Tema y colores</h2>
-      <Row label="Modo" hint="Con «Según Windows» cambia solo cuando Windows pasa de claro a oscuro.">
+      <h2>{t("Tema y colores")}</h2>
+      <Row label={t("Modo")} hint={t("Con «Según Windows» cambia solo cuando Windows pasa de claro a oscuro.")}>
         <Segmented
           value={props.s.appearance.mode}
-          options={[["dark", "Oscuro"], ["light", "Claro"], ["auto", "Según Windows"]]}
+          options={[["dark", t("Oscuro")], ["light", t("Claro")], ["auto", t("Según Windows")]]}
           onChange={(v) => {
             setSlot(null);
             props.set((d) => void (d.appearance.mode = v));
           }}
         />
       </Row>
-      <Row label="Elegir el tema del modo">
-        <Segmented value={target()} options={[["dark", `Oscuro · ${findTheme(props.s.appearance.theme, props.s.customThemes).name}`], ["light", `Claro · ${findTheme(props.s.appearance.themeLight, props.s.customThemes, "nova-light").name}`]]} onChange={setSlot} />
+      <Row label={t("Elegir el tema del modo")}>
+        <Segmented value={target()} options={[["dark", t("Oscuro · {theme}", { theme: themeLabel(findTheme(props.s.appearance.theme, props.s.customThemes)) })], ["light", t("Claro · {theme}", { theme: themeLabel(findTheme(props.s.appearance.themeLight, props.s.customThemes, "nova-light")) })]]} onChange={setSlot} />
       </Row>
       <div class="theme-grid">
         <For each={themes()}>
-          {(t) => (
-            <button class="theme-card" classList={{ on: t.id === selected().id }} onClick={() => choose(t.id)} title={t.builtin ? "Tema de fábrica" : "Tema propio"}>
-              <Swatches theme={t} />
+          {(th) => (
+            <button class="theme-card" classList={{ on: th.id === selected().id }} onClick={() => choose(th.id)} title={th.builtin ? t("Tema de fábrica") : t("Tema propio")}>
+              <Swatches theme={th} />
               <span>
-                {t.name}
-                {t.builtin ? "" : " ✎"}
+                {themeLabel(th)}
+                {th.builtin ? "" : " ✎"}
               </span>
             </button>
           )}
@@ -342,10 +353,10 @@ function ThemeSection(props: SectionProps & { osDark: boolean }) {
       </div>
       <div class="actions">
         <button class="btn" onClick={duplicate}>
-          Duplicar para editar
+          {t("Duplicar para editar")}
         </button>
         <button class="btn" onClick={() => fileInput.click()}>
-          Importar tema…
+          {t("Importar tema…")}
         </button>
         <input
           ref={fileInput}
@@ -358,19 +369,19 @@ function ThemeSection(props: SectionProps & { osDark: boolean }) {
             if (f) void onImport(f);
           }}
         />
-        <small>Acepta esquemas de Windows Terminal (o su settings.json entero), .itermcolors de iTerm2 y temas de xterm.js.</small>
+        <small>{t("Acepta esquemas de Windows Terminal (o su settings.json entero), .itermcolors de iTerm2 y temas de xterm.js.")}</small>
       </div>
       <Show when={message()}>
         <div class="banner" classList={{ ok: message()!.ok }}>
-          {message()!.text}
+          {message()!.text()}
         </div>
       </Show>
       <Show
         when={!selected().builtin}
-        fallback={<p class="muted">Los temas de fábrica no se editan: «Duplicar para editar» crea una copia propia.</p>}
+        fallback={<p class="muted">{t("Los temas de fábrica no se editan: «Duplicar para editar» crea una copia propia.")}</p>}
       >
-        <h3>Editar «{selected().name}»</h3>
-        <Row label="Nombre">
+        <h3>{t("Editar «{name}»", { name: selected().name })}</h3>
+        <Row label={t("Nombre")}>
           <input
             class="text"
             value={selected().name}
@@ -385,7 +396,7 @@ function ThemeSection(props: SectionProps & { osDark: boolean }) {
             {(key) => (
               <label class="color">
                 <input type="color" value={selected().colors[key].slice(0, 7)} onInput={(e) => editColor(key, e.currentTarget.value)} />
-                <span>{COLOR_LABELS[key]}</span>
+                <span>{t(COLOR_LABELS[key])}</span>
                 <input
                   class="hex"
                   value={selected().colors[key]}
@@ -402,7 +413,7 @@ function ThemeSection(props: SectionProps & { osDark: boolean }) {
         </div>
         <div class="actions">
           <button class="btn danger" onClick={remove}>
-            Borrar este tema
+            {t("Borrar este tema")}
           </button>
         </div>
       </Show>
@@ -412,7 +423,8 @@ function ThemeSection(props: SectionProps & { osDark: boolean }) {
 
 // --- Fuente y cursor -------------------------------------------------------------------------------
 
-const SAMPLE = ["PS C:\\AlphaTerm> git log --oneline -3", "c91ef04 F2: pestañas, splits y shell integration", "=> != === <= >= -> |> :: www 0O1lI ñ á"];
+// Función (no constante) para que el mensaje de commit de muestra siga el idioma.
+const sample = () => ["PS C:\\AlphaTerm> git log --oneline -3", `c91ef04 F2: ${t("pestañas, splits y shell integration")}`, "=> != === <= >= -> |> :: www 0O1lI ñ á"];
 
 function FontSection(props: SectionProps & { theme: Theme }) {
   const [fonts] = createResource(monospaceFonts);
@@ -424,7 +436,7 @@ function FontSection(props: SectionProps & { theme: Theme }) {
 
   return (
     <section>
-      <h2>Fuente y cursor</h2>
+      <h2>{t("Fuente y cursor")}</h2>
       <div
         class="font-preview"
         style={{
@@ -439,9 +451,9 @@ function FontSection(props: SectionProps & { theme: Theme }) {
           color: props.theme.colors.foreground.slice(0, 7),
         }}
       >
-        <For each={SAMPLE}>{(l) => <div>{l}</div>}</For>
+        <For each={sample()}>{(l) => <div>{l}</div>}</For>
       </div>
-      <Row label="Fuente" hint={fonts.loading ? "Buscando las fuentes monoespaciadas instaladas…" : `${fonts()?.length ?? 0} monoespaciadas instaladas`}>
+      <Row label={t("Fuente")} hint={fonts.loading ? t("Buscando las fuentes monoespaciadas instaladas…") : t("{n} monoespaciadas instaladas", { n: fonts()?.length ?? 0 })}>
         <select
           class="text"
           value={showCustom() ? "__otra" : a().fontFamily}
@@ -455,45 +467,45 @@ function FontSection(props: SectionProps & { theme: Theme }) {
           }}
         >
           <For each={fonts() ?? [DEFAULT_FONT]}>{(f) => <option value={f}>{f}</option>}</For>
-          <option value="__otra">Otra (escribir el nombre)…</option>
+          <option value="__otra">{t("Otra (escribir el nombre)…")}</option>
         </select>
         <Show when={showCustom()}>
           <input
             class="text"
             value={a().fontFamily}
-            placeholder="Nombre exacto de la familia"
+            placeholder={t("Nombre exacto de la familia")}
             onChange={(e) => set((x) => void (x.fontFamily = e.currentTarget.value))}
           />
         </Show>
       </Row>
-      <Row label="Tamaño">
+      <Row label={t("Tamaño")}>
         <Slider value={a().fontSize} range={LIMITS.fontSize} step={0.5} format={(v) => `${v} px`} onChange={(v) => set((x) => void (x.fontSize = v))} />
       </Row>
-      <Row label="Interlineado">
-        <Slider value={a().lineHeight} range={LIMITS.lineHeight} step={0.05} format={(v) => v.toFixed(2)} onChange={(v) => set((x) => void (x.lineHeight = v))} />
+      <Row label={t("Interlineado")}>
+        <Slider value={a().lineHeight} range={LIMITS.lineHeight} step={0.05} format={(v) => v.toLocaleString(locale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 })} onChange={(v) => set((x) => void (x.lineHeight = v))} />
       </Row>
-      <Row label="Espacio entre letras">
+      <Row label={t("Espacio entre letras")}>
         <Slider value={a().letterSpacing} range={LIMITS.letterSpacing} step={0.5} format={(v) => `${v} px`} onChange={(v) => set((x) => void (x.letterSpacing = v))} />
       </Row>
-      <Row label="Grosor">
+      <Row label={t("Grosor")}>
         <Segmented
           value={a().fontWeight}
-          options={[["300", "Fina"], ["normal", "Normal"], ["500", "Media"], ["600", "Seminegrita"], ["bold", "Negrita"]]}
+          options={[["300", t("Fina")], ["normal", t("Normal")], ["500", t("Media")], ["600", t("Seminegrita")], ["bold", t("Negrita")]]}
           onChange={(v) => set((x) => void (x.fontWeight = v))}
         />
       </Row>
-      <Row label="Ligaduras" hint="Une => != === en un solo símbolo. Solo en fuentes que las traen: Cascadia Code, Fira Code, JetBrains Mono (Cascadia Mono no).">
-        <Toggle checked={a().ligatures} label={a().ligatures ? "Activadas" : "Desactivadas"} onChange={(v) => set((x) => void (x.ligatures = v))} />
+      <Row label={t("Ligaduras")} hint={t("Une => != === en un solo símbolo. Solo en fuentes que las traen: Cascadia Code, Fira Code, JetBrains Mono (Cascadia Mono no).")}>
+        <Toggle checked={a().ligatures} label={a().ligatures ? t("Activadas") : t("Desactivadas")} onChange={(v) => set((x) => void (x.ligatures = v))} />
       </Row>
-      <Row label="Cursor">
+      <Row label={t("Cursor")}>
         <Segmented
           value={a().cursorStyle}
-          options={[["block", "Bloque ▮"], ["bar", "Barra ▏"], ["underline", "Subrayado ▁"]]}
+          options={[["block", t("Bloque ▮")], ["bar", t("Barra ▏")], ["underline", t("Subrayado ▁")]]}
           onChange={(v) => set((x) => void (x.cursorStyle = v))}
         />
       </Row>
-      <Row label="Parpadeo del cursor">
-        <Toggle checked={a().cursorBlink} label={a().cursorBlink ? "Parpadea" : "Fijo"} onChange={(v) => set((x) => void (x.cursorBlink = v))} />
+      <Row label={t("Parpadeo del cursor")}>
+        <Toggle checked={a().cursorBlink} label={a().cursorBlink ? t("Parpadea") : t("Fijo")} onChange={(v) => set((x) => void (x.cursorBlink = v))} />
       </Row>
     </section>
   );
@@ -506,16 +518,16 @@ function BackgroundSection(props: SectionProps) {
   const set = (f: (x: Settings["background"]) => void) => props.set((d) => f(d.background));
   const [error, setError] = createSignal<string | null>(null);
   let fileInput!: HTMLInputElement;
-  const pct = (v: number) => `${Math.round(v * 100)} %`;
+  const pct = (v: number) => new Intl.NumberFormat(locale(), { style: "percent", maximumFractionDigits: 0 }).format(v);
   const fileName = () => b().image.split(/[\\/]/).pop();
 
   return (
     <section>
-      <h2>Fondo de la ventana</h2>
-      <Row label="Efecto de Windows 11" hint="Mica toma el tono del fondo de pantalla; Acrylic deja ver lo que hay detrás, desenfocado. Solo se ven si el fondo no es opaco.">
+      <h2>{t("Fondo de la ventana")}</h2>
+      <Row label={t("Efecto de Windows 11")} hint={t("Mica toma el tono del fondo de pantalla; Acrylic deja ver lo que hay detrás, desenfocado. Solo se ven si el fondo no es opaco.")}>
         <Segmented<Effect>
           value={b().effect}
-          options={[["none", "Ninguno"], ["mica", "Mica"], ["tabbed", "Mica alternativo"], ["acrylic", "Acrylic"], ["blur", "Desenfoque"]]}
+          options={[["none", t("Ninguno")], ["mica", "Mica"], ["tabbed", t("Mica alternativo")], ["acrylic", "Acrylic"], ["blur", t("Desenfoque")]]}
           onChange={(v) =>
             set((x) => {
               x.effect = v;
@@ -525,20 +537,20 @@ function BackgroundSection(props: SectionProps) {
           }
         />
       </Row>
-      <Row label="Opacidad del fondo" hint="Por debajo de 100 % se ve el efecto (o el escritorio, si no hay efecto).">
+      <Row label={t("Opacidad del fondo")} hint={t("Por debajo de 100 % se ve el efecto (o el escritorio, si no hay efecto).")}>
         <Slider value={b().opacity} range={LIMITS.opacity} step={0.01} format={pct} onChange={(v) => set((x) => void (x.opacity = v))} />
       </Row>
-      <Row label="Imagen" hint="Se guarda una copia en %APPDATA%\AlphaTerm\fondos, así sigue andando si movés el original.">
+      <Row label={t("Imagen")} hint={t("Se guarda una copia en %APPDATA%\\AlphaTerm\\fondos, así sigue andando si movés el original.")}>
         <div class="actions tight">
           <button class="btn" onClick={() => fileInput.click()}>
-            {b().image ? "Cambiar imagen…" : "Elegir imagen…"}
+            {b().image ? t("Cambiar imagen…") : t("Elegir imagen…")}
           </button>
           <Show when={b().image}>
             <span class="muted" title={b().image}>
               {fileName()}
             </span>
             <button class="btn" onClick={() => set((x) => void (x.image = ""))}>
-              Quitar
+              {t("Quitar")}
             </button>
           </Show>
           <input
@@ -565,11 +577,11 @@ function BackgroundSection(props: SectionProps) {
         <div class="banner">{error()}</div>
       </Show>
       <Show when={b().image}>
-        <Row label="Opacidad de la imagen">
+        <Row label={t("Opacidad de la imagen")}>
           <Slider value={b().imageOpacity} range={LIMITS.imageOpacity} step={0.01} format={pct} onChange={(v) => set((x) => void (x.imageOpacity = v))} />
         </Row>
-        <Row label="Ajuste">
-          <Segmented value={b().imageFit} options={[["cover", "Cubrir"], ["contain", "Entera"], ["tile", "Mosaico"]]} onChange={(v) => set((x) => void (x.imageFit = v))} />
+        <Row label={t("Ajuste")}>
+          <Segmented value={b().imageFit} options={[["cover", t("Cubrir")], ["contain", t("Entera")], ["tile", t("Mosaico")]]} onChange={(v) => set((x) => void (x.imageFit = v))} />
         </Row>
       </Show>
     </section>
@@ -579,31 +591,33 @@ function BackgroundSection(props: SectionProps) {
 // --- Terminal e interfaz -----------------------------------------------------------------------------
 
 function TerminalSection(props: SectionProps & { info: TermInfo }) {
-  const auto = () => props.info.profiles.find((p) => p.id === props.info.defaultProfile)?.name ?? props.info.defaultProfile;
+  const auto = () => {
+    const name = props.info.profiles.find((p) => p.id === props.info.defaultProfile)?.name;
+    return name ? profileLabel(name) : props.info.defaultProfile;
+  };
   return (
     <section>
-      <h2>Terminal e interfaz</h2>
-      <Row label="Barra de pestañas" hint="También con Ctrl+Shift+B.">
+      <h2>{t("Terminal e interfaz")}</h2>
+      <Row label={t("Barra de pestañas")} hint={t("También con Ctrl+Shift+B.")}>
         <Segmented
           value={props.s.tabBar.position}
-          options={[["top", "Arriba"], ["left", "A la izquierda"]]}
+          options={[["top", t("Arriba")], ["left", t("A la izquierda")]]}
           onChange={(v) => props.set((d) => void (d.tabBar.position = v))}
         />
       </Row>
-      <Row label="Shell por defecto" hint="La de las pestañas y ventanas nuevas.">
+      <Row label={t("Shell por defecto")} hint={t("La de las pestañas y ventanas nuevas.")}>
         <select class="text" value={props.s.terminal.defaultProfile} onChange={(e) => props.set((d) => void (d.terminal.defaultProfile = e.currentTarget.value))}>
-          <option value="">Automática ({auto()})</option>
+          <option value="">{t("Automática ({name})", { name: auto() })}</option>
           <For each={props.info.profiles}>
             {(p) => (
               <option value={p.id} disabled={!p.available}>
-                {p.name}
-                {p.available ? "" : " (no detectado)"}
+                {p.available ? profileLabel(p.name) : t("{name} (no detectado)", { name: profileLabel(p.name) })}
               </option>
             )}
           </For>
         </select>
       </Row>
-      <Row label="Líneas de historial" hint="Por pestaña. Más líneas, más memoria (unas 10 000 líneas ≈ 5–10 MB).">
+      <Row label={t("Líneas de historial")} hint={t("Por pestaña. Más líneas, más memoria (unas 10 000 líneas ≈ 5–10 MB).")}>
         <input
           class="text num"
           type="number"
@@ -614,30 +628,30 @@ function TerminalSection(props: SectionProps & { info: TermInfo }) {
           onChange={(e) => props.set((d) => void (d.terminal.scrollback = Number(e.currentTarget.value)))}
         />
       </Row>
-      <Row label="Sugerencias de comandos" hint="En cmd y PowerShell: carpetas para cd, historial, opciones y valores típicos (ping, git, npm…). Tab inserta, ↓ elige, Esc cierra; ↑ sigue siendo el historial.">
+      <Row label={t("Sugerencias de comandos")} hint={t("En cmd y PowerShell: carpetas para cd, historial, opciones y valores típicos (ping, git, npm…). Tab inserta, ↓ elige, Esc cierra; ↑ sigue siendo el historial.")}>
         <Toggle
           checked={props.s.terminal.suggest.enabled}
-          label={props.s.terminal.suggest.enabled ? "Activadas" : "Desactivadas"}
+          label={props.s.terminal.suggest.enabled ? t("Activadas") : t("Desactivadas")}
           onChange={(v) => props.set((d) => void (d.terminal.suggest.enabled = v))}
         />
       </Row>
       <Show when={props.s.terminal.suggest.enabled}>
-        <Row label="Mostrar el menú" hint="Ctrl+Espacio lo abre siempre (en PowerShell reemplaza al menú de completados propio).">
+        <Row label={t("Mostrar el menú")} hint={t("Ctrl+Espacio lo abre siempre (en PowerShell reemplaza al menú de completados propio).")}>
           <Segmented
             value={props.s.terminal.suggest.mode}
-            options={[["auto", "Al escribir"], ["manual", "Solo con Ctrl+Espacio"]]}
+            options={[["auto", t("Al escribir")], ["manual", t("Solo con Ctrl+Espacio")]]}
             onChange={(v) => props.set((d) => void (d.terminal.suggest.mode = v))}
           />
         </Row>
-        <Row label="Completados de PowerShell" hint="Le pregunta a la propia sesión (cmdlets, parámetros, módulos). Si una respuesta tarda más de 300 ms, esa pestaña solo pregunta con Ctrl+Espacio.">
+        <Row label={t("Completados de PowerShell")} hint={t("Le pregunta a la propia sesión (cmdlets, parámetros, módulos). Si una respuesta tarda más de 300 ms, esa pestaña solo pregunta con Ctrl+Espacio.")}>
           <Toggle
             checked={props.s.terminal.suggest.pwsh}
-            label={props.s.terminal.suggest.pwsh ? "Sí" : "No"}
+            label={props.s.terminal.suggest.pwsh ? t("Sí") : t("No")}
             onChange={(v) => props.set((d) => void (d.terminal.suggest.pwsh = v))}
           />
         </Row>
       </Show>
-      <Row label="Detectar el programa en uso cada" hint="Para el nombre de la pestaña cuando la shell no tiene integración. Se pausa con la ventana minimizada.">
+      <Row label={t("Detectar el programa en uso cada")} hint={t("Para el nombre de la pestaña cuando la shell no tiene integración. Se pausa con la ventana minimizada.")}>
         <select
           class="text"
           value={String(props.s.behavior.foregroundPollMs)}
@@ -651,6 +665,16 @@ function TerminalSection(props: SectionProps & { info: TermInfo }) {
 }
 
 // --- Agentes, API de control y guardián -----------------------------------------------------------------
+
+// El backend manda la decisión en castellano (se compara con "bloqueado"): se traduce al mostrarla.
+const DECISIONS = new Set<string>([
+  k("permitido"),
+  k("permitido (guardián apagado)"),
+  k("permitido (regla de la sesión)"),
+  k("permitido (30 min para esta sesión)"),
+  k("bloqueado"),
+]);
+const decisionLabel = (d: string) => (DECISIONS.has(d) ? t(d) : d);
 
 interface GuardLog {
   at: number;
@@ -674,100 +698,100 @@ function AgentsSection(props: SectionProps) {
   const codexToml = () => `[mcp_servers.alphaterm]\ncommand = "node"\nargs = ["${script()}"]`;
   return (
     <section>
-      <h2>Agentes y guardián</h2>
-      <Row label="API de control" hint="Deja que los agentes manejen AlphaTerm: ver pestañas, abrir pestañas, paneles y ventanas, correr comandos y leer su salida, y manejar Docker. Solo escucha en 127.0.0.1 y pide un token que cambia en cada inicio.">
-        <Toggle checked={props.s.control.enabled} label={props.s.control.enabled ? "Prendida" : "Apagada"} onChange={(v) => props.set((d) => void (d.control.enabled = v))} />
+      <h2>{t("Agentes y guardián")}</h2>
+      <Row label={t("API de control")} hint={t("Deja que los agentes manejen AlphaTerm: ver pestañas, abrir pestañas, paneles y ventanas, correr comandos y leer su salida, y manejar Docker. Solo escucha en 127.0.0.1 y pide un token que cambia en cada inicio.")}>
+        <Toggle checked={props.s.control.enabled} label={props.s.control.enabled ? t("Prendida") : t("Apagada")} onChange={(v) => props.set((d) => void (d.control.enabled = v))} />
       </Row>
-      <Row label="Cómo la usan los agentes" hint="Claude Code lanzado desde el panel de agentes ya la tiene (como servidor MCP). Cualquier agente puede usar el CLI: node $env:ALPHATERM_CTL list">
+      <Row label={t("Cómo la usan los agentes")} hint={t("Claude Code lanzado desde el panel de agentes ya la tiene (como servidor MCP). Cualquier agente puede usar el CLI: node $env:ALPHATERM_CTL list")}>
         <div class="actions tight">
           <button class="btn" onClick={() => void copy("claude", claudeCmd())}>
-            {copied() === "claude" ? "Copiado" : "Copiar comando para Claude Code (global)"}
+            {copied() === "claude" ? t("Copiado") : t("Copiar comando para Claude Code (global)")}
           </button>
           <button class="btn" onClick={() => void copy("codex", codexToml())}>
-            {copied() === "codex" ? "Copiado" : "Copiar bloque para ~/.codex/config.toml"}
+            {copied() === "codex" ? t("Copiado") : t("Copiar bloque para ~/.codex/config.toml")}
           </button>
         </div>
-        <small class="muted">Esos dos agregan AlphaTerm a la configuración global del agente: se copian para que los pegues vos (no se cambian solos).</small>
+        <small class="muted">{t("Esos dos agregan AlphaTerm a la configuración global del agente: se copian para que los pegues vos (no se cambian solos).")}</small>
       </Row>
-      <Row label="Guardián" hint="Antes de que un agente borre o modifique archivos, pregunta (en una ventana encima de todo) y espera tu respuesta.">
-        <Toggle checked={g().enabled} label={g().enabled ? "Prendido" : "Apagado"} onChange={(v) => props.set((d) => void (d.guardian.enabled = v))} />
+      <Row label={t("Guardián")} hint={t("Antes de que un agente borre o modifique archivos, pregunta (en una ventana encima de todo) y espera tu respuesta.")}>
+        <Toggle checked={g().enabled} label={g().enabled ? t("Prendido") : t("Apagado")} onChange={(v) => props.set((d) => void (d.guardian.enabled = v))} />
       </Row>
       <Show when={g().enabled}>
-        <Row label="Qué vigila">
-          <span>Borrados: siempre.</span>
-          <Toggle checked={g().modify} label="También modificaciones (editar, crear, pisar)" onChange={(v) => props.set((d) => void (d.guardian.modify = v))} />
+        <Row label={t("Qué vigila")}>
+          <span>{t("Borrados: siempre.")}</span>
+          <Toggle checked={g().modify} label={t("También modificaciones (editar, crear, pisar)")} onChange={(v) => props.set((d) => void (d.guardian.modify = v))} />
         </Row>
-        <Row label="Dónde frena" hint="Windows no deja frenar escrituras de cualquier programa sin un driver: el guardián actúa donde se puede.">
-          <Toggle checked={g().claude} label="Claude Code lanzado desde AlphaTerm (hook antes de cada edición, escritura o comando que borra)" onChange={(v) => props.set((d) => void (d.guardian.claude = v))} />
-          <Toggle checked={g().codex} label="Codex lanzado desde AlphaTerm (con su modo de aprobación: -s read-only -a on-request)" onChange={(v) => props.set((d) => void (d.guardian.codex = v))} />
-          <small class="muted">Siempre: comandos que un agente manda por la API de control (run, send, docker rm). Otros agentes (agy, OpenCode…) no se pueden frenar desde afuera.</small>
+        <Row label={t("Dónde frena")} hint={t("Windows no deja frenar escrituras de cualquier programa sin un driver: el guardián actúa donde se puede.")}>
+          <Toggle checked={g().claude} label={t("Claude Code lanzado desde AlphaTerm (hook antes de cada edición, escritura o comando que borra)")} onChange={(v) => props.set((d) => void (d.guardian.claude = v))} />
+          <Toggle checked={g().codex} label={t("Codex lanzado desde AlphaTerm (con su modo de aprobación: -s read-only -a on-request)")} onChange={(v) => props.set((d) => void (d.guardian.codex = v))} />
+          <small class="muted">{t("Siempre: comandos que un agente manda por la API de control (run, send, docker rm). Otros agentes (agy, OpenCode…) no se pueden frenar desde afuera.")}</small>
         </Row>
       </Show>
-      <Row label="Últimas decisiones">
+      <Row label={t("Últimas decisiones")}>
         <button class="link small" onClick={() => void refetch()}>
-          Actualizar
+          {t("Actualizar")}
         </button>
         <ul class="guard-log">
-          <For each={(log() ?? []).slice(0, 15)} fallback={<li class="muted">Nada todavía.</li>}>
+          <For each={(log() ?? []).slice(0, 15)} fallback={<li class="muted">{t("Nada todavía.")}</li>}>
             {(e) => (
               <li title={`${e.ask.agent} · ${e.ask.tool}\n${e.ask.paths.join("\n")}`}>
-                <span class={e.decision.startsWith("bloqueado") ? "bad" : "good"}>{e.decision}</span> · {e.ask.summary}
-                <small class="muted"> · {new Date(e.at).toLocaleTimeString()}</small>
+                <span class={e.decision.startsWith("bloqueado") ? "bad" : "good"}>{decisionLabel(e.decision)}</span> · {e.ask.summary}
+                <small class="muted"> · {new Date(e.at).toLocaleTimeString(locale())}</small>
               </li>
             )}
           </For>
         </ul>
       </Row>
-      <h3>Modificaciones de archivos</h3>
+      <h3>{t("Modificaciones de archivos")}</h3>
       <Row
-        label="Panel de modificaciones"
-        hint="Muestra lo que cambian los agentes en los archivos (de texto, de código y PDF por su texto), también fuera de git, con lo agregado y lo borrado. Se puede editar y guardar desde ahí."
+        label={t("Panel de modificaciones")}
+        hint={t("Muestra lo que cambian los agentes en los archivos (de texto, de código y PDF por su texto), también fuera de git, con lo agregado y lo borrado. Se puede editar y guardar desde ahí.")}
       >
-        <Toggle checked={props.s.changes.enabled} label={props.s.changes.enabled ? "Prendido" : "Apagado"} onChange={(v) => props.set((d) => void (d.changes.enabled = v))} />
+        <Toggle checked={props.s.changes.enabled} label={props.s.changes.enabled ? t("Prendido") : t("Apagado")} onChange={(v) => props.set((d) => void (d.changes.enabled = v))} />
       </Row>
       <Show when={props.s.changes.enabled}>
-        <Row label="De dónde salen">
+        <Row label={t("De dónde salen")}>
           <Toggle
             checked={props.s.changes.claude}
-            label="Claude Code lanzado desde AlphaTerm (hook antes y después de cada edición: exacto)"
+            label={t("Claude Code lanzado desde AlphaTerm (hook antes y después de cada edición: exacto)")}
             onChange={(v) => props.set((d) => void (d.changes.claude = v))}
           />
           <Toggle
             checked={props.s.changes.folders}
-            label="La carpeta de cualquier pestaña con un agente andando (se copia al arrancar y se compara)"
+            label={t("La carpeta de cualquier pestaña con un agente andando (se copia al arrancar y se compara)")}
             onChange={(v) => props.set((d) => void (d.changes.folders = v))}
           />
           <small class="muted">
-            De la copia de la carpeta quedan afuera lo que ignora git, las carpetas ocultas, node_modules y target, y los archivos de más de 2 MB; para esos se compara con el último commit o se muestra el archivo entero. No se vigilan la carpeta del usuario ni la raíz de un disco.
+            {t("De la copia de la carpeta quedan afuera lo que ignora git, las carpetas ocultas, node_modules y target, y los archivos de más de 2 MB; para esos se compara con el último commit o se muestra el archivo entero. No se vigilan la carpeta del usuario ni la raíz de un disco.")}
           </small>
         </Row>
       </Show>
-      <h3>Resumen de pestañas con un modelo</h3>
-      <Row label="Resumir con un modelo" hint="Opcional: cada cierto tiempo se le pasan las últimas líneas de las pestañas con actividad a un modelo (Ollama, vLLM, LM Studio…) y su respuesta es el nombre de la pestaña. El título que pone un programa (Claude Code) y el nombre a mano siguen mandando.">
-        <Toggle checked={props.s.llm.enabled} label={props.s.llm.enabled ? "Prendido" : "Apagado"} onChange={(v) => props.set((d) => void (d.llm.enabled = v))} />
+      <h3>{t("Resumen de pestañas con un modelo")}</h3>
+      <Row label={t("Resumir con un modelo")} hint={t("Opcional: cada cierto tiempo se le pasan las últimas líneas de las pestañas con actividad a un modelo (Ollama, vLLM, LM Studio…) y su respuesta es el nombre de la pestaña. El título que pone un programa (Claude Code) y el nombre a mano siguen mandando.")}>
+        <Toggle checked={props.s.llm.enabled} label={props.s.llm.enabled ? t("Prendido") : t("Apagado")} onChange={(v) => props.set((d) => void (d.llm.enabled = v))} />
       </Row>
       <Show when={props.s.llm.enabled}>
-        <Row label="Endpoint (compatible con OpenAI)">
+        <Row label={t("Endpoint (compatible con OpenAI)")}>
           <input class="text mono" value={props.s.llm.endpoint} onChange={(e) => props.set((d) => void (d.llm.endpoint = e.currentTarget.value))} />
         </Row>
-        <Row label="Modelo" hint="Por ejemplo qwen2.5:1.5b en Ollama. Uno chico alcanza.">
-          <input class="text mono" value={props.s.llm.model} placeholder="nombre del modelo" onChange={(e) => props.set((d) => void (d.llm.model = e.currentTarget.value))} />
+        <Row label={t("Modelo")} hint={t("Por ejemplo qwen2.5:1.5b en Ollama. Uno chico alcanza.")}>
+          <input class="text mono" value={props.s.llm.model} placeholder={t("nombre del modelo")} onChange={(e) => props.set((d) => void (d.llm.model = e.currentTarget.value))} />
         </Row>
-        <Row label="Clave (si el endpoint la pide)">
+        <Row label={t("Clave (si el endpoint la pide)")}>
           <input class="text mono" type="password" value={props.s.llm.apiKey} onChange={(e) => props.set((d) => void (d.llm.apiKey = e.currentTarget.value))} />
         </Row>
-        <Row label="Cada">
+        <Row label={t("Cada")}>
           <select class="text" value={String(props.s.llm.everySec)} onChange={(e) => props.set((d) => void (d.llm.everySec = Number(e.currentTarget.value)))}>
             <For each={[30, 60, 120, 300]}>{(v) => <option value={v}>{v < 60 ? `${v} s` : `${v / 60} min`}</option>}</For>
           </select>
         </Row>
       </Show>
-      <h3>Al abrir AlphaTerm</h3>
-      <Row label="Recuperar el último estado" hint="Ventanas, pestañas, paneles con su carpeta, colores, carpetas de pestañas y título.">
-        <Toggle checked={props.s.session.restore} label={props.s.session.restore ? "Sí" : "No"} onChange={(v) => props.set((d) => void (d.session.restore = v))} />
+      <h3>{t("Al abrir AlphaTerm")}</h3>
+      <Row label={t("Recuperar el último estado")} hint={t("Ventanas, pestañas, paneles con su carpeta, colores, carpetas de pestañas y título.")}>
+        <Toggle checked={props.s.session.restore} label={props.s.session.restore ? t("Sí") : t("No")} onChange={(v) => props.set((d) => void (d.session.restore = v))} />
       </Row>
-      <Row label="Relanzar los agentes" hint="Claude Code con --continue y Codex con resume --last (retoman la última conversación de esa carpeta). Si no, quedan como shells en su carpeta.">
-        <Toggle checked={props.s.session.relaunchAgents} label={props.s.session.relaunchAgents ? "Sí" : "No"} onChange={(v) => props.set((d) => void (d.session.relaunchAgents = v))} />
+      <Row label={t("Relanzar los agentes")} hint={t("Claude Code con --continue y Codex con resume --last (retoman la última conversación de esa carpeta). Si no, quedan como shells en su carpeta.")}>
+        <Toggle checked={props.s.session.relaunchAgents} label={props.s.session.relaunchAgents ? t("Sí") : t("No")} onChange={(v) => props.set((d) => void (d.session.relaunchAgents = v))} />
       </Row>
     </section>
   );
@@ -785,79 +809,87 @@ function UsageSection(props: SectionProps) {
   const u = () => props.s.usage;
   const set = (f: (x: Settings["usage"]) => void) => props.set((d) => f(d.usage));
   const [status, { refetch }] = createResource(() => invoke<StatuslineStatus>("usage_statusline_status"));
-  const [msg, setMsg] = createSignal<{ ok: boolean; text: string } | null>(null);
+  // El texto se arma al mostrarlo (así sigue el idioma si se cambia con el aviso a la vista).
+  const [msg, setMsg] = createSignal<{ ok: boolean; text: () => string } | null>(null);
   const install = async () => {
     const cur = status()?.current;
     const ok = await askConfirm(
-      "Esto cambia la statusline de Claude Code (~/.claude/settings.json) por la de AlphaTerm, que guarda los límites de 5 h y semana para el footer." +
-        (cur ? `\n\nHoy está configurada: ${cur}` : "") +
-        "\n\nAntes se guarda una copia del archivo (settings.json.antes-de-alphaterm). ¿Seguir?",
-      "Seguir",
+      [
+        t("Esto cambia la statusline de Claude Code (~/.claude/settings.json) por la de AlphaTerm, que guarda los límites de 5 h y semana para el footer."),
+        cur ? t("Hoy está configurada: {current}", { current: cur }) : "",
+        t("Antes se guarda una copia del archivo (settings.json.antes-de-alphaterm). ¿Seguir?"),
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
+      t("Seguir"),
     );
     if (!ok) return;
     try {
       const backup = await invoke<string>("usage_statusline_install");
-      setMsg({ ok: true, text: `Listo. Copia del archivo anterior en ${backup}. Se ve en la próxima respuesta de Claude Code.` });
+      setMsg({ ok: true, text: () => t("Listo. Copia del archivo anterior en {backup}. Se ve en la próxima respuesta de Claude Code.", { backup }) });
       void refetch();
     } catch (e) {
-      setMsg({ ok: false, text: String(e) });
+      const error = String(e);
+      setMsg({ ok: false, text: () => error });
     }
   };
   return (
     <section>
-      <h2>Consumo y widgets</h2>
+      <h2>{t("Consumo y widgets")}</h2>
       <Row
-        label="Consulta en vivo"
-        hint="Como el System dashboard: al abrir AlphaTerm y cada tantos minutos se abre cada agente escondido (sin ventana) y se le pregunta su consumo: claude /usage, codex /status y agy /quota. No hace falta haberlos usado y no gasta cuota. Claude tarda unos 10 s."
+        label={t("Consulta en vivo")}
+        hint={t("Como el System dashboard: al abrir AlphaTerm y cada tantos minutos se abre cada agente escondido (sin ventana) y se le pregunta su consumo: claude /usage, codex /status y agy /quota. No hace falta haberlos usado y no gasta cuota. Claude tarda unos 10 s.")}
       >
         <select class="text" value={String(u().liveEveryMin)} onChange={(e) => set((x) => void (x.liveEveryMin = Number(e.currentTarget.value)))}>
-          <For each={[5, 10, 15, 30, 60, 120]}>{(v) => <option value={v}>{v < 60 ? `cada ${v} min` : `cada ${v / 60} h`}</option>}</For>
+          <For each={[5, 10, 15, 30, 60, 120]}>{(v) => <option value={v}>{v < 60 ? t("cada {n} min", { n: v }) : t("cada {n} h", { n: v / 60 })}</option>}</For>
         </select>
       </Row>
-      <Row label="Claude" hint="Sesión de 5 h, semana, semana por modelo, uso extra, plan y modelo (consulta en vivo). Entre consultas, la statusline de Claude Code lo actualiza mientras lo usás.">
-        <Toggle checked={u().claude} label={u().claude ? "En el footer" : "Oculto"} onChange={(v) => set((x) => void (x.claude = v))} />
+      <Row label="Claude" hint={t("Sesión de 5 h, semana, semana por modelo, uso extra, plan y modelo (consulta en vivo). Entre consultas, la statusline de Claude Code lo actualiza mientras lo usás.")}>
+        <Toggle checked={u().claude} label={u().claude ? t("En el footer") : t("Oculto")} onChange={(v) => set((x) => void (x.claude = v))} />
       </Row>
-      <Row label="Statusline de Claude Code">
-        <Show when={status()} fallback={<span class="muted">Revisando…</span>}>
+      <Row label={t("Statusline de Claude Code")}>
+        <Show when={status()} fallback={<span class="muted">{t("Revisando…")}</span>}>
           <Show
             when={status()!.ours}
             fallback={
               <>
                 <span class="muted">
                   {status()!.current
-                    ? `Hoy: ${status()!.current}${status()!.currentExists === false ? " (ese script ya no existe)" : ""}`
-                    : "Claude Code no tiene statusline configurada."}
+                    ? status()!.currentExists === false
+                      ? t("Hoy: {current} (ese script ya no existe)", { current: status()!.current! })
+                      : t("Hoy: {current}", { current: status()!.current! })
+                    : t("Claude Code no tiene statusline configurada.")}
                 </span>
                 <button class="btn" onClick={() => void install()}>
-                  Usar la statusline de AlphaTerm
+                  {t("Usar la statusline de AlphaTerm")}
                 </button>
               </>
             }
           >
-            <span>Conectada (la de AlphaTerm).</span>
+            <span>{t("Conectada (la de AlphaTerm).")}</span>
           </Show>
         </Show>
         <Show when={msg()}>
           <div class="banner" classList={{ ok: msg()!.ok }}>
-            {msg()!.text}
+            {msg()!.text()}
           </div>
         </Show>
       </Row>
-      <Row label="Codex" hint="Límites de 5 h y semanal, plan y modelo (consulta en vivo). Entre consultas, lo que deja Codex en sus sesiones mientras lo usás.">
-        <Toggle checked={u().codex} label={u().codex ? "En el footer" : "Oculto"} onChange={(v) => set((x) => void (x.codex = v))} />
+      <Row label="Codex" hint={t("Límites de 5 h y semanal, plan y modelo (consulta en vivo). Entre consultas, lo que deja Codex en sus sesiones mientras lo usás.")}>
+        <Toggle checked={u().codex} label={u().codex ? t("En el footer") : t("Oculto")} onChange={(v) => set((x) => void (x.codex = v))} />
       </Row>
-      <Row label="Antigravity (agy)" hint="Dato oficial de agy /quota por grupo de modelos (no gasta cuota). Se corre con su actualizador apagado: si no, abría una ventana de cmd un instante.">
-        <Toggle checked={u().agy} label={u().agy ? "En el footer" : "Oculto"} onChange={(v) => set((x) => void (x.agy = v))} />
+      <Row label="Antigravity (agy)" hint={t("Dato oficial de agy /quota por grupo de modelos (no gasta cuota). Se corre con su actualizador apagado: si no, abría una ventana de cmd un instante.")}>
+        <Toggle checked={u().agy} label={u().agy ? t("En el footer") : t("Oculto")} onChange={(v) => set((x) => void (x.agy = v))} />
       </Row>
-      <Row label="Releer los archivos de Claude y Codex cada">
+      <Row label={t("Releer los archivos de Claude y Codex cada")}>
         <select class="text" value={String(u().filesEverySec)} onChange={(e) => set((x) => void (x.filesEverySec = Number(e.currentTarget.value)))}>
           <For each={[15, 30, 60, 300, 900]}>{(v) => <option value={v}>{v < 60 ? `${v} s` : `${v / 60} min`}</option>}</For>
         </select>
       </Row>
-      <Row label="Widget de CPU y RAM" hint="En la barra de pestañas; clic para ver los procesos y lo que consume cada pestaña.">
-        <Toggle checked={props.s.sysmon.enabled} label={props.s.sysmon.enabled ? "Visible" : "Oculto"} onChange={(v) => props.set((d) => void (d.sysmon.enabled = v))} />
+      <Row label={t("Widget de CPU y RAM")} hint={t("En la barra de pestañas; clic para ver los procesos y lo que consume cada pestaña.")}>
+        <Toggle checked={props.s.sysmon.enabled} label={props.s.sysmon.enabled ? t("Visible") : t("Oculto")} onChange={(v) => props.set((d) => void (d.sysmon.enabled = v))} />
       </Row>
-      <Row label="Actualizar CPU y RAM cada">
+      <Row label={t("Actualizar CPU y RAM cada")}>
         <select class="text" value={String(props.s.sysmon.everyMs)} onChange={(e) => props.set((d) => void (d.sysmon.everyMs = Number(e.currentTarget.value)))}>
           <For each={[500, 1000, 2000, 5000]}>{(v) => <option value={v}>{v < 1000 ? `${v} ms` : `${v / 1000} s`}</option>}</For>
         </select>
@@ -872,8 +904,12 @@ function ShortcutSection(props: SectionProps) {
   const eff = createMemo(() => effectiveBindings(props.s.shortcuts));
   const clash = createMemo(() => conflicts(props.s.shortcuts));
   const [recording, setRecording] = createSignal<string | null>(null);
-  const [note, setNote] = createSignal<{ id: string; text: string; bad: boolean } | null>(null);
-  const label = (id: string) => COMMANDS.find((c) => c.id === id)?.label ?? id;
+  // El texto se arma al mostrarlo (así sigue el idioma si se cambia con el aviso a la vista).
+  const [note, setNote] = createSignal<{ id: string; text: () => string; bad: boolean } | null>(null);
+  const label = (id: string) => {
+    const c = COMMANDS.find((x) => x.id === id);
+    return c ? t(c.label) : id;
+  };
 
   const setList = (id: string, list: string[]) =>
     props.set((d) => {
@@ -893,26 +929,24 @@ function ShortcutSection(props: SectionProps) {
       return;
     }
     if (e.ctrlKey && e.altKey) {
-      setNote({ id, text: comboProblem("Ctrl+Alt+X")!, bad: true });
+      setNote({ id, text: () => comboProblem("Ctrl+Alt+X")!, bad: true });
       return;
     }
     const combo = comboOf(e);
     if (!combo) return; // solo un modificador: seguir esperando
-    const problem = comboProblem(combo);
-    if (problem) {
-      setNote({ id, text: `${combo}: ${problem}`, bad: true });
+    if (comboProblem(combo)) {
+      setNote({ id, text: () => `${combo}: ${comboProblem(combo)}`, bad: true });
       return;
     }
     setRecording(null);
     const list = eff()[id];
     if (!list.includes(combo)) setList(id, [...list, combo]);
     const other = COMMANDS.find((c) => c.id !== id && eff()[c.id].includes(combo));
-    const warn = comboWarning(combo);
     setNote(
       other
-        ? { id, text: `${combo} también lo usa «${other.label}»: gana el primero de la lista. Cambiá uno de los dos.`, bad: true }
-        : warn
-          ? { id, text: warn, bad: false }
+        ? { id, text: () => t("{combo} también lo usa «{command}»: gana el primero de la lista. Cambiá uno de los dos.", { combo, command: t(other.label) }), bad: true }
+        : comboWarning(combo)
+          ? { id, text: () => comboWarning(combo)!, bad: false }
           : null,
     );
   };
@@ -921,9 +955,9 @@ function ShortcutSection(props: SectionProps) {
 
   return (
     <section>
-      <h2>Atajos de teclado</h2>
+      <h2>{t("Atajos de teclado")}</h2>
       <p class="muted">
-        Se interceptan antes de que la tecla llegue a la shell. Ctrl+Alt no se puede usar: en el teclado en español es AltGr (para escribir @, # o [).
+        {t("Se interceptan antes de que la tecla llegue a la shell. Ctrl+Alt no se puede usar: en el teclado en español es AltGr (para escribir @, # o [).")}
       </p>
       <table class="shortcuts">
         <tbody>
@@ -931,33 +965,33 @@ function ShortcutSection(props: SectionProps) {
             {(c) => (
               <>
                 <tr>
-                  <td>{c.label}</td>
+                  <td>{t(c.label)}</td>
                   <td class="combos">
                     <For each={eff()[c.id]}>
                       {(combo) => (
                         <span
                           class="chip"
                           classList={{ clash: clash().has(combo) }}
-                          title={clash().has(combo) ? `También: ${clash().get(combo)!.filter((x) => x !== c.id).map(label).join(", ")}` : ""}
+                          title={clash().has(combo) ? t("También: {commands}", { commands: clash().get(combo)!.filter((x) => x !== c.id).map(label).join(", ") }) : ""}
                         >
                           <kbd>{combo}</kbd>
-                          <button title="Quitar" onClick={() => setList(c.id, eff()[c.id].filter((x) => x !== combo))}>
+                          <button title={t("Quitar")} onClick={() => setList(c.id, eff()[c.id].filter((x) => x !== combo))}>
                             ×
                           </button>
                         </span>
                       )}
                     </For>
-                    <Show when={recording() === c.id} fallback={<button class="chip add" onClick={() => (setNote(null), setRecording(c.id))}>+ agregar</button>}>
-                      <span class="chip recording">Presioná la combinación… (Esc cancela)</span>
+                    <Show when={recording() === c.id} fallback={<button class="chip add" onClick={() => (setNote(null), setRecording(c.id))}>{t("+ agregar")}</button>}>
+                      <span class="chip recording">{t("Presioná la combinación… (Esc cancela)")}</span>
                     </Show>
                     <Show when={eff()[c.id].length === 0 && recording() !== c.id}>
-                      <span class="muted">sin atajo</span>
+                      <span class="muted">{t("sin atajo")}</span>
                     </Show>
                   </td>
                   <td class="reset">
                     <Show when={props.s.shortcuts[c.id] !== undefined}>
                       <button class="link" onClick={() => props.set((d) => void delete d.shortcuts[c.id])}>
-                        De fábrica
+                        {t("De fábrica")}
                       </button>
                     </Show>
                   </td>
@@ -966,7 +1000,7 @@ function ShortcutSection(props: SectionProps) {
                   <tr>
                     <td />
                     <td colSpan={2} classList={{ "note-bad": note()!.bad, "note-warn": !note()!.bad }}>
-                      {note()!.text}
+                      {note()!.text()}
                     </td>
                   </tr>
                 </Show>
@@ -974,13 +1008,13 @@ function ShortcutSection(props: SectionProps) {
             )}
           </For>
           <tr class="fixed">
-            <td>{FIXED_HELP[1]}</td>
+            <td>{t(FIXED_HELP[1])}</td>
             <td class="combos">
               <span class="chip">
                 <kbd>{FIXED_HELP[0]}</kbd>
               </span>
             </td>
-            <td class="reset muted">fijo</td>
+            <td class="reset muted">{t("fijo")}</td>
           </tr>
         </tbody>
       </table>
@@ -994,34 +1028,33 @@ function AboutSection(props: { path: string }) {
   const [info] = createResource(appInfo);
   return (
     <section>
-      <h2>Acerca y límites</h2>
+      <h2>{t("Acerca y límites")}</h2>
       <p>
-        <b>AlphaTerm</b> (antes NovaTerm): terminal para trabajar con agentes de IA. Tauri 2 + Rust, SolidJS y xterm.js.
+        <b>AlphaTerm</b> {t("(antes NovaTerm): terminal para trabajar con agentes de IA. Tauri 2 + Rust, SolidJS y xterm.js.")}
       </p>
       <Show when={info()}>
         <p>
-          Versión <b>{info()!.version}</b>
+          {t("Versión")} <b>{info()!.version}</b>
           <span class="muted"> · {versionTooltip(info()!).split("\n").slice(1).join(" · ")}</span>
         </p>
       </Show>
-      <p class="muted">Configuración: {props.path}</p>
-      <h3>Lo que no hace (y por qué)</h3>
+      <p class="muted">{t("Configuración: {path}", { path: props.path })}</p>
+      <h3>{t("Lo que no hace (y por qué)")}</h3>
       <ul class="next">
         <li>
-          <b>Guardián</b>: frena a Claude Code (hooks) y a Codex (su modo de aprobación) lanzados desde AlphaTerm, y a lo que pase por la API.
-          No puede frenar a cualquier programa: Windows no lo permite sin un driver de sistema de archivos.
+          <b>{t("Guardián")}</b>:{" "}
+          {t("frena a Claude Code (hooks) y a Codex (su modo de aprobación) lanzados desde AlphaTerm, y a lo que pase por la API. No puede frenar a cualquier programa: Windows no lo permite sin un driver de sistema de archivos.")}
         </li>
         <li>
-          <b>Consumo</b>: al abrir AlphaTerm y cada tantos minutos se le pregunta a cada agente, abierto escondido (claude /usage, codex
-          /status, agy /quota), como el System dashboard. No se leen credenciales ni se llama a sus servidores. Entre consultas, lo
-          actualizan la statusline de Claude Code y las sesiones de Codex.
+          <b>{t("Consumo")}</b>:{" "}
+          {t("al abrir AlphaTerm y cada tantos minutos se le pregunta a cada agente, abierto escondido (claude /usage, codex /status, agy /quota), como el System dashboard. No se leen credenciales ni se llama a sus servidores. Entre consultas, lo actualizan la statusline de Claude Code y las sesiones de Codex.")}
         </li>
         <li>
-          <b>Modificaciones</b>: de Claude Code lanzado desde AlphaTerm se sabe exactamente qué cambió; de otros agentes, se compara con
-          una copia de la carpeta tomada al arrancar (sin lo que ignora git ni archivos de más de 2 MB).
+          <b>{t("Modificaciones")}</b>:{" "}
+          {t("de Claude Code lanzado desde AlphaTerm se sabe exactamente qué cambió; de otros agentes, se compara con una copia de la carpeta tomada al arrancar (sin lo que ignora git ni archivos de más de 2 MB).")}
         </li>
         <li>
-          <b>Integración de la shell</b>: PowerShell, Git Bash y cmd. WSL no, y en cmd no se sabe el código de salida.
+          <b>{t("Integración de la shell")}</b>: {t("PowerShell, Git Bash y cmd. WSL no, y en cmd no se sabe el código de salida.")}
         </li>
       </ul>
     </section>

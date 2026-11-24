@@ -7,7 +7,7 @@ import { buildKeymap, matchShortcut, shortcutHelp, type Action } from "./shortcu
 import { TabBar, type TabItem, type TabStatus } from "./TabBar";
 import { tabTitle, type PaneInfo } from "./title";
 import { TerminalView, type TermHandle, type TermPatch } from "../terminal/TerminalView";
-import { foreground, gitBranch, newWindow, type TermInfo } from "../terminal/pty";
+import { foreground, gitBranch, newWindow, type TermInfo, profileLabel } from "../terminal/pty";
 import type { TermLook } from "../settings/apply";
 import { closeSettings, openSettings, settingsOpen, type SettingsStore } from "../settings/store";
 import type { AgentDef } from "../settings/schema";
@@ -29,6 +29,7 @@ import { handleControl } from "./control";
 import { GuardianModal } from "../widgets/GuardianModal";
 import { listen } from "@tauri-apps/api/event";
 import { BrowserView, whenReady, type OwnerLive, type Target } from "../browser/BrowserView";
+import { k, t } from "../i18n";
 
 const AgentsPanel = lazy(() => import("../panels/AgentsPanel"));
 const ServersPanel = lazy(() => import("../panels/ServersPanel"));
@@ -57,7 +58,10 @@ const pct = (n: number) => `${(n * 100).toFixed(4)}%`;
 
 export function Workspace(props: { info: TermInfo; store: SettingsStore; look: TermLook; initial?: unknown }) {
   const settings = props.store.settings;
-  const profileName = (id: string) => props.info.profiles.find((p) => p.id === id)?.name ?? id;
+  const profileName = (id: string) => {
+    const name = props.info.profiles.find((p) => p.id === id)?.name;
+    return name ? profileLabel(name) : id;
+  };
   // Shell por defecto: la de la configuración si está instalada; si no, la que detectó el backend.
   const defaultProfile = () => {
     const id = settings().terminal.defaultProfile;
@@ -124,9 +128,9 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
 
   // Con el navegador enfocado, el título sale de la terminal de la pestaña (si hay).
   const titlePane = (t: M.Tab) => panes[t.activePane] ?? panes[M.leaves(t.root).find((l) => !l.browser)?.id ?? ""];
-  const titleOf = (t: M.Tab) => {
-    const first = M.leaves(t.root).find((l) => !l.browser);
-    return tabTitle(t.manualTitle, titlePane(t), first ? profileName(first.profileId) : "Navegador");
+  const titleOf = (tab: M.Tab) => {
+    const first = M.leaves(tab.root).find((l) => !l.browser);
+    return tabTitle(tab.manualTitle, titlePane(tab), first ? profileName(first.profileId) : t("Navegador"));
   };
 
   // Un agente "arrancó" cuando su comando empezó a correr (por integración o por proceso).
@@ -149,18 +153,18 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   };
 
   const tabItems = createMemo<TabItem[]>(() =>
-    layout().tabs.map((t) => {
-      const p = panes[t.activePane];
+    layout().tabs.map((tab) => {
+      const p = panes[tab.activePane];
       const tip = [
-        titleOf(t),
-        p?.cwd ? `Carpeta: ${p.cwd}` : "",
+        titleOf(tab),
+        p?.cwd ? t("Carpeta: {cwd}", { cwd: p.cwd }) : "",
         p ? `${p.shellName}${p.pid ? ` · PID ${p.pid}` : ""}${p.renderer ? ` · ${p.renderer === "webgl" ? "WebGL" : "DOM"}` : ""}` : "",
-        p?.lastCommand ? `Último comando: ${p.lastCommand}` : "",
+        p?.lastCommand ? t("Último comando: {command}", { command: p.lastCommand }) : "",
       ]
         .filter(Boolean)
         .join("\n");
       const changes = p?.cwd ? gitCounts()[p.cwd] : undefined;
-      return { id: t.id, title: titleOf(t), status: statusOf(t), tooltip: tip, panes: M.leaves(t.root).length, changes: changes ?? undefined, color: t.color, groupId: t.groupId };
+      return { id: tab.id, title: titleOf(tab), status: statusOf(tab), tooltip: tip, panes: M.leaves(tab.root).length, changes: changes ?? undefined, color: tab.color, groupId: tab.groupId };
     }),
   );
 
@@ -241,7 +245,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   const askClose = async (tabId: string, paneId: string) => {
     const p = panes[paneId];
     if (p && paneBusy(p)) {
-      const yes = await askConfirm(`¿Cerrar este panel? Se corta lo que está corriendo en él (${paneLabel(paneId)}).`, "Cerrar");
+      const yes = await askConfirm(t("¿Cerrar este panel? Se corta lo que está corriendo en él ({name}).", { name: paneLabel(paneId) }), t("Cerrar"));
       if (!yes) return void handles.get(paneId)?.focus();
     }
     closePane(tabId, paneId);
@@ -593,10 +597,10 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     return b.id;
   };
   const askBrowser = () => {
-    const t = active();
-    if (!t) return;
-    if (M.browserOf(t)) return void openBrowser({});
-    const u = prompt("¿Qué dirección abro en el navegador?", guessUrl(t.id) ?? "http://localhost:5173");
+    const tab = active();
+    if (!tab) return;
+    if (M.browserOf(tab)) return void openBrowser({});
+    const u = prompt(t("¿Qué dirección abro en el navegador?"), guessUrl(tab.id) ?? "http://localhost:5173");
     if (u !== null && u.trim()) openBrowser({ url: u.trim() });
   };
   /** Nombre corto de un panel de terminal: agente (o programa, o shell) · carpeta. */
@@ -643,7 +647,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
         const prov = providerFor(p.agentId, p.running ? p.lastCommand : undefined, p.fgProcess);
         if (!p.cwd || !((p.agentId && agentRunning(p)) || prov)) continue;
         const def = agents.find((a) => a.id === (p.agentId ?? prov));
-        want.set(id, { dir: p.cwd, agent: def?.name ?? prov ?? "Agente" });
+        want.set(id, { dir: p.cwd, agent: def?.name ?? prov ?? t("Agente") });
       }
     }
     untrack(() => {
@@ -693,7 +697,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   );
 
   const run = (a: Action) => {
-    const t = active();
+    const tab = active();
     switch (a.type) {
       case "newTab":
         update((x) => M.addTab(x, M.newTab(newTabProfile())));
@@ -702,15 +706,15 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
         void newWindow();
         break;
       case "closePane":
-        if (t) closePane(t.id, t.activePane);
+        if (tab) closePane(tab.id, tab.activePane);
         break;
       case "split":
         doSplit(a.dir);
         break;
       case "focus": {
-        if (!t) break;
-        const n = M.neighbor(t.root, t.activePane, a.dir);
-        if (n) update((x) => M.focusPane(x, t.id, n));
+        if (!tab) break;
+        const n = M.neighbor(tab.root, tab.activePane, a.dir);
+        if (n) update((x) => M.focusPane(x, tab.id, n));
         break;
       }
       case "cycleTab":
@@ -720,13 +724,13 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
         update((x) => M.selectTabIndex(x, a.index));
         break;
       case "rename":
-        if (t) setEditingId(t.id);
+        if (tab) setEditingId(tab.id);
         break;
       case "toggleTabBar":
         toggleBar();
         break;
       case "renameWindow": {
-        const v = prompt("Título de esta ventana (vacío = el de la pestaña activa):", windowTitle() ?? "");
+        const v = prompt(t("Título de esta ventana (vacío = el de la pestaña activa):"), windowTitle() ?? "");
         if (v !== null) setWindowTitle(v.trim() || undefined);
         break;
       }
@@ -797,7 +801,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     window.addEventListener("pointerup", up);
   };
 
-  const PANEL_LABEL: Record<PanelId, string> = { agents: "Agentes", servers: "Servidores", projects: "Proyectos", git: "Git", history: "Historial", docker: "Docker", changes: "Modificaciones" };
+  const PANEL_LABEL: Record<PanelId, string> = { agents: k("Agentes"), servers: k("Servidores"), projects: k("Proyectos"), git: "Git", history: k("Historial"), docker: "Docker", changes: k("Modificaciones") };
   const renderPanel = (id: PanelId) => {
     switch (id) {
       case "servers":
@@ -907,7 +911,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
         groups={layout().groups ?? []}
         onColor={(id, c) => update((x) => M.setTabColor(x, id, c))}
         onGroupNew={(id) => {
-          const name = prompt("Nombre de la carpeta de pestañas:", "Carpeta");
+          const name = prompt(t("Nombre de la carpeta de pestañas:"), t("Carpeta"));
           if (name !== null) update((x) => M.createGroup(x, name, [id]));
         }}
         onGroupMove={(id, g) => update((x) => M.moveToGroup(x, id, g))}
@@ -915,7 +919,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
         onGroupUngroup={(g) => update((x) => M.ungroup(x, g))}
         onGroupClose={async (g) => {
           const n = layout().tabs.filter((t) => t.groupId === g).length;
-          if (await askConfirm(`¿Cerrar las ${n} pestañas de la carpeta? Se cierran sus shells y lo que esté corriendo en ellas.`, "Cerrar")) {
+          if (await askConfirm(t("¿Cerrar las {n} pestañas de la carpeta? Se cierran sus shells y lo que esté corriendo en ellas.", { n }), t("Cerrar"))) {
             update((x) => x.tabs.filter((t) => t.groupId === g).reduce((acc, t) => M.closeTab(acc, t.id), x));
           }
         }}
@@ -988,7 +992,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                       >
                         <PaneBar
                           title={paneLabel(paneId)}
-                          tooltip={[panes[paneId]?.cwd, "Arrastrar para mover el panel · clic derecho: más opciones"].filter(Boolean).join("\n")}
+                          tooltip={[panes[paneId]?.cwd, t("Arrastrar para mover el panel · clic derecho: más opciones")].filter(Boolean).join("\n")}
                           highlight={focused() && multi()}
                           onSplit={(d) => splitAt(tabId, paneId, d)}
                           onClose={() => askClose(tabId, paneId)}
@@ -1039,7 +1043,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                           ? { left: pct(area.rect.x + area.rect.w * area.ratio), top: pct(area.rect.y), height: pct(area.rect.h) }
                           : { top: pct(area.rect.y + area.rect.h * area.ratio), left: pct(area.rect.x), width: pct(area.rect.w) }
                       }
-                      title="Arrastrar para cambiar el tamaño · doble clic: mitad y mitad"
+                      title={t("Arrastrar para cambiar el tamaño · doble clic: mitad y mitad")}
                       onPointerDown={(e) => startDrag(tabId, area, e)}
                       onDblClick={() => update((x) => M.setRatio(x, tabId, area.id, 0.5))}
                     />
@@ -1066,16 +1070,16 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
               const col = () => dock().cols.find((c) => c.id === colId);
               return (
                 <>
-                  <div class="dock-drop" onDragOver={(e) => e.preventDefault()} onDrop={() => dropOn({ kind: "newCol", index: ci() })} title="Soltar acá: columna nueva" />
+                  <div class="dock-drop" onDragOver={(e) => e.preventDefault()} onDrop={() => dropOn({ kind: "newCol", index: ci() })} title={t("Soltar acá: columna nueva")} />
                   <div class="dock-col" style={{ width: `${col()?.width ?? D.DEFAULT_W}px` }}>
-                    <div class="dock-col-resize" onPointerDown={(e) => startColDrag(colId, e)} title="Arrastrar para cambiar el ancho" />
+                    <div class="dock-col-resize" onPointerDown={(e) => startColDrag(colId, e)} title={t("Arrastrar para cambiar el ancho")} />
                     <For each={col()?.panels.map((p) => p.id) ?? []}>
                       {(pid, pi) => {
                         const size = () => col()?.panels.find((p) => p.id === pid)?.size ?? 1;
                         return (
                           <>
                             <Show when={pi() > 0}>
-                              <div class="dock-split" onPointerDown={(e) => startSplitDrag(colId, pi() - 1, e)} title="Arrastrar para cambiar el alto" />
+                              <div class="dock-split" onPointerDown={(e) => startSplitDrag(colId, pi() - 1, e)} title={t("Arrastrar para cambiar el alto")} />
                             </Show>
                             <section
                               class="dock-panel"
@@ -1095,11 +1099,11 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                                   e.dataTransfer?.setData("text/plain", pid);
                                 }}
                                 onDragEnd={() => setDragPanel(null)}
-                                title="Arrastrar para mover el panel"
+                                title={t("Arrastrar para mover el panel")}
                               >
                                 <span class="grip">⋮⋮</span>
-                                <b>{PANEL_LABEL[pid]}</b>
-                                <button class="icon-btn tiny-x" title="Cerrar el panel" onClick={() => setDock(D.closePanel(dock(), pid))}>
+                                <b>{t(PANEL_LABEL[pid])}</b>
+                                <button class="icon-btn tiny-x" title={t("Cerrar el panel")} onClick={() => setDock(D.closePanel(dock(), pid))}>
                                   ×
                                 </button>
                               </header>
@@ -1116,7 +1120,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
               );
             }}
           </For>
-          <div class="dock-drop end" onDragOver={(e) => e.preventDefault()} onDrop={() => dropOn({ kind: "newCol", index: dock().cols.length })} title="Soltar acá: columna nueva" />
+          <div class="dock-drop end" onDragOver={(e) => e.preventDefault()} onDrop={() => dropOn({ kind: "newCol", index: dock().cols.length })} title={t("Soltar acá: columna nueva")} />
         </aside>
       </Show>
       <ActivityBar isOpen={panelOpen} onToggle={togglePanel} help={shortcutHelp(settings().shortcuts)} />

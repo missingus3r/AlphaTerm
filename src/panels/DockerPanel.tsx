@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import type { DockerPreset, Settings } from "../settings/schema";
 import { envToText, parseEnvText } from "./agentState";
+import { t } from "../i18n";
 
 interface Engine {
   installed: boolean;
@@ -57,15 +58,15 @@ export default function DockerPanel(props: Props) {
   // Con el panel abierto se actualiza cada 4 s.
   createEffect(() => {
     if (!engine()?.running) return;
-    const t = setInterval(() => !document.hidden && !busy() && void refetch(), 4000);
-    onCleanup(() => clearInterval(t));
+    const timer = setInterval(() => !document.hidden && !busy() && void refetch(), 4000);
+    onCleanup(() => clearInterval(timer));
   });
 
   const act = async (label: string, f: () => Promise<string>) => {
     setBusy(label);
     setMsg(null);
     try {
-      setMsg({ ok: true, text: (await f()) || "Listo." });
+      setMsg({ ok: true, text: (await f()) || t("Listo.") });
     } catch (e) {
       setMsg({ ok: false, text: String(e) });
     } finally {
@@ -74,7 +75,7 @@ export default function DockerPanel(props: Props) {
     }
   };
   const action = async (c: Container, a: string) => {
-    if (a === "rm" && !(await askConfirm(`¿Borrar el contenedor ${c.name}? Se pierde lo que tenga adentro que no esté en un volumen. No se puede deshacer.`, "Borrar"))) return;
+    if (a === "rm" && !(await askConfirm(t("¿Borrar el contenedor {name}? Se pierde lo que tenga adentro que no esté en un volumen. No se puede deshacer.", { name: c.name }), t("Borrar")))) return;
     void act(`${a} ${c.name}`, () => invoke<string>("docker_action", { target: c.name, act: a }));
   };
   const startPreset = (p: DockerPreset) => void act(`iniciar ${p.name}`, () => invoke<string>("docker_start_preset", { preset: p }));
@@ -92,7 +93,7 @@ export default function DockerPanel(props: Props) {
         <button
           class="icon-btn"
           classList={{ spin: !!busy() || engine.loading || list.loading }}
-          title="Actualizar"
+          title={t("Actualizar")}
           onClick={() => {
             void refetchEngine();
             void refetch();
@@ -102,30 +103,30 @@ export default function DockerPanel(props: Props) {
         </button>
       </header>
 
-      <Show when={!engine.loading} fallback={<p class="muted small">Mirando Docker…</p>}>
+      <Show when={!engine.loading} fallback={<p class="muted small">{t("Mirando Docker…")}</p>}>
         <Show
           when={engine()?.running}
           fallback={
             <div class="git-empty">
               <p class="muted small">
-                {!engine()?.installed ? "Docker no está instalado (no se encontró docker en el PATH)." : "El motor de Docker no está corriendo."}
+                {!engine()?.installed ? t("Docker no está instalado (no se encontró docker en el PATH).") : t("El motor de Docker no está corriendo.")}
               </p>
               <Show when={engine()?.desktop}>
                 <button
                   class="btn"
                   onClick={() =>
                     void invoke("docker_desktop")
-                      .then(() => setMsg({ ok: true, text: "Abriendo Docker Desktop… tarda unos segundos. Después tocá ↻." }))
+                      .then(() => setMsg({ ok: true, text: t("Abriendo Docker Desktop… tarda unos segundos. Después tocá ↻.") }))
                       .catch((e) => setMsg({ ok: false, text: String(e) }))
                   }
                 >
-                  Abrir Docker Desktop
+                  {t("Abrir Docker Desktop")}
                 </button>
               </Show>
             </div>
           }
         >
-          <p class="muted small">Motor {engine()!.version}. Los agentes pueden verlos y manejarlos por la API de control (docker_list, docker_action, docker_logs, docker_start).</p>
+          <p class="muted small">{t("Motor {version}. Los agentes pueden verlos y manejarlos por la API de control (docker_list, docker_action, docker_logs, docker_start).", { version: engine()!.version ?? "" })}</p>
         </Show>
       </Show>
       <Show when={msg()}>
@@ -135,44 +136,46 @@ export default function DockerPanel(props: Props) {
       </Show>
 
       <h3>
-        Mis contenedores
+        {t("Mis contenedores")}
         <button class="link small" onClick={() => setShowTemplates(!showTemplates())}>
-          {showTemplates() ? "cerrar" : "+ agregar"}
+          {showTemplates() ? t("cerrar") : t("+ agregar")}
         </button>
       </h3>
       <Show when={showTemplates()}>
         <div class="templates">
           <For each={TEMPLATES}>
-            {(t) => (
+            {(tpl) => (
               <button
                 class="chip add"
-                disabled={props.presets.some((p) => p.name === t.name)}
-                title={`${t.image} · ${t.ports.join(", ")}`}
+                disabled={props.presets.some((p) => p.name === tpl.name)}
+                title={`${tpl.image} · ${tpl.ports.join(", ")}`}
                 onClick={() => {
-                  props.update((d) => void d.docker.presets.push({ ...t, env: { ...t.env }, ports: [...t.ports], volumes: [...t.volumes] }));
+                  props.update((d) => void d.docker.presets.push({ ...tpl, env: { ...tpl.env }, ports: [...tpl.ports], volumes: [...tpl.volumes] }));
                   setShowTemplates(false);
                 }}
               >
-                {t.name}
+                {tpl.name}
               </button>
             )}
           </For>
           <button
             class="chip add"
             onClick={() => {
-              let name = "mi-contenedor";
-              for (let i = 2; props.presets.some((p) => p.name === name); i++) name = `mi-contenedor-${i}`;
-              props.update((d) => void d.docker.presets.push({ name, image: "imagen:tag", ports: [], env: {}, volumes: [], command: "" }));
+              // Valores de ejemplo para editar: quedan guardados en el idioma de cuando se creó.
+              const base = t("mi-contenedor");
+              let name = base;
+              for (let i = 2; props.presets.some((p) => p.name === name); i++) name = `${base}-${i}`;
+              props.update((d) => void d.docker.presets.push({ name, image: t("imagen:tag"), ports: [], env: {}, volumes: [], command: "" }));
               setEditing(name);
               setShowTemplates(false);
             }}
           >
-            vacío…
+            {t("vacío…")}
           </button>
         </div>
       </Show>
       <ul class="recipe-list">
-        <For each={props.presets} fallback={<li class="muted small">Agregá uno para iniciarlo con un clic (Postgres, Redis…).</li>}>
+        <For each={props.presets} fallback={<li class="muted small">{t("Agregá uno para iniciarlo con un clic (Postgres, Redis…).")}</li>}>
           {(p) => (
             <>
               <li class="recipe">
@@ -185,51 +188,51 @@ export default function DockerPanel(props: Props) {
                   </small>
                 </div>
                 <button class="btn" disabled={!engine()?.running || !!busy() || existing(p)?.state === "running"} onClick={() => startPreset(p)}>
-                  Iniciar
+                  {t("Iniciar")}
                 </button>
-                <button class="icon-btn" title="Editar" onClick={() => setEditing(editing() === p.name ? null : p.name)}>
+                <button class="icon-btn" title={t("Editar")} onClick={() => setEditing(editing() === p.name ? null : p.name)}>
                   ✎
                 </button>
               </li>
               <Show when={editing() === p.name}>
                 <li class="agent-edit">
                   <label>
-                    Nombre (del contenedor)
+                    {t("Nombre (del contenedor)")}
                     <input class="text mono" value={p.name} onChange={(e) => setPreset(p.name, (x) => void (x.name = e.currentTarget.value.trim() || x.name))} />
                   </label>
                   <label>
-                    Imagen
+                    {t("Imagen")}
                     <input class="text mono" value={p.image} onChange={(e) => setPreset(p.name, (x) => void (x.image = e.currentTarget.value.trim()))} />
                   </label>
                   <label>
-                    Puertos (host:contenedor, separados por coma)
+                    {t("Puertos (host:contenedor, separados por coma)")}
                     <input class="text mono" value={p.ports.join(", ")} onChange={(e) => setPreset(p.name, (x) => void (x.ports = e.currentTarget.value.split(/[,\s]+/).filter(Boolean)))} />
                   </label>
                   <label>
-                    Variables (CLAVE=valor, una por línea)
+                    {t("Variables (CLAVE=valor, una por línea)")}
                     <textarea class="text mono" rows={3} value={envToText(p.env)} onChange={(e) => setPreset(p.name, (x) => void (x.env = parseEnvText(e.currentTarget.value)))} />
                   </label>
                   <label>
-                    Volúmenes (uno por línea: nombre:/ruta o C:\carpeta:/ruta)
+                    {t("Volúmenes (uno por línea: nombre:/ruta o C:\\carpeta:/ruta)")}
                     <textarea class="text mono" rows={2} value={p.volumes.join("\n")} onChange={(e) => setPreset(p.name, (x) => void (x.volumes = e.currentTarget.value.split(/\r?\n/).map((v) => v.trim()).filter(Boolean)))} />
                   </label>
                   <label>
-                    Comando (opcional)
+                    {t("Comando (opcional)")}
                     <input class="text mono" value={p.command} onChange={(e) => setPreset(p.name, (x) => void (x.command = e.currentTarget.value))} />
                   </label>
                   <div class="row-actions">
                     <button
                       class="link danger"
                       onClick={async () => {
-                        if (!(await askConfirm(`¿Sacar "${p.name}" de la lista? El contenedor (si existe) no se borra.`, "Sacar"))) return;
+                        if (!(await askConfirm(t('¿Sacar "{name}" de la lista? El contenedor (si existe) no se borra.', { name: p.name }), t("Sacar")))) return;
                         props.update((d) => void (d.docker.presets = d.docker.presets.filter((x) => x.name !== p.name)));
                         setEditing(null);
                       }}
                     >
-                      Sacar de la lista
+                      {t("Sacar de la lista")}
                     </button>
                     <button class="link" onClick={() => setEditing(null)}>
-                      Listo
+                      {t("Listo")}
                     </button>
                   </div>
                 </li>
@@ -239,9 +242,9 @@ export default function DockerPanel(props: Props) {
         </For>
       </ul>
 
-      <h3>Contenedores</h3>
+      <h3>{t("Contenedores")}</h3>
       <ul class="server-list">
-        <For each={list() ?? []} fallback={<li class="muted small">{engine()?.running ? (list.loading ? "Cargando…" : "No hay contenedores.") : "—"}</li>}>
+        <For each={list() ?? []} fallback={<li class="muted small">{engine()?.running ? (list.loading ? t("Cargando…") : t("No hay contenedores.")) : "—"}</li>}>
           {(c) => (
             <li class="server" classList={{ ours: c.state === "running" }}>
               <div class="server-top">
@@ -252,7 +255,7 @@ export default function DockerPanel(props: Props) {
                 <span class="ports">
                   <For each={hostPorts(c.ports)}>
                     {(port) => (
-                      <button class="port" title={`Abrir http://localhost:${port}`} onClick={() => void openUrl(`http://localhost:${port}`)}>
+                      <button class="port" title={t("Abrir {url}", { url: `http://localhost:${port}` })} onClick={() => void openUrl(`http://localhost:${port}`)}>
                         :{port}
                       </button>
                     )}
@@ -263,13 +266,13 @@ export default function DockerPanel(props: Props) {
                 {c.image} · {c.status}
               </small>
               <div class="server-actions">
-                <Show when={c.state !== "running"} fallback={<button class="link" disabled={!!busy()} onClick={() => action(c, "stop")}>Detener</button>}>
+                <Show when={c.state !== "running"} fallback={<button class="link" disabled={!!busy()} onClick={() => action(c, "stop")}>{t("Detener")}</button>}>
                   <button class="link" disabled={!!busy()} onClick={() => action(c, "start")}>
-                    Iniciar
+                    {t("Iniciar")}
                   </button>
                 </Show>
                 <button class="link" disabled={!!busy()} onClick={() => action(c, "restart")}>
-                  Reiniciar
+                  {t("Reiniciar")}
                 </button>
                 <button class="link" onClick={() => props.onTerminal(`docker logs -f --tail 200 ${c.name}`, `logs · ${c.name}`)}>
                   Logs
@@ -280,7 +283,7 @@ export default function DockerPanel(props: Props) {
                   </button>
                 </Show>
                 <button class="link danger" disabled={!!busy()} onClick={() => action(c, "rm")}>
-                  Borrar
+                  {t("Borrar")}
                 </button>
               </div>
             </li>

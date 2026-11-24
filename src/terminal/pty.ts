@@ -1,5 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { WriteQueue } from "./writeQueue";
+import { k, t } from "../i18n";
 
 export interface Profile {
   id: string;
@@ -22,6 +23,12 @@ export interface SpawnInfo {
 }
 
 export type PtyEvent = { type: "exit"; code: number | null };
+
+// El backend nombra a cmd como Windows en castellano ("Símbolo del sistema"); el nombre queda así
+// porque el historial lo reconoce por él, y se traduce solo al mostrarlo.
+const CMD_NAME = k("Símbolo del sistema");
+/** Nombre de un perfil para mostrar. */
+export const profileLabel = (name: string) => (name === CMD_NAME ? t(CMD_NAME) : name);
 
 export const termInfo = () => invoke<TermInfo>("term_info");
 /** Mata las sesiones de esta ventana (por si la vista se recargó). */

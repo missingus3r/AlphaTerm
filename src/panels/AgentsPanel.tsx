@@ -9,6 +9,7 @@ import { buildCommand, launchSummary, type ShellKind } from "./agentLaunch";
 import { providerFor } from "../widgets/usage";
 import { listenUsage, loadUsage } from "../widgets/usageStore";
 import { UsageDetail } from "../widgets/UsageDetail";
+import { t } from "../i18n";
 
 const FOLD_PREF = "alphaterm.agents.usageFolded";
 const readFolded = (): string[] => {
@@ -87,7 +88,7 @@ export default function AgentsPanel(props: Props) {
   });
 
   const pick = async () => {
-    const d = await open({ directory: true, defaultPath: cwd(), title: "Carpeta donde lanzar el agente" });
+    const d = await open({ directory: true, defaultPath: cwd(), title: t("Carpeta donde lanzar el agente") });
     if (typeof d === "string") setDir(d);
   };
 
@@ -101,35 +102,37 @@ export default function AgentsPanel(props: Props) {
     const taken = new Set(props.agents.map((a) => a.id));
     let id = "propio";
     for (let i = 2; taken.has(id); i++) id = `propio-${i}`;
-    props.update((s) => void s.agents.push({ id, name: "Agente propio", command: "mi-agente", env: {}, hidden: false, builtin: false }));
+    props.update((s) => void s.agents.push({ id, name: t("Agente propio"), command: "mi-agente", env: {}, hidden: false, builtin: false }));
     setEditing(id);
   };
 
   return (
     <div class="panel agents-panel">
       <header class="panel-head">
-        <h2>Agentes</h2>
-        <button class="icon-btn" title="Volver a buscar los instalados" onClick={() => void refetch()}>
+        <h2>{t("Agentes")}</h2>
+        <button class="icon-btn" title={t("Volver a buscar los instalados")} onClick={() => void refetch()}>
           ↻
         </button>
       </header>
 
       <div class="field">
-        <label>Carpeta</label>
+        <label>{t("Carpeta")}</label>
         <div class="dir-row">
           <select
             class="text"
             value={dir() ?? ""}
             onChange={(e) => setDir(e.currentTarget.value || null)}
-            title={cwd() ?? "Carpeta de inicio"}
+            title={cwd() ?? t("Carpeta de inicio")}
           >
-            <option value="">La del panel activo{props.activeCwd ? ` (${folderName(props.activeCwd)})` : ""}</option>
+            <option value="">
+              {props.activeCwd ? t("La del panel activo ({folder})", { folder: folderName(props.activeCwd) }) : t("La del panel activo")}
+            </option>
             <For each={props.recentDirs}>{(d) => <option value={d}>{d}</option>}</For>
             <Show when={dir() && !props.recentDirs.includes(dir()!)}>
               <option value={dir()!}>{dir()}</option>
             </Show>
           </select>
-          <button class="btn" onClick={() => void pick()} title="Elegir otra carpeta">
+          <button class="btn" onClick={() => void pick()} title={t("Elegir otra carpeta")}>
             …
           </button>
         </div>
@@ -154,7 +157,7 @@ export default function AgentsPanel(props: Props) {
                         <div class="agent-info">
                           <b>{a().name}</b>
                           <small title={[pathOf(i()), launchSummary(a())].filter(Boolean).join("\n")}>
-                            {detected.loading ? "buscando…" : pathOf(i()) ? launchSummary(a()) || a().command : `${a().command} · no detectado`}
+                            {detected.loading ? t("buscando…") : pathOf(i()) ? launchSummary(a()) || a().command : t("{command} · no detectado", { command: a().command })}
                           </small>
                         </div>
                         <button
@@ -162,17 +165,17 @@ export default function AgentsPanel(props: Props) {
                           disabled={!pathOf(i())}
                           title={
                             pathOf(i())
-                              ? `Abrir una pestaña con ${a().name} en ${cwd() ?? "la carpeta de inicio"}\n${buildCommand(a(), props.shell)}`
-                              : "No está instalado (o no está en el PATH)"
+                              ? `${t("Abrir una pestaña con {name} en {folder}", { name: a().name, folder: cwd() ?? t("la carpeta de inicio") })}\n${buildCommand(a(), props.shell)}`
+                              : t("No está instalado (o no está en el PATH)")
                           }
                           onClick={() => props.onLaunch(a(), cwd())}
                         >
-                          Lanzar
+                          {t("Lanzar")}
                         </button>
                         <Show when={providerOf(a())}>
                           <button
                             class="icon-btn"
-                            title={folded().includes(id) ? "Ver el consumo" : "Ocultar el consumo"}
+                            title={folded().includes(id) ? t("Ver el consumo") : t("Ocultar el consumo")}
                             aria-expanded={!folded().includes(id)}
                             onClick={() => toggleFold(id)}
                           >
@@ -182,7 +185,7 @@ export default function AgentsPanel(props: Props) {
                         <button
                           class="icon-btn"
                           classList={{ on: editing() === id || !!launchSummary(a()) }}
-                          title="Opciones de arranque: modelo, esfuerzo, permisos…"
+                          title={t("Opciones de arranque: modelo, esfuerzo, permisos…")}
                           aria-expanded={editing() === id}
                           onClick={() => setEditing(editing() === id ? null : id)}
                         >
@@ -208,7 +211,7 @@ export default function AgentsPanel(props: Props) {
                             a().builtin
                               ? undefined
                               : async () => {
-                                  if (!(await askConfirm(`¿Borrar "${a().name}" del catálogo?`, "Borrar"))) return;
+                                  if (!(await askConfirm(t('¿Borrar "{name}" del catálogo?', { name: a().name }), t("Borrar")))) return;
                                   props.update((s) => void (s.agents = s.agents.filter((x) => x.id !== id)));
                                   setEditing(null);
                                 }
@@ -230,17 +233,17 @@ export default function AgentsPanel(props: Props) {
       </ul>
       <div class="panel-actions">
         <button class="link" onClick={addAgent}>
-          + Agregar un agente
+          {t("+ Agregar un agente")}
         </button>
         <Show when={props.agents.some((a) => a.hidden)}>
           <button class="link" onClick={() => setShowHidden(!showHidden())}>
-            {showHidden() ? "Esconder los ocultos" : "Ver los ocultos"}
+            {showHidden() ? t("Esconder los ocultos") : t("Ver los ocultos")}
           </button>
         </Show>
       </div>
 
-      <h3>En curso</h3>
-      <Show when={props.running.length > 0} fallback={<p class="muted small">Ningún agente abierto en esta ventana.</p>}>
+      <h3>{t("En curso")}</h3>
+      <Show when={props.running.length > 0} fallback={<p class="muted small">{t("Ningún agente abierto en esta ventana.")}</p>}>
         <ul class="running-list">
           <For each={props.running}>
             {(r) => (
@@ -249,8 +252,8 @@ export default function AgentsPanel(props: Props) {
                 <div class="agent-info">
                   <b>{r.name}</b>
                   <small>
-                    {AGENT_STATE_LABEL[r.state]}
-                    {r.state === "done" && r.exitCode != null && r.exitCode !== 0 ? ` (código ${r.exitCode})` : ""}
+                    {t(AGENT_STATE_LABEL[r.state])}
+                    {r.state === "done" && r.exitCode != null && r.exitCode !== 0 ? ` ${t("(código {code})", { code: r.exitCode })}` : ""}
                     {r.cwd ? ` · ${folderName(r.cwd)}` : ""}
                   </small>
                 </div>
@@ -260,7 +263,7 @@ export default function AgentsPanel(props: Props) {
         </ul>
       </Show>
       <p class="muted small hint">
-        "Esperando input" sale de que el agente dejó de escribir en la pantalla hace unos segundos; "Te necesita", de la campana de la terminal.
+        {t('"Esperando input" sale de que el agente dejó de escribir en la pantalla hace unos segundos; "Te necesita", de la campana de la terminal.')}
       </p>
     </div>
   );

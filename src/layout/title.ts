@@ -5,6 +5,7 @@
  *   3. heurística: comando en curso + carpeta + rama git ("npm run dev · frontend (main)");
  *   4. (F9) resumen por LLM opcional.
  */
+import { t } from "../i18n";
 
 export interface PaneInfo {
   shellName: string;
@@ -93,7 +94,7 @@ export function paneTitle(p: PaneInfo): string {
   return p.agentTitle?.trim() || p.llmTitle?.trim() || heuristicTitle(p);
 }
 
-export function tabTitle(manual: string | undefined, focused: PaneInfo | undefined, fallback = "Terminal"): string {
+export function tabTitle(manual: string | undefined, focused: PaneInfo | undefined, fallback = t("Terminal")): string {
   if (manual?.trim()) return manual.trim();
   return focused ? paneTitle(focused) : fallback;
 }

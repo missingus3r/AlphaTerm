@@ -2,6 +2,7 @@ import { createEffect, createSignal, For, on, onCleanup, onMount, Show } from "s
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { coveredBy, markLabel, type Mark } from "./marks";
+import { lang, t } from "../i18n";
 
 /** Panel de terminal al que se le puede mandar el pedido. */
 export interface Target {
@@ -47,10 +48,10 @@ const created = new Set<string>();
 export function whenReady(id: string, ms = 15000): Promise<boolean> {
   if (created.has(id)) return Promise.resolve(true);
   return new Promise((resolve) => {
-    const t = setTimeout(() => resolve(false), ms);
+    const timer = setTimeout(() => resolve(false), ms);
     const list = ready.get(id) ?? [];
     list.push(() => {
-      clearTimeout(t);
+      clearTimeout(timer);
       resolve(true);
     });
     ready.set(id, list);
@@ -84,7 +85,7 @@ export function BrowserView(props: Props) {
   let isCreated = false;
   let sent: { owner: string; sawActive: boolean; hook: boolean } | null = null;
 
-  const owner = () => (props.owner && props.targets.some((t) => t.id === props.owner) ? props.owner : undefined);
+  const owner = () => (props.owner && props.targets.some((x) => x.id === props.owner) ? props.owner : undefined);
 
   // --- Posición: el WebView2 hijo va encima del rectángulo del área ---------------------------
   let last = "";
@@ -205,12 +206,12 @@ export function BrowserView(props: Props) {
   const canSend = () => !!owner() && !!text().trim() && (marks().length > 0 || global()) && status().kind !== "busy";
   const send = async () => {
     const to = owner();
-    if (!to) return setStatus({ kind: "error", text: "Elegí a qué terminal (agente) va el pedido." });
-    if (!text().trim()) return setStatus({ kind: "error", text: "Escribí qué querés cambiar." });
-    setStatus({ kind: "busy", text: "Armando el pedido (capturas)…" });
+    if (!to) return setStatus({ kind: "error", text: t("Elegí a qué terminal (agente) va el pedido.") });
+    if (!text().trim()) return setStatus({ kind: "error", text: t("Escribí qué querés cambiar.") });
+    setStatus({ kind: "busy", text: t("Armando el pedido (capturas)…") });
     try {
-      const r = await invoke<{ message: string; dir: string }>("browser_request", { id: props.id, text: text(), global: global() });
-      if (!props.onSend(to, r.message)) throw new Error("Esa terminal no está lista");
+      const r = await invoke<{ message: string; dir: string }>("browser_request", { id: props.id, text: text(), global: global(), lang: lang() });
+      if (!props.onSend(to, r.message)) throw new Error(t("Esa terminal no está lista"));
       const live = props.ownerLive(to);
       sent = { owner: to, sawActive: false, hook: !!live?.hook };
       setText("");
@@ -234,11 +235,11 @@ export function BrowserView(props: Props) {
       case "busy":
         return s.text;
       case "working":
-        return "Trabajando… (mirá la terminal del agente)";
+        return t("Trabajando… (mirá la terminal del agente)");
       case "attention":
-        return "El agente te necesita en su terminal";
+        return t("El agente te necesita en su terminal");
       case "done":
-        return hmr() ? "Listo ✓" : "Listo ✓ — recargando";
+        return hmr() ? t("Listo ✓") : t("Listo ✓ — recargando");
       case "error":
         return s.text;
       default:
@@ -252,7 +253,7 @@ export function BrowserView(props: Props) {
       <div class="bp-bar">
         <span
           class="bp-grip"
-          title="Arrastrar para mover el panel"
+          title={t("Arrastrar para mover el panel")}
           onMouseDown={(e) => e.preventDefault()}
           onPointerDown={(e) => props.onGrab?.(e)}
           onContextMenu={(e) => {
@@ -262,13 +263,13 @@ export function BrowserView(props: Props) {
         >
           ⋮⋮
         </span>
-        <button class="icon-btn" title="Atrás" onClick={() => void invoke("browser_go", { id: props.id, action: "back" })}>
+        <button class="icon-btn" title={t("Atrás")} onClick={() => void invoke("browser_go", { id: props.id, action: "back" })}>
           ←
         </button>
-        <button class="icon-btn" title="Adelante" onClick={() => void invoke("browser_go", { id: props.id, action: "forward" })}>
+        <button class="icon-btn" title={t("Adelante")} onClick={() => void invoke("browser_go", { id: props.id, action: "forward" })}>
           →
         </button>
-        <button class="icon-btn" classList={{ spin: loading() }} title="Recargar (Shift+clic: sin caché)" onClick={(e) => void invoke("browser_go", { id: props.id, action: e.shiftKey ? "hard-reload" : "reload" })}>
+        <button class="icon-btn" classList={{ spin: loading() }} title={t("Recargar (Shift+clic: sin caché)")} onClick={(e) => void invoke("browser_go", { id: props.id, action: e.shiftKey ? "hard-reload" : "reload" })}>
           ↻
         </button>
         <input
@@ -284,11 +285,11 @@ export function BrowserView(props: Props) {
           }}
           onFocus={(e) => e.currentTarget.select()}
         />
-        <button class="bp-tool" classList={{ on: edit() }} title="Modo edición: pasá el mouse para ver cada elemento y hacé clic para marcarlo (Alt+clic: el de afuera). Esc sale." onClick={() => void toggleEdit()}>
-          ✎ Editar
+        <button class="bp-tool" classList={{ on: edit() }} title={t("Modo edición: pasá el mouse para ver cada elemento y hacé clic para marcarlo (Alt+clic: el de afuera). Esc sale.")} onClick={() => void toggleEdit()}>
+          ✎ {t("Editar")}
         </button>
-        <button class="bp-tool" classList={{ on: global() }} title="Pedir un cambio sobre todo el sitio (con o sin elementos marcados)" onClick={() => setGlobal(!global())}>
-          ◎ Todo el sitio
+        <button class="bp-tool" classList={{ on: global() }} title={t("Pedir un cambio sobre todo el sitio (con o sin elementos marcados)")} onClick={() => setGlobal(!global())}>
+          ◎ {t("Todo el sitio")}
         </button>
         <Show when={errors().length > 0}>
           <span class="bp-errors" title={errors().join("\n\n")} onClick={() => setErrors([])}>
@@ -296,21 +297,21 @@ export function BrowserView(props: Props) {
           </span>
         </Show>
         <Show when={props.onSplit}>
-          <button class="icon-btn" title="Dividir a la derecha" onClick={() => props.onSplit?.("row")}>
+          <button class="icon-btn" title={t("Dividir a la derecha")} onClick={() => props.onSplit?.("row")}>
             ⇥
           </button>
-          <button class="icon-btn" title="Dividir abajo" onClick={() => props.onSplit?.("column")}>
+          <button class="icon-btn" title={t("Dividir abajo")} onClick={() => props.onSplit?.("column")}>
             ⤓
           </button>
         </Show>
-        <button class="icon-btn tiny-x" title="Cerrar el navegador" onClick={props.onClose}>
+        <button class="icon-btn tiny-x" title={t("Cerrar el navegador")} onClick={props.onClose}>
           ×
         </button>
       </div>
       <div class="bp-view" ref={area}>
         <Show when={failed()}>
           <div class="bp-msg">
-            <b>No se pudo abrir {host()}</b>
+            <b>{t("No se pudo abrir {host}", { host: host() })}</b>
             <span class="muted small">{failed()}</span>
           </div>
         </Show>
@@ -324,8 +325,8 @@ export function BrowserView(props: Props) {
             <div class="bp-marks">
               <Show when={global()}>
                 <span class="bp-mark global">
-                  ◎ Todo el sitio
-                  <button class="x" title="Quitar" onClick={() => setGlobal(false)}>
+                  ◎ {t("Todo el sitio")}
+                  <button class="x" title={t("Quitar")} onClick={() => setGlobal(false)}>
                     ×
                   </button>
                 </span>
@@ -334,7 +335,7 @@ export function BrowserView(props: Props) {
                 {(m) => (
                   <span class="bp-mark" title={`${m.selector}${m.component ? `\n${m.component.framework}: ${m.component.name}${m.component.source?.file ? ` (${m.component.source.file}${m.component.source.line ? `:${m.component.source.line}` : ""})` : ""}` : ""}`}>
                     <b>{m.n}</b> {markLabel(m)}
-                    <button class="x" title="Desmarcar" onClick={() => removeMark(m.n)}>
+                    <button class="x" title={t("Desmarcar")} onClick={() => removeMark(m.n)}>
                       ×
                     </button>
                   </span>
@@ -342,19 +343,19 @@ export function BrowserView(props: Props) {
               </For>
               <Show when={marks().length > 1}>
                 <button class="link small" onClick={clearMarks}>
-                  desmarcar todo
+                  {t("desmarcar todo")}
                 </button>
               </Show>
             </div>
           </Show>
           <Show when={edit() && marks().length === 0 && !global()}>
-            <p class="muted small bp-hint">Hacé clic en los elementos que querés cambiar (o elegí «Todo el sitio»).</p>
+            <p class="muted small bp-hint">{t("Hacé clic en los elementos que querés cambiar (o elegí «Todo el sitio»).")}</p>
           </Show>
           <div class="bp-ask">
             <textarea
               ref={textBox}
               rows={2}
-              placeholder="¿Qué querés cambiar? Ctrl+Enter manda el pedido al agente."
+              placeholder={t("¿Qué querés cambiar? Ctrl+Enter manda el pedido al agente.")}
               value={text()}
               onInput={(e) => setText(e.currentTarget.value)}
               onKeyDown={(e) => {
@@ -366,14 +367,14 @@ export function BrowserView(props: Props) {
             />
             <div class="bp-send">
               <label class="muted small">
-                A
+                {t("A")}
                 <select class="text" value={owner() ?? ""} onChange={(e) => props.onOwner(e.currentTarget.value || undefined)}>
-                  <option value="">elegí la terminal…</option>
-                  <For each={props.targets}>{(t) => <option value={t.id}>{t.label}</option>}</For>
+                  <option value="">{t("elegí la terminal…")}</option>
+                  <For each={props.targets}>{(target) => <option value={target.id}>{target.label}</option>}</For>
                 </select>
               </label>
               <button class="primary" disabled={!canSend()} onClick={() => void send()}>
-                Pedir al agente
+                {t("Pedir al agente")}
               </button>
             </div>
           </div>
