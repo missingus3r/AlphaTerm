@@ -6,18 +6,19 @@
 
 <p align="center">
   A Windows terminal built for working with several AI agents at once.<br>
-  Tauri 2 · SolidJS · xterm.js 6 — version 0.6.0
+  Tauri 2 · SolidJS · xterm.js 6 — version 0.7.0
 </p>
 
-![AlphaTerm with three panes, the command suggestions menu and the agents panel](Documentacion/capturas/principal.png)
+<p align="center"><b>English</b> · <a href="README.es.md">Español</a> · <a href="README.pt.md">Português</a></p>
 
-> The interface is in Spanish.
+![AlphaTerm with three panes, the command suggestions menu and the agents panel](Documentacion/capturas/en/principal.png)
 
 ## Features
 
-- **Tabs and tiled panes**: split, drag panes around by their title bar, and dividers that snap at ⅓, ½ and ⅔. The session is restored on startup.
+- **Three languages**: English, Spanish and Portuguese, switched live from Settings → Language. A new install follows the Windows language.
+- **Tabs and tiled panes**: split, drag panes around by their bar, and dividers that snap at ⅓, ½ and ⅔. The session is restored on startup.
 - **Command suggestions** in PowerShell and cmd: folders for `cd`, history, branches, scripts and a catalog of commands with descriptions.
-- **Agents**: launch Claude Code, Codex, Antigravity or OpenCode, picking model, effort and permissions. Usage (5-hour and weekly) is shown live in the footer.
+- **Agents**: launch Claude Code, Codex, Antigravity or OpenCode, picking model, effort and permissions. Usage (5-hour window and week) is shown live in the footer.
 - **Changes**: a diff of what each agent changed, including files outside git, with editing right in the panel.
 - **Guardian**: asks before an agent deletes or modifies files.
 - **Built-in browser**: mark elements on the page and ask the tab's agent to change them.
@@ -27,12 +28,12 @@
 
 | Agent changes | Browser with element marking |
 | :---: | :---: |
-| <img src="Documentacion/capturas/modificaciones.png" width="420" alt="Changes panel with a side-by-side diff"> | <img src="Documentacion/capturas/navegador.png" width="400" alt="Built-in browser with a marked button and a request for the agent"> |
+| <img src="Documentacion/capturas/en/modificaciones.png" width="420" alt="Changes panel with a side-by-side diff"> | <img src="Documentacion/capturas/en/navegador.png" width="400" alt="Built-in browser with a marked button and a request for the agent"> |
 | **Guardian** | **Servers** |
-| <img src="Documentacion/capturas/guardian.png" width="420" alt="The guardian asking before an rm -rf"> | <img src="Documentacion/capturas/servidores.png" width="260" alt="Servers panel with two servers started from AlphaTerm"> |
+| <img src="Documentacion/capturas/en/guardian.png" width="420" alt="The Guardian asking before an rm -rf"> | <img src="Documentacion/capturas/en/servidores.png" width="260" alt="Servers panel with two servers started from AlphaTerm"> |
 
 <p align="center">
-  <img src="Documentacion/capturas/configuracion.png" width="640" alt="Settings: themes">
+  <img src="Documentacion/capturas/en/configuracion.png" width="640" alt="Settings: themes">
 </p>
 
 ## Libraries
@@ -65,14 +66,23 @@ npx tauri dev                  # development, with hot reload
 npx tauri build --no-bundle    # builds src-tauri\target\release\alphaterm.exe
 ```
 
-To cut a release, double-click `compilar-version.bat`. It bumps the version, commits and tags it, builds, and installs to `%LOCALAPPDATA%\AlphaTerm\versiones\<version>` with a desktop shortcut.
+To cut a release, double-click `compilar-version.bat`. It bumps the version, commits and tags it, builds, and installs to `%LOCALAPPDATA%\AlphaTerm\versiones\<version>` with a desktop shortcut. It stops first if a commit message has no English or Portuguese translation for "What's new" (`node scripts/changelog.mjs --faltan` lists them).
 
 Settings and data live in `%APPDATA%\AlphaTerm`.
 
-Tests: `npx vitest run`, `npx tsc --noEmit`, and `cargo test` inside `src-tauri`.
+Tests: `npx vitest run`, `npx tsc --noEmit`, and `cargo test` inside `src-tauri`. `node scripts/i18n-check.mjs` checks that every interface text has its translations.
 
-## More documentation (in Spanish)
+## Translations
 
-- [`CLAUDE.md`](CLAUDE.md): status, how to test, and known gotchas.
-- [`Documentacion/Guia_de_codigo.txt`](Documentacion/Guia_de_codigo.txt): how the code is organized.
-- [`Documentacion/Informe_Proceso_y_Stats.md`](Documentacion/Informe_Proceso_y_Stats.md): log of each phase.
+The source text is Spanish: each interface text goes through `t("…")` and its translations live in `src/i18n/en/*.json` and `src/i18n/pt/*.json` (Spanish text as the key). The Rust backend picks among three versions of each message (`src-tauri/src/i18n.rs`). Terms and style: [`src/i18n/GLOSARIO.md`](src/i18n/GLOSARIO.md).
+
+## More documentation
+
+- [`CLAUDE.en.md`](CLAUDE.en.md): status, how to test, and known gotchas.
+- [`Documentacion/en/Code_Guide.txt`](Documentacion/en/Code_Guide.txt): how the code is organized.
+- [`Documentacion/en/Process_Report.md`](Documentacion/en/Process_Report.md): log of each phase.
+- [`Documentacion/en/Terminal_Plan.txt`](Documentacion/en/Terminal_Plan.txt) and [`Documentacion/en/specs/`](Documentacion/en/specs): the original plan and the feature designs.
+
+## License
+
+[MIT](LICENSE). The bundled ConPTY files are Microsoft's, also MIT: see [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
