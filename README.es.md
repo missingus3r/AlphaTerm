@@ -5,23 +5,23 @@
 <h1 align="center">AlphaTerm</h1>
 
 <p align="center">
-  Terminal para Windows pensada para trabajar con varios agentes de IA a la vez.<br>
-  Tauri 2 · SolidJS · xterm.js 6 — versión 0.7.0
+  Terminal para Windows y Linux pensada para trabajar con varios agentes de IA a la vez.<br>
+  Tauri 2 · SolidJS · xterm.js 6 — versión 0.8.0
 </p>
 
 <p align="center"><a href="README.md">English</a> · <b>Español</b> · <a href="README.pt.md">Português</a></p>
 
 <p align="center"><b>La app está en tres idiomas: español, inglés y portugués.</b><br>
-Se cambia en vivo en Configuración → Idioma; una instalación nueva arranca en el idioma de Windows.<br>
+Se cambia en vivo en Configuración → Idioma; una instalación nueva arranca en el idioma del sistema.<br>
 <sub>Las capturas de abajo muestran la interfaz en inglés.</sub></p>
 
 ![AlphaTerm con tres paneles, el menú de predicciones y el panel de agentes](docs/screenshots/main.png)
 
 ## Qué tiene
 
-- **Tres idiomas**: español, inglés y portugués, se cambian en vivo desde Configuración → Idioma. Una instalación nueva sigue el idioma de Windows.
+- **Tres idiomas**: español, inglés y portugués, se cambian en vivo desde Configuración → Idioma. Una instalación nueva sigue el idioma del sistema.
 - **Pestañas y paneles en mosaico**: dividir, mover paneles arrastrando su barrita y divisores que se frenan en ⅓, ½ y ⅔. La sesión se restaura al abrir.
-- **Predicciones de comandos** en PowerShell y cmd: carpetas para `cd`, historial, ramas, scripts y un catálogo de comandos con su explicación.
+- **Predicciones de comandos** en PowerShell y cmd, y en Linux en bash, zsh y fish: carpetas para `cd`, historial, ramas, scripts y un catálogo de comandos con su explicación.
 - **Agentes**: lanzar Claude Code, Codex, Antigravity u OpenCode eligiendo modelo, esfuerzo y permisos. El consumo (ventana de 5 h y semana) se ve en vivo al pie.
 - **Modificaciones**: el diff de lo que cambió cada agente, también en archivos fuera de git, con edición en el mismo panel.
 - **Guardián**: pregunta antes de que un agente borre o modifique archivos.
@@ -53,7 +53,9 @@ Se cambia en vivo en Configuración → Idioma; una instalación nueva arranca e
 
 ## Instalación
 
-Por ahora funciona solo en Windows 10 y 11.
+Funciona en Windows 10 y 11 y en Linux (probado en Ubuntu 26.04 con GNOME, en Wayland y en X11).
+
+### Windows
 
 Requisitos:
 
@@ -73,6 +75,34 @@ npx tauri build --no-bundle    # deja el programa en src-tauri\target\release\al
 Para sacar una versión, doble clic en `build-release.bat`. Sube el número de versión, hace el commit y el tag, compila e instala en `%LOCALAPPDATA%\AlphaTerm\versiones\<versión>` con acceso directo en el escritorio. Antes frena si algún commit no tiene su traducción al inglés y al portugués para «Novedades» (`node scripts/changelog.mjs --faltan` los lista).
 
 La configuración y los datos quedan en `%APPDATA%\AlphaTerm`.
+
+### Linux
+
+Requisitos: Node 22, Rust estable ([rustup](https://rustup.rs)) y las bibliotecas de WebKitGTK. En Ubuntu o Debian:
+
+```bash
+sudo apt install git build-essential pkg-config libssl-dev libwebkit2gtk-4.1-dev \
+  libayatana-appindicator3-dev librsvg2-dev libxdo-dev nodejs npm
+```
+
+```bash
+git clone https://github.com/missingus3r/AlphaTerm.git
+cd AlphaTerm
+npm install
+npx tauri dev                  # desarrollo, con recarga en caliente
+npx tauri build --no-bundle    # deja el programa en src-tauri/target/release/alphaterm
+```
+
+Para sacar una versión: `./build-release.sh` (las mismas opciones que el `.bat`). Instala en `~/.local/share/AlphaTerm/versiones/<versión>` y deja AlphaTerm en el menú de aplicaciones; si la anclás al dock, el ancla sigue a la versión nueva. `npx tauri build` sin `--no-bundle` arma además un `.deb` y un AppImage.
+
+La configuración y los datos quedan en `~/.config/AlphaTerm`.
+
+Qué cambia en Linux:
+
+- Las shells son bash, zsh y fish (con integración: carpeta, código de salida e historial); la de arranque es la tuya (`$SHELL`).
+- El navegador integrado es WebKitGTK. Los clics y teclas que mandan los agentes (`browser_click`, `browser_key`…) son eventos del DOM, no del sistema: los sitios que solo aceptan eventos «de confianza» (algunos editores de texto enriquecido, por ejemplo) pueden no reaccionar.
+- No hay efectos Mica ni Acrylic; la opacidad del fondo depende de que el escritorio permita ventanas transparentes.
+- El guardián y el resto de las funciones son las mismas.
 
 Tests: `npx vitest run`, `npx tsc --noEmit` y `cargo test` dentro de `src-tauri`. `node scripts/i18n-check.mjs` revisa que cada texto de la interfaz tenga sus traducciones.
 

@@ -868,3 +868,70 @@ open source.
 
 ### Stats
 - Testes: Vitest 241 (+12), cargo 86 ok + 6 ignorados (+2). tsc sem erros.
+
+## Linux (25/11/2026, branch `linux`, versão 0.8.0)
+
+Pedido: gerar a próxima versão com suporte a Linux e as mesmas funções, verificando que tudo
+funciona antes de publicá-la. Feito no Ubuntu 26.04 (GNOME), com Rust 1.100 e Node 22.
+
+### O que foi feito
+- Backend: `os.rs` reúne o que depende do sistema (HOME, `~/.config/AlphaTerm`, temporários em
+  `$XDG_RUNTIME_DIR/AlphaTerm`, xdg-open e "mostrar no gerenciador de arquivos" via D-Bus). Perfis
+  bash, zsh e fish com integração (OSC 133/633/7): bash com `--init-file`, zsh com um `ZDOTDIR`
+  próprio que volta ao do usuário, fish com `--init-command`. O padrão é o shell do `$SHELL`.
+- Portas a partir de `/proc/net/tcp[6]` com o dono pelos fds de `/proc`, e encerrar pela árvore
+  (SIGTERM e depois SIGKILL); fontes com fc-list; gateway de `/proc/net/route`; agentes sem extensões
+  e com as pastas comuns (`~/.local/bin`, nvm…); ambiente persistente de `/etc/environment` e
+  `environment.d`; Docker Desktop para Linux.
+- Navegador integrado sobre o WebKitGTK (`webkit.rs`, `scripts/browser-linux.js`): eval com promises,
+  capturas (área visível, página inteira e recortes de cada marcação), recarregar, console e erros,
+  cliques, texto e teclas como eventos do DOM. Fica como camada de um GtkOverlay sobre a interface. A
+  página fala pelo IPC do Tauri com um plugin inline (`browser-page`) e permissão só para os navegadores.
+- Frontend: `platform.ts` (sistema pelo user agent), caminhos `/…` na saída e na barra de
+  localização, OSC 7 como vem, aspas do sh e do fish ao iniciar agentes, e sugestões no bash, zsh e
+  fish (família `sh`, com seu catálogo de comandos do Linux; os do Windows foram marcados como tais).
+  Textos que falavam do Windows têm sua versão para Linux (96 textos novos, nos três idiomas).
+- Configuração por plataforma (`tauri.windows.conf.json`, `tauri.linux.conf.json`); o `build.rs` copia
+  o ConPTY só para Windows. `install.mjs` e `release.mjs` funcionam no Linux, com `build-release.sh`.
+- Windows: tudo o que é dele ficou atrás de `cfg(windows)`; foi verificado que continua compilando com
+  `cargo check --tests --target x86_64-pc-windows-msvc`.
+
+### Bugs encontrados nos testes (corrigidos)
+- O Tauri coloca os webviews filhos na GtkBox da janela: o navegador ficava abaixo da interface e a
+  encolhia pela metade. Agora é uma camada do overlay, com o retângulo exato.
+- Com um script message handler próprio, o wry respondia cada mensagem com um `console.error`, o hook
+  do console a reenviava e virava um loop (167.000 mensagens, CPU a 50 %). Passou para o IPC do Tauri.
+- Enter enviava o formulário duas vezes (o WebKit já envia com o keypress sintético) e o eval de
+  instruções deixava um "Script error." no console da página.
+- O sysinfo lista as threads como processos: o título da aba mostrava "Thread-8 (…)" e o painel do
+  sistema ia somar a memória uma vez por thread.
+- `git_root` devolvia o caminho com `\` e o painel do Git ficava vazio; o OSC 7 do bash saía com
+  barra dupla; as chaves de caminhos do painel de alterações ignoravam maiúsculas.
+
+### Teste no app (build de debug no Xvfb, dados próprios, API de controle, cliques com XTest)
+- Terminal: bash com prompt, pasta, título com branch, `run` com saída e código de saída. Sessão
+  restaurada ao reabrir (abas, painéis e navegador). Dividir e janela nova.
+- Navegador (17 verificações pela API): eval (expressão, instruções, promise, erro), clique, digitar,
+  Enter que envia uma vez só, Backspace, Tab, Ctrl+A, scroll, console sem ruído, capturas (visível,
+  elemento de 200×120, página inteira), link, título e voltar. Modo de edição com cliques reais:
+  marcações, barra do pedido e "Pedir ao agente" (capturas, `pedido.md` e o texto no terminal).
+- Painéis: servidores (o da aba marcado "AlphaTerm"), projetos, git, histórico, Docker (não
+  instalado), agentes (Claude Code detectado e uso ao vivo lido de `claude /usage`).
+- Sugestões no bash (`cd sr` → `src/`, `src-tauri/`), configurações com os textos do Linux, Guardião
+  com o hook do Claude Code (um `rm -rf` simulado: pergunta, "Bloquear" → `deny`).
+- zsh 5.9 e fish 4.2: marcações, código de saída e OSC 7 numa PTY real; carregam os arquivos do usuário.
+
+### Pendente / não verificado
+- Codex, Antigravity e OpenCode não estão instalados aqui: o uso ao vivo deles no Linux não foi testado.
+- O Docker não está instalado: o painel só foi visto no estado "não instalado".
+- Colar imagens da área de transferência no Linux (Wayland) não foi testado.
+- Os cliques e teclas dos agentes no navegador não são eventos confiáveis: alguns sites podem não reagir.
+- Os PDFs do guia de código não foram regenerados: `generate_pdfs.py` usa Segoe UI e Consolas, que só
+  existem no Windows. Regenerá-los lá (`python docs/generate_pdfs.py es en pt`).
+
+### Stats
+- Testes: Vitest 256 (+15), cargo 98 ok + 6 ignorados (+12; no Linux rodam os de bash, zsh e fish numa
+  PTY real em vez dos de cmd e PowerShell). tsc sem erros. Windows: `cargo check` sem erros nem warnings.
+- Release no Linux: binário de 17 MB; inicialização até o primeiro prompt ~1,2 s e ~265 MB de memória (PSS do
+  AlphaTerm e dos processos do WebKit), no Xvfb com renderização por software. As metas de <120 MB e <500 ms
+  também não são cumpridas no Linux.

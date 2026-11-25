@@ -223,5 +223,13 @@
   },
   "Comentarios del código en inglés": {
     "subject": "Comentários do código em inglês"
+  },
+  "Soporte para Linux: shells, navegador con WebKitGTK y predicciones en bash, zsh y fish": {
+    "subject": "Suporte a Linux: shells, navegador com WebKitGTK e sugestões no bash, zsh e fish",
+    "body": "- Terminais na PTY do sistema com bash, zsh e fish (integração: pasta, código de saída e histórico); o padrão é o shell do usuário.\n- Navegador integrado sobre o WebKitGTK: eval, capturas, console, cliques e teclas, modo de edição e pedido ao agente.\n- Portas, fontes, agentes, Git, Docker, Guardião e uso ao vivo funcionando no Linux; dados em ~/.config/AlphaTerm.\n- Caminhos do Linux na saída, na barra de localização e nas sugestões (com um catálogo de comandos do Linux).\n- build-release.sh: instala por versão em ~/.local/share/AlphaTerm com sua entrada no menu."
+  },
+  "Linux: documentación en tres idiomas": {
+    "subject": "Linux: documentação em três idiomas",
+    "body": "- README, CLAUDE.md, guia de código e relatório do processo: como compilar e instalar no Linux, o que muda lá e como foi testado."
   }
 }

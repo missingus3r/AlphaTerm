@@ -13,6 +13,8 @@ la guía de código en `docs\es\Code_Guide.txt` (y su PDF); el registro de cada 
   `Desktop\AlphaTerm` (renombrada el 18/11/2026; antes `Desktop\NovaTerm`).
 - Navegador integrado con marcado (20/11/2026): panel de navegador (hoja con `browser` en el modelo)
   con modo edición para marcar elementos y pedirle cambios al agente de la pestaña. Ver Gotchas.
+- Linux (25/11/2026, versión 0.8.0): bash, zsh y fish con integración, navegador con WebKitGTK,
+  instalación por versión con `build-release.sh`. Ver «Linux».
 - Pendiente: decidir si además de la instalación por versión (`build-release.bat`) hace falta un
   instalador NSIS; probar Docker con un contenedor real y Claude Code con una tarea real pasando por
   el guardián; metas de RAM (<120 MB) y arranque (<500 ms) no se cumplen (~225 MB y 1,2–1,4 s,
@@ -110,6 +112,41 @@ la guía de código en `docs\es\Code_Guide.txt` (y su PDF); el registro de cada 
   por el silencio de la terminal después de haber trabajado. Con `--remote-debugging-port`, el
   navegador hijo aparece como otro target en `/json` (sirve para probar).
 
+## Linux (desde 0.8.0)
+- Lo que depende del sistema pasa por `src-tauri/src/os.rs` (carpeta de usuario, datos en
+  `~/.config/AlphaTerm`, temporales, abrir y mostrar archivos) y, en el frontend, por `src/platform.ts`
+  (el sistema sale del user agent; en los tests Node cuenta como Windows y se cambia con `setOs`).
+  Tests de Linux del frontend: `src/linux.test.ts`.
+- Shells: bash, zsh y fish (`pty/profiles.rs`); por defecto la de `$SHELL`. Integración: bash con
+  `--init-file` (carga `/etc/bash.bashrc` y `~/.bashrc`), zsh con un `ZDOTDIR` propio
+  (`shell/alphaterm.zsh`, que vuelve al del usuario) y fish con `--init-command`. Los scripts se
+  escriben en `$XDG_RUNTIME_DIR/AlphaTerm` (`os::temp_dir`), nunca en `/tmp`, que es compartido.
+- PTY de Unix: las shells no esperan respuesta a `ESC[6n`; `usage_live` sí la contesta en Linux
+  (Codex la espera al arrancar). En Windows, al revés (ver Gotchas).
+- sysinfo lista los hilos como procesos: filtrarlos con `procinfo::is_thread` (si no, el título dice
+  "Thread-8 (…)" y el panel de sistema suma la memoria una vez por hilo).
+- Navegador (`src-tauri/src/webkit.rs` + `scripts/browser-linux.js`): WebKitGTK no tiene CDP. eval con
+  `call_async_javascript_function`, capturas con `get_snapshot`, clics y teclas como eventos del DOM
+  (no son de confianza; Enter: WebKit ya envía el formulario con el keypress sintético). Tauri mete
+  los webviews hijos en la GtkBox de la ventana, apilados: el principal pasa a un GtkOverlay y cada
+  navegador es una capa ubicada con `get-child-position` y `set_size_request` (hacen falta las dos).
+  La página le habla al backend por el IPC de Tauri (plugin inline `browser-page`, permiso solo para
+  `browser-*` en `capabilities/browser-pages.json`) y no por un script message handler propio: wry
+  escucha todos y contesta cada mensaje ajeno con un `console.error`, que el hook de consola
+  reenviaba en un bucle sin fin.
+- Probar sin tocar el escritorio: `Xvfb :77` y `DISPLAY=:77 GDK_BACKEND=x11 ALPHATERM_DATA_DIR=<carpeta>
+  XDG_DATA_HOME=<otra>` (lo de WebKit, como el localStorage con los paneles abiertos, va a
+  `$XDG_DATA_HOME/uy.alphaterm.app`: sin eso, la prueba le cambia la interfaz a la AlphaTerm de verdad);
+  `GDK_SCALE=2` para probar HiDPI;
+  capturas con GDK (`Gdk.pixbuf_get_from_window`), clics y teclas con XTest (ctypes), y la API de
+  control con `ALPHATERM_CONTROL_URL`/`TOKEN` del control.json de esa carpeta.
+- Que Windows siga compilando: `rustup target add x86_64-pc-windows-msvc` y `cargo check --tests
+  --target x86_64-pc-windows-msvc`, con un `llvm-rc` falso en el PATH que cree el archivo de `/FO`
+  (el build script lo pide y en un check no se linkea).
+- Release: `./build-release.sh` (el mismo `release.mjs`). Instala en `~/.local/share/AlphaTerm/versiones/<v>`
+  y apunta ahí `~/.local/share/applications/alphaterm.desktop` (`StartupWMClass=Alphaterm`) y el
+  lanzador del escritorio.
+
 ## Idiomas (español, inglés y portugués, desde 0.7.0)
 - Interfaz: cada texto visible pasa por `t("texto en español")` (`src/i18n/index.ts`); en constantes
   de módulo se marca con `k("…")` y se traduce con `t(valor)` al mostrarlo. Variables con llaves:
@@ -146,6 +183,7 @@ la guía de código en `docs\es\Code_Guide.txt` (y su PDF); el registro de cada 
 - Casa (`C:\Users\Br1`): Rust 1.99.1 fuera del PATH, Node 22, PowerShell 5.1 (sin pwsh), Docker
   Desktop instalado, Ollama sin modelos.
 - PC del trabajo: inspección SSL, PowerShell bloquea `.ps1`, sin Rust al armar el plan.
+- Linux (Ubuntu 26.04, GNOME): Rust con rustup en `~/.cargo/bin`, Node 22 de apt, sin Docker.
 
 ## Forma de trabajo
 - Cada fase cierra verificada y registrada en el Informe; lo no verificado se marca como tal.

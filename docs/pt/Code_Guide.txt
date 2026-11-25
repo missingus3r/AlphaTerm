@@ -141,3 +141,31 @@ TESTES E BUILD
  - Release: npx tauri build --no-bundle → src-tauri\target\release\alphaterm.exe (com conpty.dll e
    OpenConsole.exe ao lado). Com bundle: instalador NSIS.
  - Inicialização: ALPHATERM_BENCH=<arquivo> anota os ms até o primeiro prompt.
+
+====================================================================
+LINUX (desde 0.8.0)
+====================================================================
+
+O mesmo código roda no Linux; o que muda fica atrás de cfg(windows) / cfg(target_os = "linux") no
+Rust e de src/platform.ts no frontend.
+
+ - os.rs: pasta do usuário (HOME), dados (~/.config/AlphaTerm), temporários do usuário
+   ($XDG_RUNTIME_DIR/AlphaTerm, nunca /tmp), abrir (xdg-open) e mostrar no gerenciador de arquivos
+   (org.freedesktop.FileManager1 via gdbus).
+ - pty: o portable-pty usa a PTY do sistema. Perfis bash, zsh e fish com integração
+   (shell/alphaterm.bash, alphaterm.zsh via ZDOTDIR, alphaterm.fish via --init-command).
+ - ports.rs: /proc/net/tcp e tcp6 + os fds de /proc/<pid> para saber o dono; encerrar manda
+   SIGTERM para a árvore e SIGKILL para o que sobrar. fonts.rs: fc-list. suggest.rs: gateway de
+   /proc/net/route. agents.rs: sem extensões, com bit de execução, e ~/.local/bin, nvm etc.
+ - procinfo::is_thread: o sysinfo lista as threads como processos; elas são filtradas em todo lugar.
+ - webkit.rs: o navegador integrado sobre o WebKitGTK (eval, capturas, recarregar) e seu
+   posicionamento como camada de um GtkOverlay sobre o webview principal. scripts/browser-linux.js:
+   canal para o backend (plugin browser-page pelo IPC do Tauri), console e erros, e cliques e
+   teclas como eventos do DOM.
+ - Frontend: platform.ts (sistema, separador, caminhos absolutos), paths.ts (caminhos /home/… na
+   saída), integration.ts (OSC 7 como vem), widgets/pathSegments.ts (barra de localização),
+   sugestões com a família "sh" (bash, zsh, fish) e seu catálogo, e agentLaunch (aspas do sh e do fish).
+ - Configuração por plataforma: tauri.windows.conf.json (ConPTY, NSIS) e tauri.linux.conf.json
+   (.deb e AppImage); capabilities/browser-pages.json só no Linux.
+ - Build e release: npx tauri build --no-bundle → src-tauri/target/release/alphaterm;
+   ./build-release.sh instala em ~/.local/share/AlphaTerm/versiones/<v> com sua entrada no menu.
