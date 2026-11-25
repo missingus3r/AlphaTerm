@@ -17,8 +17,8 @@ describe("insertion", () => {
     expect(ins("ping ", { insert: "8.8.8.8", kind: "value" }, "cmd")).toBe("8.8.8.8 ");
   });
 
-  // Entre comillas, la barra final va doblada: con una sola, `\"` escapa la comilla para git, node y
-  // cualquier programa externo (verificado en esta PC); cd y Set-Location aceptan la doble.
+  // Inside quotes, the trailing slash is doubled: with a single one, `\"` escapes the quote for git, node and
+  // any external program (verified on this PC); cd and Set-Location accept the double one.
   it("carpetas con espacios: comillas dobles en cmd y simples en PowerShell, barra final doblada", () => {
     expect(ins("cd mis", { insert: "Mis Documentos\\", dir: true }, "cmd")).toBe(DEL.repeat(3) + '"Mis Documentos\\\\"');
     expect(ins("cd mis", { insert: "Mis Documentos\\", dir: true }, "ps")).toBe(DEL.repeat(3) + "'Mis Documentos\\\\'");

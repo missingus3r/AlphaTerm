@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-// Instala la AlphaTerm recién compilada en una carpeta por versión y apunta los accesos directos ahí.
+// Installs the freshly built AlphaTerm into a per-version folder and points the shortcuts there.
 //
-// - Copia alphaterm.exe, conpty.dll y OpenConsole.exe a %LOCALAPPDATA%\AlphaTerm\versiones\<versión>\.
-//   La AlphaTerm abierta no se toca (corre desde otra carpeta), así que se puede instalar con ella
-//   abierta: la próxima vez que se abra, es la nueva.
-// - Actualiza el acceso directo del escritorio (lo crea si no está) y el anclado en la barra de
-//   tareas (si está). No borra nada: las versiones anteriores quedan en su carpeta.
+// - Copies alphaterm.exe, conpty.dll and OpenConsole.exe to %LOCALAPPDATA%\AlphaTerm\versiones\<version>\.
+//   The open AlphaTerm is not touched (it runs from another folder), so you can install with it
+//   open: the next time it is opened, it is the new one.
+// - Updates the desktop shortcut (creates it if missing) and the one pinned to the
+//   taskbar (if present). Deletes nothing: earlier versions stay in their folder.
 //
-// Uso: node scripts/install.mjs [--desde <carpeta del build>]   (por defecto src-tauri\target\release)
-// `npm run release` compila y después corre esto.
+// Usage: node scripts/install.mjs [--desde <build folder>]   (default src-tauri\target\release)
+// `npm run release` builds and then runs this.
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -31,7 +31,7 @@ for (const f of FILES) {
 }
 
 const base = path.join(process.env.LOCALAPPDATA ?? path.join(process.env.USERPROFILE, "AppData", "Local"), "AlphaTerm", "versiones");
-/** Copia a la carpeta de la versión; si esa versión está abierta (archivos en uso), a una al lado. */
+/** Copies to the version's folder; if that version is open (files in use), to one next to it. */
 function install() {
   const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
   for (const dir of [path.join(base, version), path.join(base, `${version}-${stamp}`)]) {
@@ -50,10 +50,10 @@ function install() {
 const dir = install();
 const exe = path.join(dir, "alphaterm.exe");
 
-// Accesos directos: por PowerShell en línea (WScript.Shell), que anda aunque los .ps1 estén bloqueados.
+// Shortcuts: through inline PowerShell (WScript.Shell), which works even if .ps1 files are blocked.
 const ps = (script) => execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { encoding: "utf8" }).trim();
 const q = (s) => `'${s.replace(/'/g, "''")}'`;
-/** Apunta un acceso directo (nuevo o existente) a la versión instalada. Devuelve a dónde apuntaba. */
+/** Points a shortcut (new or existing) to the installed version. Returns where it pointed. */
 const point = (file) =>
   ps(
     [
@@ -70,8 +70,8 @@ const point = (file) =>
   );
 const targetOf = (file) => ps(`(New-Object -ComObject WScript.Shell).CreateShortcut(${q(file)}).TargetPath`);
 
-// Escritorio: un acceso directo "AlphaTerm <versión>". Si ya había uno de AlphaTerm (cualquier
-// versión), se lo apunta a la nueva y se le cambia el nombre; si no, se crea.
+// Desktop: an "AlphaTerm <version>" shortcut. If there was already an AlphaTerm one (any
+// version), it is pointed to the new one and renamed; otherwise, it is created.
 const desktop = ps("[Environment]::GetFolderPath('Desktop')");
 const name = `AlphaTerm ${version}.lnk`;
 const ours = fs
@@ -82,13 +82,13 @@ const main = ours.find((f) => f.toLowerCase() === name.toLowerCase()) ?? ours[0]
 const before = point(path.join(desktop, main));
 if (main !== name) fs.renameSync(path.join(desktop, main), path.join(desktop, name));
 console.log(`Escritorio: ${name}${main !== name ? ` (antes "${main}")` : ""}\n  antes: ${before || "(nuevo)"}\n  ahora: ${exe}`);
-// Otros accesos directos viejos de AlphaTerm en el escritorio: también a la versión nueva.
+// Other old AlphaTerm shortcuts on the desktop: also to the new version.
 for (const f of ours.filter((f) => f !== main)) {
   point(path.join(desktop, f));
   console.log(`También actualizado: ${f}`);
 }
 
-// Anclado en la barra de tareas (si está): mismo nombre, apuntado a la versión nueva.
+// Pinned to the taskbar (if present): same name, pointed to the new version.
 const pinned = path.join(process.env.APPDATA ?? "", "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar", "AlphaTerm.lnk");
 if (fs.existsSync(pinned)) {
   const was = point(pinned);

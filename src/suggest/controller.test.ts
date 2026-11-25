@@ -6,7 +6,7 @@ import { PS_CHORD } from "./pwsh";
 import type { SuggestSettings } from "../settings/schema";
 import type { KeyLike } from "../terminal/keys";
 
-/** Terminal de una sola fila con eco: lo que se escribe a la shell aparece en pantalla. */
+/** Terminal with a single row and echo: what is written to the shell appears on screen. */
 class FakeTerm implements TermLike {
   cols = 80;
   row = "";
@@ -97,7 +97,7 @@ function rig(profileId: string, o: { settings?: Partial<SuggestSettings>; histor
       ctl.onPromptEnd();
     },
     async type(s) {
-      // Lo que hace TerminalView con cada tecla: avisa y la manda a la shell, que hace eco.
+      // What TerminalView does with each key: it notifies and sends it to the shell, which echoes.
       for (const ch of s) {
         ctl.onWrite(ch);
         if (!/[\r\n]/.test(ch)) term.echo(ch);
@@ -131,7 +131,7 @@ describe("controlador de sugerencias", () => {
     r.prompt("C:\\proy>");
     await r.type("p");
     expect(r.ctl.menu()).toBeNull();
-    // Como en la app real: xterm avisa de una salida anterior antes de que llegue el eco de la "i".
+    // As in the real app: xterm reports an earlier output before the echo of the "i" arrives.
     r.ctl.onWrite("i");
     r.ctl.onParsed();
     await flush();
@@ -145,7 +145,7 @@ describe("controlador de sugerencias", () => {
     r = rig("cmd");
     r.prompt("C:\\proy>");
     await r.type("cd al");
-    r.ctl.onWrite("p"); // la shell todavía no la mostró
+    r.ctl.onWrite("p"); // the shell hasn't shown it yet
     expect(r.ctl.key(key("Tab"))).toBe(true);
     r.ctl.onWrite("\r");
     await vi.advanceTimersByTimeAsync(500);
@@ -159,8 +159,8 @@ describe("controlador de sugerencias", () => {
     r = rig("cmd");
     r.prompt("C:\\proy>");
     await r.type("cd a");
-    r.ctl.onWrite("l"); // sin eco todavía
-    r.ctl.onParsed(); // salida de otra cosa
+    r.ctl.onWrite("l"); // no echo yet
+    r.ctl.onParsed(); // output from something else
     await flush();
     expect(r.ctl.key(key("Tab"))).toBe(true);
     await flush();
@@ -189,7 +189,7 @@ describe("controlador de sugerencias", () => {
     await flush();
     expect(r.written.at(-1)).toBe("\x7f\x7fAlphaTerm\\");
     expect(r.term.row).toBe("C:\\proy>cd AlphaTerm\\");
-    // Era una carpeta: el menú se vuelve a abrir para seguir bajando.
+    // It was a folder: the menu reopens to keep going down.
     expect(r.ctl.menu()).not.toBeNull();
   });
 
@@ -202,7 +202,7 @@ describe("controlador de sugerencias", () => {
     await r.type("\r");
     expect(r.cmdLines).toEqual(["ping"]);
     expect(r.ctl.menu()).toBeNull();
-    // Lo que se tipee ahora es para el programa que corre: nada de menú.
+    // Whatever is typed now is for the running program: no menu.
     await r.type("cd ");
     expect(r.ctl.menu()).toBeNull();
   });
@@ -226,7 +226,7 @@ describe("controlador de sugerencias", () => {
     await r.type("cd ");
     expect(r.ctl.key(key("Escape"))).toBe(true);
     expect(r.ctl.menu()).toBeNull();
-    r.ctl.onWrite("\x1b[A"); // la shell trae una línea del historial
+    r.ctl.onWrite("\x1b[A"); // the shell brings up a history line
     r.term.row = "C:\\proy>cd AlphaTerm";
     r.term.buffer.active.cursorX = r.term.row.length;
     r.ctl.onParsed();

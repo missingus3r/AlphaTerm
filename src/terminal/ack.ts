@@ -1,6 +1,6 @@
 /**
- * Junta las confirmaciones de bytes ya pintados por xterm y las manda al backend de a poco:
- * cuando pasan `threshold` bytes o a los `delayMs`, lo que ocurra primero.
+ * Gathers the confirmations of bytes already painted by xterm and sends them to the backend in batches:
+ * when `threshold` bytes pass or after `delayMs`, whichever happens first.
  */
 export class AckBatcher {
   private pending = 0;

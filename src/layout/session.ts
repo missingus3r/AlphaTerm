@@ -1,6 +1,6 @@
 /**
- * Guardar y restaurar el estado de una ventana. Se guarda la carpeta *actual* de cada panel
- * (no la de cuando se abrió) y, en los paneles de agentes, qué agente era.
+ * Save and restore a window's state. The pane's *current* folder is saved
+ * (not the one from when it was opened) and, for agent panes, which agent it was.
  */
 import type { AgentDef } from "../settings/schema";
 import * as M from "./model";
@@ -10,13 +10,13 @@ export interface SavedWindow {
   version: 1;
   layout: M.Layout;
   windowTitle?: string;
-  /** Sesiones viejas: un solo panel lateral. */
+  /** Old sessions: a single side panel. */
   panel?: string | null;
-  /** Paneles en mosaico (ver panels/dock.ts). */
+  /** Tiled panels (see panels/dock.ts). */
   dock?: unknown;
 }
 
-/** Cómo retomar la última conversación de cada agente de fábrica (si se elige relanzarlos). */
+/** How to resume each built-in agent's last conversation (if relaunching them is chosen). */
 export const RESUME_ARGS: Record<string, string> = { claude: "--continue", codex: "resume --last" };
 
 function mapLeaves(n: M.PaneNode, f: (l: M.Leaf) => M.Leaf): M.PaneNode {
@@ -34,7 +34,7 @@ export function serialize(
       if (leaf.browser) return { kind: "leaf", id: leaf.id, profileId: "", browser: { ...leaf.browser } };
       const p = live(leaf.id);
       const agentId = p?.agentId ?? leaf.startup?.agentId;
-      // Sin el comando ni las variables (pueden traer el PATH entero): solo qué agente era.
+      // Without the command or the variables (they may carry the entire PATH): only which agent it was.
       return { kind: "leaf", id: leaf.id, profileId: leaf.profileId, cwd: p?.cwd ?? leaf.cwd, ...(agentId ? { startup: { command: "", agentId } } : {}) };
     }),
   }));
@@ -42,8 +42,8 @@ export function serialize(
 }
 
 /**
- * Arma el layout a partir de lo guardado. Los paneles de agentes se relanzan (con su forma de
- * retomar la conversación) solo si `relaunch`; si no, quedan como shells comunes en esa carpeta.
+ * Builds the layout from what was saved. Agent panes are relaunched (with their way of
+ * resuming the conversation) only if `relaunch`; otherwise they stay as plain shells in that folder.
  */
 export function restore(
   saved: unknown,
@@ -55,7 +55,7 @@ export function restore(
     if (leaf.browser && typeof leaf.browser.url === "string") return { kind: "leaf", id: leaf.id, profileId: "", browser: { url: leaf.browser.url, ...(leaf.browser.owner ? { owner: leaf.browser.owner } : {}) } };
     const profileId = opts.profileOk(leaf.profileId) ? leaf.profileId : opts.fallbackProfile;
     const agent = leaf.startup?.agentId ? opts.agents.find((a) => a.id === leaf.startup!.agentId) : undefined;
-    // Comandos explícitos (una ventana abierta por la API con un comando) se corren igual.
+    // Explicit commands (a window opened through the API with a command) are run anyway.
     if (leaf.startup?.command && !leaf.startup.agentId) {
       return { kind: "leaf", id: leaf.id, profileId, cwd: leaf.cwd, startup: { command: leaf.startup.command, env: opts.env } };
     }

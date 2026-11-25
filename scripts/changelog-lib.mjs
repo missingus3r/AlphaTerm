@@ -1,6 +1,6 @@
-// Lógica pura del changelog y de las versiones (sin git ni archivos: se testea en changelog.test.mjs).
+// Pure changelog and version logic (no git or files: tested in changelog.test.mjs).
 
-/** Sube una versión semver: "patch" 0.2.0 → 0.2.1, "minor" → 0.3.0, "major" → 1.0.0. */
+/** Bumps a semver version: "patch" 0.2.0 → 0.2.1, "minor" → 0.3.0, "major" → 1.0.0. */
 export function bumpVersion(version, kind = "patch") {
   const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(version).trim());
   if (!m) throw new Error(`Versión inválida: ${version}`);
@@ -14,10 +14,10 @@ export function bumpVersion(version, kind = "patch") {
 
 const US = "\x1f";
 const RS = "\x1e";
-/** Formato de `git log` que entiende parseLog. */
+/** `git log` format that parseLog understands. */
 export const LOG_FORMAT = `%H${US}%h${US}%aI${US}%s${US}%b${RS}`;
 
-/** Líneas de firma que no aportan al changelog. */
+/** Signature lines that add nothing to the changelog. */
 const NOISE = /^(Co-Authored-By|Claude-Session|Signed-off-by):/i;
 
 export function parseLog(raw) {
@@ -38,8 +38,8 @@ export function parseLog(raw) {
 }
 
 /**
- * Tags de versión: líneas "nombre<US>objeto<US>objeto apuntado" (los tags anotados apuntan a un
- * objeto tag; el commit real es el tercer campo). Solo vX.Y.Z.
+ * Version tags: lines "name<US>object<US>pointed-to object" (annotated tags point to a tag
+ * object; the real commit is the third field). Only vX.Y.Z.
  */
 export function parseTags(raw) {
   const out = new Map();
@@ -53,9 +53,9 @@ export function parseTags(raw) {
 }
 
 /**
- * Agrupa los commits (del más nuevo al más viejo) por versión: cada tag abre su versión y los
- * commits más viejos que él, hasta el tag anterior, son de esa versión. Lo que está arriba del tag
- * más nuevo es `next` (la versión que se está compilando) o "sin publicar".
+ * Groups the commits (newest to oldest) by version: each tag opens its version and the commits
+ * older than it, up to the previous tag, belong to that version. What is above the newest tag
+ * is `next` (the version being built) or "unreleased".
  */
 export function groupByVersion(commits, tags, next, now = new Date().toISOString()) {
   const versions = [];
@@ -72,13 +72,13 @@ export function groupByVersion(commits, tags, next, now = new Date().toISOString
   return versions;
 }
 
-// --- Traducciones de los commits ------------------------------------------------------------------
-// Viven en src/i18n/changelog/<idioma>.json: { "<asunto en español, tal cual>": { "subject": "…",
-// "body": "…" } }. La clave es el asunto y no el hash (el hash cambia si se reescribe el historial);
-// `body` solo si el commit tiene cuerpo (sin las firmas que saca parseLog). Dos commits con el mismo
-// asunto comparten traducción. Los "Versión X.Y.Z" que hace release.mjs se traducen solos.
+// --- Commit translations ---
+// They live in src/i18n/changelog/<language>.json: { "<subject in Spanish, as is>": { "subject": "…",
+// "body": "…" } }. The key is the subject and not the hash (the hash changes if the history is rewritten);
+// `body` only if the commit has a body (without the signatures parseLog strips). Two commits with the same
+// subject share a translation. The "Versión X.Y.Z" ones that release.mjs makes translate themselves.
 
-/** Idiomas a los que se traduce el changelog (los commits se escriben en español). */
+/** Languages the changelog is translated into (commits are written in Spanish). */
 export const CHANGELOG_LANGS = ["en", "pt"];
 
 const VERSION_SUBJECT = /^Versión (\d+\.\d+\.\d+)$/;
@@ -95,8 +95,8 @@ const entryOf = (dict, subject) => {
 };
 
 /**
- * Un commit en otro idioma: { subject, body } con null en lo que falta traducir. `body` es "" si el
- * commit no tiene cuerpo (no hay nada que traducir, aunque la entrada traiga uno).
+ * A commit in another language: { subject, body } with null for what is still untranslated. `body` is "" if the
+ * commit has no body (there is nothing to translate, even if the entry carries one).
  */
 export function translateCommit(c, lang, dict) {
   const auto = AUTO[lang];
@@ -108,7 +108,7 @@ export function translateCommit(c, lang, dict) {
   return { subject, body };
 }
 
-/** Los commits con sus traducciones en `tr` ({ en: { subject, body }, pt: … }, solo lo que hay). */
+/** The commits with their translations in `tr` ({ en: { subject, body }, pt: … }, only what exists). */
 export function withTranslations(commits, dicts) {
   return commits.map((c) => {
     const tr = {};
@@ -123,7 +123,7 @@ export function withTranslations(commits, dicts) {
   });
 }
 
-/** Commits con algo sin traducir: [{ commit, missing: { en: ["asunto", "cuerpo"], pt: ["cuerpo"] } }]. */
+/** Commits with something untranslated: [{ commit, missing: { en: ["asunto", "cuerpo"], pt: ["cuerpo"] } }]. */
 export function missingTranslations(commits, dicts) {
   const out = [];
   for (const c of commits) {
@@ -138,13 +138,13 @@ export function missingTranslations(commits, dicts) {
   return out;
 }
 
-/** Entradas que ningún commit usa (pasa si se reescribe un asunto o el historial): [{ lang, subject }]. */
+/** Entries that no commit uses (happens if a subject or the history is rewritten): [{ lang, subject }]. */
 export function unusedTranslations(commits, dicts) {
   const used = new Set(commits.map((c) => c.subject));
   return CHANGELOG_LANGS.flatMap((l) => Object.keys(dicts?.[l] ?? {}).filter((s) => !used.has(s)).map((subject) => ({ lang: l, subject })));
 }
 
-/** Entradas mal formadas (tienen que ser { "subject": "…", "body"?: "…" }). Lista vacía = bien. */
+/** Malformed entries (they must be { "subject": "…", "body"?: "…" }). Empty list = fine. */
 export function dictProblems(dicts) {
   const out = [];
   for (const l of CHANGELOG_LANGS) {

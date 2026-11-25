@@ -1,5 +1,5 @@
 :root {
-  /* Valores iniciales: la configuración los reemplaza según el tema (settings/apply.ts). */
+  /* Initial values: the settings replace them depending on the theme (settings/apply.ts). */
   --bg: #0d1017;
   --bg-solid: #0d1017;
   --bar: #121722;
@@ -16,32 +16,32 @@
   font-size: 13px;
 }
 * { box-sizing: border-box; }
-/* La ventana es transparente: el único fondo es el del body (con la opacidad elegida). */
+/* The window is transparent: the only background is the body's (with the chosen opacity). */
 html, #root { height: 100%; margin: 0; background: transparent; overflow: hidden; }
 body { height: 100%; margin: 0; background: var(--bg); color: var(--text); overflow: hidden; }
 .settings-window { background: var(--bg-solid); }
 .app { height: 100%; }
 .error { padding: 16px; color: var(--err); }
 
-/* --- Disposición: barra arriba o a la izquierda --- */
+/* --- Layout: bar on top or on the left --- */
 .workspace { display: flex; flex-direction: column; height: 100%; }
 .workspace.vertical { flex-direction: row; }
 .tab-area { flex: 1; min-width: 0; min-height: 0; position: relative; }
-/* Imagen de fondo (opcional) detrás de las terminales, que en ese caso son transparentes. */
+/* Background image (optional) behind the terminals, which in that case are transparent. */
 .tab-area::before {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   background: var(--bg-image, none) center / var(--bg-size, cover) var(--bg-repeat, no-repeat);
   opacity: var(--bg-image-opacity, .25);
 }
 
-/* --- Barra de pestañas --- */
+/* --- Tab bar --- */
 .tabbar {
   display: flex; align-items: stretch; gap: 6px; flex: none; user-select: none;
   background: var(--bar); border-bottom: 1px solid var(--line); height: 36px; padding: 0 6px;
 }
 .tabbar .tabs { display: flex; align-items: stretch; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .tabbar.vertical { position: relative; flex-direction: column; width: 220px; height: auto; border-bottom: 0; border-right: 1px solid var(--line); padding: 6px; }
-/* Borde derecho arrastrable de la barra vertical (el ancho se guarda en tabBar.width). */
+/* Draggable right edge of the vertical bar (the width is saved in tabBar.width). */
 .tabbar-resize { position: absolute; right: -4px; top: 0; bottom: 0; width: 7px; cursor: col-resize; z-index: 8; }
 .tabbar-resize:hover { background: color-mix(in srgb, var(--accent) 45%, transparent); }
 .tabbar.vertical .tabs { flex-direction: column; overflow-x: hidden; overflow-y: auto; }
@@ -103,7 +103,7 @@ body { height: 100%; margin: 0; background: var(--bg); color: var(--text); overf
 .btn:hover, .profile:hover { border-color: var(--accent); }
 .profile { max-width: 150px; }
 
-/* --- Pestañas y paneles --- */
+/* --- Tabs and panes --- */
 .tab-view { position: absolute; inset: 0; display: none; }
 .tab-view.visible { display: block; }
 .pane { position: absolute; overflow: hidden; }
@@ -111,7 +111,7 @@ body { height: 100%; margin: 0; background: var(--bg); color: var(--text); overf
   content: ""; position: absolute; inset: 0; pointer-events: none;
   box-shadow: inset 0 0 0 1px #2563eb88; border-radius: 2px;
 }
-/* Barrita de cada panel de terminal: nombre, dividir, cerrar; se agarra para mover el panel. */
+/* Small bar of each terminal pane: name, split, close; grab it to move the pane. */
 .pane-bar {
   position: absolute; left: 0; right: 0; top: 0; height: 22px; display: flex; align-items: center; gap: 1px;
   padding: 0 3px 0 10px; background: var(--bar); border-bottom: 1px solid var(--line);
@@ -122,7 +122,7 @@ body { height: 100%; margin: 0; background: var(--bg); color: var(--text); overf
 .pane-bar .icon-btn { width: 20px; height: 18px; font-size: 12px; cursor: pointer; }
 .pane-bar .icon-btn.close { font-size: 15px; }
 .pane-body { position: absolute; top: 22px; left: 0; right: 0; bottom: 0; }
-/* Arrastrando un panel: dónde va a quedar (la mitad de un lado, o el panel entero para intercambiar). */
+/* Dragging a pane: where it will end up (half of one side, or the whole pane to swap). */
 body.pane-dragging, body.pane-dragging * { cursor: grabbing !important; }
 .pane-drop {
   position: absolute; z-index: 6; pointer-events: none; box-sizing: border-box; border-radius: 4px;
@@ -137,11 +137,11 @@ body.pane-dragging, body.pane-dragging * { cursor: grabbing !important; }
 .bp-grip:hover { color: var(--text); }
 .term-host { position: absolute; inset: 0; padding: 6px 4px 4px 12px; }
 .term-host .xterm { height: 100%; }
-/* xterm pinta su viewport opaco aunque el tema sea transparente; el color de fondo ya lo pone
-   el body (con la opacidad elegida), así que acá siempre transparente. */
+/* xterm paints its viewport opaque even if the theme is transparent; the background color is already set
+   by the body (with the chosen opacity), so here it is always transparent. */
 .term-host .xterm .xterm-viewport { background-color: transparent !important; }
 
-/* Zona de agarre de 9 px que se ve como una línea de 1 px (3 px de color al pasar el mouse). */
+/* 9 px grab zone that looks like a 1 px line (3 px of color on mouse hover). */
 .divider { position: absolute; z-index: 5; }
 .divider::before { content: ""; position: absolute; background: var(--line); transition: background .12s, width .12s, height .12s, left .12s, top .12s; }
 .divider.row { width: 9px; margin-left: -4px; cursor: col-resize; }
@@ -152,7 +152,7 @@ body.pane-dragging, body.pane-dragging * { cursor: grabbing !important; }
 .divider.row:hover::before { left: 3px; width: 3px; }
 .divider.column:hover::before { top: 3px; height: 3px; }
 
-/* --- Marcas de comandos (shell integration) --- */
+/* --- Command marks (shell integration) --- */
 .nt-mark { pointer-events: auto; }
 .nt-mark::before {
   content: ""; position: absolute; left: -9px; top: 2px; bottom: 2px; width: 3px; border-radius: 2px;
@@ -160,12 +160,12 @@ body.pane-dragging, body.pane-dragging * { cursor: grabbing !important; }
 .nt-mark.nt-ok::before { background: #8bd49c99; }
 .nt-mark.nt-err::before { background: var(--err); }
 
-/* Mientras se arrastra un divisor, las terminales no se quedan con el mouse. */
+/* While a divider is dragged, the terminals don't capture the mouse. */
 body.resizing .pane { pointer-events: none; }
 body.resizing-row, body.resizing-row * { cursor: col-resize !important; }
 body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 
-/* --- Cuerpo: terminales + panel lateral + barra de paneles --- */
+/* --- Body: terminals + side panel + panel bar --- */
 .body { flex: 1; display: flex; min-width: 0; min-height: 0; }
 .activity-bar {
   width: 40px; flex: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 6px;
@@ -176,7 +176,7 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
 }
 .activity-bar button:hover { color: var(--text); background: var(--tab-hover); }
-/* Botón activo iluminado entero (no solo el costado). */
+/* Fully lit active button (not just the side). */
 .activity-bar button.on {
   color: var(--accent); background: color-mix(in srgb, var(--accent) 20%, transparent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
@@ -243,11 +243,11 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .tab .dot.st-waiting { background: #e5b44f; }
 .tab .dot.st-attention { background: #e5b44f; box-shadow: 0 0 0 3px #e5b44f55; animation: pulse .9s ease-in-out infinite; }
 
-/* --- Raíz: ventana + footer de consumo --- */
+/* --- Root: window + usage footer --- */
 .workspace-root { display: flex; flex-direction: column; height: 100%; }
 .workspace-root > .workspace { flex: 1; min-height: 0; height: auto; }
 
-/* --- Widget CPU/RAM --- */
+/* --- CPU/RAM widget --- */
 .sys-widget { position: relative; display: flex; align-items: center; }
 .sys-btn {
   display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: 6px;
@@ -275,7 +275,7 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .sys-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .muted { color: var(--muted); }
 
-/* --- Footer de consumo --- */
+/* --- Usage footer --- */
 .usage-footer {
   flex: none; height: 26px; display: flex; align-items: center; gap: 4px; padding: 0 6px;
   background: var(--bar); border-top: 1px solid var(--line); font-size: 11.5px; overflow: hidden;
@@ -299,7 +299,7 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .usage-gear { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 13px; }
 .usage-gear:hover { color: var(--text); }
 
-/* --- Panel de servidores --- */
+/* --- Servers panel --- */
 .segmented.small { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; align-self: flex-start; }
 .segmented.small button { background: none; border: 0; color: var(--muted); font: inherit; font-size: 12px; padding: 3px 10px; cursor: pointer; }
 .segmented.small button + button { border-left: 1px solid var(--line); }
@@ -328,7 +328,7 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .banner.ok { border-color: var(--ok); color: var(--ok); }
 .link:disabled { opacity: .4; cursor: not-allowed; text-decoration: none; }
 
-/* --- Panel de proyectos --- */
+/* --- Projects panel --- */
 .project-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .project { border-radius: 8px; }
 .project.missing { opacity: .5; }
@@ -356,13 +356,13 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .icon-btn.tiny { width: 18px; height: 18px; font-size: 12px; opacity: 0; }
 .tree-row:hover .icon-btn.tiny { opacity: 1; }
 
-/* --- Panel lateral redimensionable --- */
+/* --- Resizable side panel --- */
 .side-panel { position: relative; }
 .panel-resize { position: absolute; left: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 5; }
 .panel-resize:hover { background: color-mix(in srgb, var(--accent) 40%, transparent); }
 .tab .changes { font-size: 10px; color: #e5b44f; flex: none; font-variant-numeric: tabular-nums; }
 
-/* --- Panel de git --- */
+/* --- Git panel --- */
 .git-repo { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .git-repo b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .git-branch { color: var(--muted); font-size: 12px; white-space: nowrap; }
@@ -412,7 +412,7 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .diff tr.d-hunk td { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .diff tr.d-meta td { color: var(--muted); }
 
-/* --- Vista previa de rutas --- */
+/* --- Path preview --- */
 .path-preview {
   position: fixed; z-index: 100; display: none; max-width: 420px; max-height: 360px; overflow: hidden;
   background: var(--bg-solid); border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 12px 32px #0009;
@@ -423,7 +423,7 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .pp-body img { max-width: 400px; max-height: 280px; display: block; border-radius: 5px; background: repeating-conic-gradient(#8882 0 25%, transparent 0 50%) 0 0 / 16px 16px; }
 .pp-text, .pp-list { white-space: pre; font: 11.5px/1.4 "Cascadia Mono", Consolas, monospace; color: var(--text); overflow: hidden; }
 
-/* --- Colores y carpetas de pestañas --- */
+/* --- Tab colors and folders --- */
 .tab::before { content: ""; position: absolute; left: 3px; top: 8px; bottom: 8px; width: 3px; border-radius: 2px; background: var(--tcolor, transparent); }
 .tabbar.vertical .tab.grouped { margin-left: 12px; width: calc(100% - 12px); }
 .tab-group {
@@ -448,7 +448,7 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .swatch-btn.none { background: transparent; border-color: var(--line); }
 .swatch-btn:hover { transform: scale(1.15); }
 
-/* --- Footer: ubicación + consumo --- */
+/* --- Footer: location + usage --- */
 .usage-footer { justify-content: space-between; gap: 10px; }
 .usage-list { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .usage-wrap { position: relative; }
@@ -484,7 +484,7 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .hist-mark.err { background: var(--err); }
 .hist-cmd { font: 12px "Cascadia Mono", Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 
-/* --- Docker y guardián --- */
+/* --- Docker and Guardian --- */
 .templates { display: flex; flex-wrap: wrap; gap: 5px; }
 .guardian-backdrop { position: fixed; inset: 0; z-index: 500; background: #0008; display: flex; align-items: center; justify-content: center; padding: 20px; }
 .guardian {
@@ -506,13 +506,13 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .guardian .muted.small { color: var(--muted); font-size: 11.5px; margin: 0; }
 
 
-/* --- Barra vertical: CPU y RAM en una fila, debajo de los íconos --- */
+/* --- Vertical bar: CPU and RAM in one row, below the icons --- */
 .tabbar.vertical .bar-actions { flex-wrap: wrap; justify-content: center; gap: 6px; }
 .tabbar.vertical .bar-actions .sys-widget { order: 2; flex-basis: 100%; justify-content: center; }
 .tabbar.vertical .sys-btn { flex-wrap: nowrap; height: auto; padding: 3px 4px; gap: 14px; font-size: 11px; }
 .tabbar.vertical .sys-btn .spark { width: 64px; height: 14px; }
 
-/* --- Saltar al principio / al final --- */
+/* --- Jump to start / to end --- */
 .jumps { position: absolute; right: 16px; bottom: 10px; display: flex; flex-direction: column; gap: 6px; z-index: 6; pointer-events: none; }
 .jump {
   pointer-events: auto; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line);
@@ -521,7 +521,7 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 }
 .jump:hover { opacity: 1; border-color: var(--accent); color: var(--accent); }
 
-/* --- Paneles en mosaico --- */
+/* --- Tiled panels --- */
 .dock { display: flex; flex: none; min-height: 0; border-left: 1px solid var(--line); background: var(--bar); }
 .dock-col { position: relative; display: flex; flex-direction: column; min-height: 0; flex: none; border-left: 1px solid var(--line); }
 .dock-col:first-of-type { border-left: 0; }
@@ -540,7 +540,7 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .dock-head .grip { opacity: .5; letter-spacing: -2px; }
 .icon-btn.tiny-x { width: 20px; height: 20px; font-size: 14px; }
 .dock-body { flex: 1; min-height: 0; overflow-y: auto; }
-/* El título ya está en la barra del mosaico: el del panel se oculta (sus botones quedan). */
+/* The title is already in the tile's bar: the pane's is hidden (its buttons stay). */
 .dock-body .panel-head { justify-content: flex-end; min-height: 0; }
 .dock-body .panel-head h2 { display: none; }
 .dock-body .panel { padding-top: 6px; }
@@ -548,7 +548,7 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .dock.dragging .dock-drop { width: 18px; background: repeating-linear-gradient(90deg, transparent 0 7px, color-mix(in srgb, var(--accent) 35%, transparent) 7px 11px, transparent 11px); }
 .dock.dragging .dock-drop:hover { background: color-mix(in srgb, var(--accent) 40%, transparent); }
 
-/* --- Barra de pestañas vertical plegada --- */
+/* --- Collapsed vertical tab bar --- */
 .tabbar .collapse-bar { align-self: flex-end; height: 22px; min-width: 26px; padding: 0 6px; font-size: 12px; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; }
 .tabbar .collapse-bar svg { display: block; }
 .tabbar.vertical.collapsed { width: 48px; padding: 6px 4px; }
@@ -562,7 +562,7 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .tabbar.collapsed .new-tab { justify-content: center; }
 .tab-initial { font-weight: 700; font-size: 12px; width: 16px; text-align: center; }
 
-/* --- Detalle de consumo (footer y panel de agentes) --- */
+/* --- Usage detail (footer and agents panel) --- */
 .usage-detail { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
 .usage-detail table { width: 100%; border-collapse: collapse; }
 .usage-detail td { padding: 2px 4px; white-space: nowrap; }
@@ -583,7 +583,7 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .usage-detail.compact .usage-bar.wide { width: 70px; }
 .agent-usage { padding: 6px 8px 8px; margin: -2px 0 6px 37px; border-left: 2px solid var(--line); }
 
-/* --- Panel de modificaciones --- */
+/* --- Changes panel --- */
 .changes-tools { display: flex; gap: 6px; margin-bottom: 6px; }
 .changes-tools input { flex: 1; min-width: 0; }
 .changes-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
@@ -620,8 +620,8 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .changes-tools input.text { flex: 1 1 auto; width: auto; min-width: 0; }
 .changes-tools select.text { flex: none; width: auto; }
 
-/* Widget CPU/RAM: cada medida es texto + gráfica. En la barra vertical la gráfica va abajo del texto;
-   con la barra plegada quedan solo los números, uno abajo del otro. */
+/* CPU/RAM widget: each measure is text + chart. In the vertical bar the chart goes below the text;
+   with the bar collapsed only the numbers remain, one below the other. */
 .sys-metric { display: inline-flex; align-items: center; gap: 5px; }
 .tabbar.vertical .sys-metric { flex-direction: column; align-items: center; gap: 2px; }
 .tabbar.collapsed .bar-actions .sys-widget { order: 0; flex-basis: auto; }
@@ -631,7 +631,7 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .app-version:hover { color: var(--text); background: var(--tab-hover); }
 .app-version .dirty { color: #e5b44f; }
 
-/* --- Opciones de arranque de los agentes (panel de agentes) --- */
+/* --- Agent launch options (agents panel) --- */
 .icon-btn.on { color: var(--accent); }
 .agent-options { gap: 10px; }
 .agent-options .opt-head { display: flex; align-items: center; gap: 6px; }
@@ -655,14 +655,14 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .agent-options .opt.off > label { opacity: .45; pointer-events: none; }
 
 
-/* --- Confirmación dentro de la app (askConfirm) --- */
+/* --- In-app confirmation (askConfirm) --- */
 .confirm-box {
   width: min(440px, 100%); background: var(--bg-solid); border: 1px solid var(--line); border-radius: 12px;
   padding: 16px 18px; box-shadow: 0 20px 60px #000a; display: flex; flex-direction: column; gap: 14px;
 }
 .confirm-box p { margin: 0; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
 
-/* --- Novedades (changelog) --- */
+/* --- What's new (changelog) --- */
 .app-version.news { color: var(--accent); }
 .modal-backdrop { position: fixed; inset: 0; z-index: 400; background: #0008; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .changelog {
@@ -689,7 +689,7 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .cl-subject { flex: 1; min-width: 0; }
 .cl-body { margin: 2px 0 8px 64px; white-space: pre-wrap; font: 11.5px/1.45 "Cascadia Mono", Consolas, monospace; color: var(--muted); background: var(--bar); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; }
 
-/* --- Navegador integrado (el WebView2 de la página va encima de .bp-view) --- */
+/* --- Built-in browser (the page's WebView2 sits on top of .bp-view) --- */
 .browser-pane { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg-solid); }
 .bp-bar { display: flex; align-items: center; gap: 4px; padding: 4px 6px; background: var(--bar); border-bottom: 1px solid var(--line); flex: none; }
 .bp-url {
@@ -734,13 +734,13 @@ body.resizing-column, body.resizing-column * { cursor: row-resize !important; }
 .bp-status.error, .bp-status.attention { color: var(--err); }
 .bp-spinner { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
 
-/* --- Configuración dentro de la ventana (encima de pestañas y paneles; el footer queda) --- */
+/* --- Settings inside the window (on top of tabs and panes; the footer stays) --- */
 .workspace { position: relative; }
 .settings-overlay { position: absolute; inset: 0; z-index: 300; background: var(--bg-solid); border-bottom: 1px solid var(--line); }
 .settings-nav h1 { display: flex; align-items: center; gap: 6px; }
 .settings-close { margin-left: auto; font-size: 16px; }
 
-/* --- Predicciones de comandos (src/suggest) --- */
+/* --- Command suggestions (src/suggest) --- */
 .suggest-menu {
   position: absolute; z-index: 60; min-width: 240px; max-width: 560px; padding: 4px;
   background: var(--bg-solid); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 10px 28px #0008;

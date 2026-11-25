@@ -1,11 +1,11 @@
 /**
- * Opciones de arranque de cada agente (las de su `--help` y su documentación), para elegirlas con
- * casillas, listas y deslizadores antes de lanzarlo. Lo elegido se guarda en `AgentDef.launch` y
- * `launchParts` lo convierte en argumentos, con las comillas de la shell donde se escribe.
+ * Launch options of each agent (those of its `--help` and its documentation), to choose them with
+ * checkboxes, lists and sliders before launching it. What is chosen is saved in `AgentDef.launch` and
+ * `launchParts` turns it into arguments, with the quoting of the shell where it is typed.
  *
- * Relevado el 20/11/2026 con Claude Code 2.1.329, Codex 0.170.0, agy 1.5.13 y OpenCode 1.19.1 (sus
- * `--help` y la documentación oficial). OpenCode 2.x cambió los flags de la interfaz (no tiene
- * --model ni --agent): este catálogo es el de la 1.x, la instalada.
+ * Surveyed on 11/20/2026 with Claude Code 2.1.329, Codex 0.170.0, agy 1.5.13 and OpenCode 1.19.1 (their
+ * `--help` and the official documentation). OpenCode 2.x changed the interface flags (it has no
+ * --model or --agent): this catalog is the 1.x one, the one installed.
  */
 import type { AgentDef } from "../settings/schema";
 import { k, t } from "../i18n";
@@ -19,35 +19,35 @@ export interface Choice {
   hint?: string;
 }
 
-/** Dónde va el argumento: subcomando (`codex resume`), primer posicional o flag común. */
+/** Where the argument goes: subcommand (`codex resume`), first positional or common flag. */
 type Slot = "sub" | "lead" | "flag";
 
 interface Base {
   key: string;
   label: string;
   hint?: string;
-  /** Saltea protecciones: se pinta en rojo. */
+  /** Skips safeguards: drawn in red. */
   danger?: boolean;
   section: "main" | "session" | "more";
-  /** No se repite al reabrir AlphaTerm (el agente ya se retoma con su forma de continuar). */
+  /** Not repeated when AlphaTerm is reopened (the agent is already resumed with its own continue form). */
   session?: boolean;
   slot?: Slot;
-  /** Opciones que no se mandan si esta está prendida (el agente no las acepta juntas). */
+  /** Options that are not sent if this one is on (the agent doesn't accept them together). */
   conflicts?: string[];
-  /** Clave de un `--settings` JSON que junta varias opciones en un solo argumento (agy). */
+  /** Key of a `--settings` JSON that gathers several options into a single argument (agy). */
   json?: string;
 }
 
 export type LaunchOpt =
   | (Base & { kind: "bool"; args: string[] })
   | (Base & { kind: "choice"; choices: Choice[]; args: (v: string) => string[] })
-  /** Texto con sugerencias (lista desplegable que se puede filtrar escribiendo). `models`: se suman los que informa el agente. */
+  /** Text with suggestions (dropdown list that can be filtered by typing). `models`: those reported by the agent are added. */
   | (Base & { kind: "combo"; suggestions: Choice[]; models?: boolean; args: (v: string) => string[] })
-  /** Deslizador: la primera posición es "por defecto" (sin flag). */
+  /** Slider: the first position is "default" (no flag). */
   | (Base & { kind: "level"; levels: string[]; args: (v: string) => string[] })
   | (Base & { kind: "text"; placeholder?: string; multiline?: boolean; args: (v: string) => string[] });
 
-/** Varios valores en un campo de texto: separados por ";" o saltos de línea. */
+/** Several values in a text field: separated by ";" or line breaks. */
 const many = (v: string) =>
   v
     .split(/[;\n]/)
@@ -398,7 +398,7 @@ const OPENCODE: LaunchOpt[] = [
 
 const CATALOG: Record<string, LaunchOpt[]> = { claude: CLAUDE, codex: CODEX, agy: AGY, opencode: OPENCODE };
 
-/** Programa del agente: el primer token del comando, sin carpeta ni extensión ("claude", "codex"…). */
+/** Agent program: the first token of the command, without folder or extension ("claude", "codex"…). */
 export const agentKind = (command: string) =>
   (command.trim().match(/^"([^"]*)"|^\S+/)?.[1] ?? command.trim().split(/\s+/)[0] ?? "")
     .split(/[\\/]/)
@@ -408,21 +408,21 @@ export const agentKind = (command: string) =>
 
 export const optionsFor = (command: string): LaunchOpt[] => CATALOG[agentKind(command)] ?? [];
 
-// --- Comillas según la shell -----------------------------------------------------------------
+// --- Quoting by shell ------------------------------------------------------------------------
 
 export type ShellKind = "ps5" | "pwsh" | "cmd" | "posix";
 
 export const shellKindOf = (profileId: string): ShellKind =>
   profileId === "powershell" ? "ps5" : profileId === "pwsh" ? "pwsh" : profileId === "gitbash" || profileId === "wsl" ? "posix" : "cmd";
 
-/** Un argumento listo para escribir en la shell. Lo simple va tal cual. */
+/** An argument ready to type in the shell. Simple ones go as they are. */
 export function quoteArg(arg: string, shell: ShellKind): string {
   if (/^[A-Za-z0-9_\-./\\:=]+$/.test(arg)) return arg;
   switch (shell) {
     case "posix":
       return `'${arg.replace(/'/g, `'\\''`)}'`;
     case "ps5":
-      // PowerShell 5.1 pierde las comillas dobles internas al pasarle el argumento a un .exe: van como \".
+      // PowerShell 5.1 loses inner double quotes when passing the argument to an .exe: they go as \".
       return `'${arg.replace(/'/g, "''").replace(/"/g, '\\"')}'`;
     case "pwsh":
       return `'${arg.replace(/'/g, "''")}'`;
@@ -433,13 +433,13 @@ export function quoteArg(arg: string, shell: ShellKind): string {
 
 const isSet = (v: LaunchValue | undefined) => (typeof v === "boolean" ? v : typeof v === "string" && v.trim() !== "");
 
-/** La opción prendida que deja afuera a `key` (no se aceptan juntas), si hay una. */
+/** The enabled option that rules out `key` (they aren't accepted together), if there is one. */
 export function blockedBy(agent: Pick<AgentDef, "command" | "launch">, key: string): LaunchOpt | undefined {
   const values = agent.launch ?? {};
   return optionsFor(agent.command).find((o) => o.key !== key && o.conflicts?.includes(key) && isSet(values[o.key]));
 }
 
-/** Argumentos elegidos, separados por lugar. `resuming`: sin los de sesión (al reabrir AlphaTerm). */
+/** Chosen arguments, split by position. `resuming`: without the session ones (when reopening AlphaTerm). */
 export function launchParts(agent: Pick<AgentDef, "command" | "launch">, opts: { resuming?: boolean } = {}) {
   const parts: Record<Slot, string[]> = { sub: [], lead: [], flag: [] };
   const values = agent.launch ?? {};
@@ -458,14 +458,14 @@ export function launchParts(agent: Pick<AgentDef, "command" | "launch">, opts: {
   return parts;
 }
 
-/** Línea de comando del agente con las opciones elegidas (más `extra`, que va al final). */
+/** Agent command line with the chosen options (plus `extra`, which goes last). */
 export function buildCommand(agent: Pick<AgentDef, "command" | "launch">, shell: ShellKind, extra: string[] = [], opts: { resuming?: boolean; resumeArgs?: string } = {}): string {
   const p = launchParts(agent, opts);
   const q = (xs: string[]) => xs.map((x) => quoteArg(x, shell));
   return [agent.command.trim(), opts.resumeArgs ?? "", ...q(p.sub), ...q(p.lead), ...q(p.flag), ...extra].filter(Boolean).join(" ");
 }
 
-/** Resumen corto de lo elegido (para debajo del nombre del agente), en el idioma actual. */
+/** Short summary of what was chosen (to go below the agent's name), in the current language. */
 export function launchSummary(agent: Pick<AgentDef, "command" | "launch">): string {
   const values = agent.launch ?? {};
   const out: string[] = [];

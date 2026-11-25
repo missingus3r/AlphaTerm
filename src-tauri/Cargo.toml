@@ -44,9 +44,9 @@ lto = true
 codegen-units = 1
 strip = true
 
-# Desarrollo (`npx tauri dev`, `cargo test`): sin esto target\debug llego a 28 GB, casi todo
-# informacion de depuracion de las dependencias. El codigo propio guarda solo numeros de linea
-# (alcanzan para los backtraces); dependencias, build scripts y macros, nada.
+# Development (`npx tauri dev`, `cargo test`): without this, target\debug grew to 28 GB, almost all of
+# it debug info from the dependencies. Our own code keeps only line numbers (enough for backtraces);
+# dependencies, build scripts and macros, nothing.
 [profile.dev]
 debug = "line-tables-only"
 

@@ -1,13 +1,13 @@
-/** Lógica pura del consumo (sin APIs de Tauri, para poder testearla). */
+/** Pure usage logic (no Tauri APIs, so it can be tested). */
 
 export interface UsageWindow {
   label: string;
   usedPct: number;
   resetsAt: number | null;
-  /** Reinicio como lo escribe el programa ("3pm (America/Montevideo)", "09:12 on 25 Nov"). */
+  /** Reset as the program writes it ("3pm (America/Montevideo)", "09:12 on 25 Nov"). */
   resetsText: string | null;
   stale: boolean;
-  /** Solo para el detalle (por modelo, uso extra). */
+  /** Only for the detail (per model, extra usage). */
   detail: boolean;
 }
 export interface Usage {
@@ -27,7 +27,7 @@ export interface Usage {
 export type ProviderId = "claude" | "codex" | "agy";
 export const PROVIDER_NAMES: Record<ProviderId, string> = { claude: "Claude", codex: "Codex", agy: "Antigravity" };
 
-/** Qué proveedor de consumo corresponde a un agente o a un comando ("claude --continue" → claude). */
+/** Which usage provider corresponds to an agent or a command ("claude --continue" → claude). */
 export function providerFor(agentId?: string, command?: string, fg?: string): ProviderId | null {
   const pick = (s?: string) => {
     const first = (s ?? "").trim().split(/\s+/)[0] ?? "";
@@ -37,7 +37,7 @@ export function providerFor(agentId?: string, command?: string, fg?: string): Pr
   return pick(agentId) ?? pick(command) ?? pick(fg);
 }
 
-/** Ventanas a mostrar en el footer: las principales (agy tiene muchas: las del grupo más usado). */
+/** Windows to show in the footer: the main ones (agy has many: those of the most used group). */
 export function headline(u: Usage): UsageWindow[] {
   const main = u.windows.filter((w) => !w.detail);
   if (u.provider !== "agy" || main.length <= 2) return main;
@@ -59,7 +59,7 @@ const monthOf = (s: string) => {
 };
 
 /**
- * Texto de reinicio → momento (ms), tomando como referencia cuándo se leyó (`at`), en la hora local.
+ * Reset text → moment (ms), taking as reference when it was read (`at`), in local time.
  * Formatos: "3pm", "1:30pm (America/Montevideo)", "Nov 22, 10pm", "14:30", "09:12 on 25 Nov",
  * "in 2h 5m", "3d 4h".
  */
@@ -103,13 +103,13 @@ export function parseResetText(text: string | null | undefined, at: number): num
   return d.getTime();
 }
 
-/** Momento de reinicio (ms) de una ventana: el exacto o el que se lee del texto. */
+/** Reset moment (ms) of a window: the exact one or the one read from the text. */
 export function resetOf(w: UsageWindow, updatedAt: number | null): number | null {
   if (w.resetsAt) return w.resetsAt * 1000;
   return parseResetText(w.resetsText, updatedAt ?? Date.now());
 }
 
-/** Largo de una ventana según su etiqueta ("5 h", "semana", "Gemini · semana"). */
+/** Length of a window according to its label ("5 h", "semana", "Gemini · semana"). */
 export function windowMs(label: string): number | null {
   const l = label.split(" · ").pop()!.toLowerCase();
   if (l.startsWith("semana") || label.toLowerCase().startsWith("semana")) return 7 * 86_400_000;
@@ -120,19 +120,19 @@ export function windowMs(label: string): number | null {
 }
 
 export interface Forecast {
-  /** Porcentaje estimado al reinicio, al ritmo de ahora. */
+  /** Estimated percentage at reset, at the current pace. */
   projected: number;
-  /** Cuándo se agotaría (ms), si es antes del reinicio. */
+  /** When it would run out (ms), if it is before the reset. */
   exhaustAt: number | null;
-  /** Ritmo de esta ventana y lo que queda por día para llegar justo. */
+  /** Pace of this window and what is left per day to just make it. */
   ratePerDay: number;
   budgetPerDay: number;
   resetAt: number;
 }
 
 /**
- * Previsión semanal (como la del dashboard): con el porcentaje usado y lo que pasó de la ventana,
- * a ritmo parejo. Solo tiene sentido pasado un rato de la ventana.
+ * Weekly forecast (like the dashboard's): with the percentage used and how much of the window has passed,
+ * at a steady pace. It only makes sense after a while into the window.
  */
 export function forecast(usedPct: number, resetAt: number, lengthMs: number, now = Date.now()): Forecast | null {
   const start = resetAt - lengthMs;

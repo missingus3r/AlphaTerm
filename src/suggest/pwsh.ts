@@ -1,17 +1,17 @@
 /**
- * Mensajes de la sesión de PowerShell para las predicciones (ver `src-tauri/shell/alphaterm.ps1`):
- * - `ESC]7717;ready;<nonce>BEL`: la sesión tiene el atajo escondido registrado.
- * - `ESC]7717;c;<nonce>;<base64 de JSON UTF-8>BEL`: completados de `TabExpansion2` para el buffer.
- * El nonce lo pone AlphaTerm en ALPHATERM_NONCE al lanzar la shell: sin él no se le cree a nadie.
+ * Messages from the PowerShell session for command suggestions (see `src-tauri/shell/alphaterm.ps1`):
+ * - `ESC]7717;ready;<nonce>BEL`: the session has the hidden shortcut registered.
+ * - `ESC]7717;c;<nonce>;<base64 of UTF-8 JSON>BEL`: `TabExpansion2` completions for the buffer.
+ * AlphaTerm sets the nonce in ALPHATERM_NONCE when launching the shell: without it, nobody is trusted.
  */
 
-/** F12 (como lo manda xterm) seguido de `e`: el atajo que registra el script. */
+/** F12 (as xterm sends it) followed by `e`: the shortcut the script registers. */
 export const PS_CHORD = "\x1b[24~e";
 
 export interface PsResult {
   text: string;
   label: string;
-  /** `CompletionResultType` de PowerShell: Command, ParameterName, ProviderContainer… */
+  /** PowerShell's `CompletionResultType`: Command, ParameterName, ProviderContainer… */
   kind: string;
   tip: string;
 }
@@ -42,7 +42,7 @@ export function parse7717(data: string, nonce: string): PsMsg | null {
   const v = decode(payload);
   if (!v || typeof v !== "object") return null;
   const o = v as Record<string, unknown>;
-  // ConvertTo-Json de PowerShell 5.1 puede dejar un solo resultado como objeto en vez de lista.
+  // PowerShell 5.1's ConvertTo-Json can leave a single result as an object instead of a list.
   const raw = Array.isArray(o.r) ? o.r : o.r && typeof o.r === "object" ? [o.r] : [];
   const results = raw
     .filter((r): r is Record<string, unknown> => !!r && typeof r === "object")

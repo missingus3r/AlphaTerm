@@ -1,5 +1,5 @@
-//! Historial de comandos de todas las pestañas y ventanas (los que llegan por la integración de la
-//! shell), en `%APPDATA%\AlphaTerm\history.jsonl`. Se guardan los últimos 5000.
+//! History of commands from all tabs and windows (those that arrive through the shell
+//! integration), in `%APPDATA%\AlphaTerm\history.jsonl`. The last 5000 are kept.
 
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, Write};
@@ -33,8 +33,8 @@ fn load() -> Vec<Entry> {
     std::io::BufReader::new(f).lines().map_while(Result::ok).filter_map(|l| serde_json::from_str(&l).ok()).collect()
 }
 
-/// Busca por palabras (todas tienen que aparecer, en el comando o en la carpeta), lo más nuevo primero
-/// y sin repetir el mismo comando en la misma carpeta.
+/// Searches by words (all must appear, in the command or in the folder), newest first
+/// and without repeating the same command in the same folder.
 pub fn search(items: &[Entry], query: &str, limit: usize) -> Vec<Entry> {
     let words: Vec<String> = query.to_lowercase().split_whitespace().map(str::to_string).collect();
     let mut seen = std::collections::HashSet::new();
@@ -65,7 +65,7 @@ pub fn history_add(state: tauri::State<HistoryState>, entry: Entry) -> Result<()
         let _ = std::fs::create_dir_all(d);
     }
     if items.len() > MAX + 1000 {
-        // Se recorta y se reescribe el archivo entero de vez en cuando.
+        // The file is trimmed and rewritten in full from time to time.
         let drop = items.len() - MAX;
         items.drain(..drop);
         let text: String = items.iter().filter_map(|e| serde_json::to_string(e).ok()).map(|l| l + "\n").collect();

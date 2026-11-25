@@ -1,7 +1,7 @@
-/** Formatos chicos para los widgets (en el idioma de la interfaz: en castellano, con coma decimal). */
+/** Small formats for the widgets (in the interface language: in Spanish, with a decimal comma). */
 import { lang, locale, t } from "../i18n";
 
-// Un formato de números por idioma y cantidad de decimales (se crean al usarlos: el idioma cambia).
+// One number format per language and number of decimals (created on use: the language changes).
 const nfs = new Map<string, Intl.NumberFormat>();
 function nf(digits: 0 | 1): Intl.NumberFormat {
   const key = `${locale()}:${digits}`;
@@ -20,10 +20,10 @@ export function fmtBytes(n: number): string {
   return `${n} B`;
 }
 
-/** "28 %" en castellano; "28%" en inglés y portugués. */
+/** "28 %" in Spanish; "28%" in English and Portuguese. */
 export const fmtPct = (p: number) => `${nf(0).format(Math.round(p))}${lang() === "es" ? " %" : "%"}`;
 
-/** "hace 3 min", "hace 2 h", "hace 5 días" (desde `ms` hasta `now`). */
+/** "hace 3 min", "hace 2 h", "hace 5 días" (from `ms` to `now`). */
 export function ago(ms: number, now = Date.now()): string {
   const s = Math.max(0, Math.round((now - ms) / 1000));
   if (s < 60) return t("recién");
@@ -35,8 +35,8 @@ export function ago(ms: number, now = Date.now()): string {
 }
 
 /**
- * Duración de `m` minutos: "45 min", "2 h 10 min", "3 días" (días redondeados) o, con `withHours`,
- * "3 días 4 h" (días enteros y las horas que sobran).
+ * Duration of `m` minutes: "45 min", "2 h 10 min", "3 días" (days rounded) or, with `withHours`,
+ * "3 días 4 h" (whole days and the leftover hours).
  */
 export function fmtSpan(m: number, withHours = false): string {
   if (m < 60) return t("{m} min", { m });
@@ -47,14 +47,14 @@ export function fmtSpan(m: number, withHours = false): string {
   return h % 24 ? t("{d} días {h} h", { d, h: h % 24 }) : t("{d} días", { d });
 }
 
-/** "en 2 h 10 min", "en 3 días" (hasta `unixSec`). */
+/** "en 2 h 10 min", "en 3 días" (until `unixSec`). */
 export function until(unixSec: number, now = Date.now()): string {
   const s = Math.round(unixSec - now / 1000);
   if (s <= 0) return t("ya se reinició");
   return t("en {time}", { time: fmtSpan(Math.ceil(s / 60)) });
 }
 
-/** Puntos de una sparkline (valores 0–100) para un SVG de `w`×`h`. */
+/** Points of a sparkline (values 0–100) for an SVG of `w`×`h`. */
 export function sparkPoints(values: number[], w: number, h: number, slots = 60): string {
   if (values.length === 0) return "";
   const step = w / Math.max(1, slots - 1);
@@ -68,8 +68,8 @@ export function sparkPoints(values: number[], w: number, h: number, slots = 60):
     .join(" ");
 }
 
-/** Agrega una muestra y se queda con las últimas `max`. */
+/** Adds a sample and keeps the last `max`. */
 export const pushSample = (list: number[], v: number, max = 60) => [...list, v].slice(-max);
 
-/** Color según el uso: tranquilo, atención, crítico. */
+/** Color by usage: calm, warning, critical. */
 export const level = (pct: number) => (pct >= 90 ? "crit" : pct >= 70 ? "warn" : "ok");

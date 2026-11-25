@@ -1,9 +1,9 @@
 /**
- * Parseo de las secuencias que mandan los scripts de shell integration:
- * - OSC 133 (FinalTerm): A = empieza el prompt, B = termina el prompt, C = arranca el comando,
- *   D;código = terminó el comando.
- * - OSC 633;E;<comando> (convención de VS Code): el texto del comando, escapado.
- * - OSC 7 (file://host/ruta) y OSC 9;9;ruta (Windows Terminal/ConEmu): carpeta actual.
+ * Parsing of the sequences sent by the shell integration scripts:
+ * - OSC 133 (FinalTerm): A = prompt starts, B = prompt ends, C = command starts,
+ *   D;code = command finished.
+ * - OSC 633;E;<command> (VS Code convention): the command text, escaped.
+ * - OSC 7 (file://host/path) and OSC 9;9;path (Windows Terminal/ConEmu): current folder.
  */
 
 export type ShellMark =
@@ -30,7 +30,7 @@ export function parse133(data: string): ShellMark | null {
   }
 }
 
-/** Deshace el escapado de 633;E: `\\` es una barra y `\xNN` un byte (por ejemplo `\x3b` = `;`). */
+/** Undoes the 633;E escaping: `\\` is a backslash and `\xNN` a byte (for example `\x3b` = `;`). */
 export function unescape633(s: string): string {
   return s.replace(/\\(\\|x([0-9a-fA-F]{2}))/g, (_m, all: string, hex?: string) =>
     hex ? String.fromCharCode(parseInt(hex, 16)) : all,
@@ -39,12 +39,12 @@ export function unescape633(s: string): string {
 
 export function parse633(data: string): { command: string } | null {
   if (!data.startsWith("E;")) return null;
-  // Puede venir un nonce después de otro `;` sin escapar: se descarta.
+  // A nonce may come after another unescaped `;`: it is discarded.
   const body = data.slice(2).split(";")[0];
   return { command: unescape633(body) };
 }
 
-/** `/c/Users/x` (MSYS) o `/C:/Users/x` → `C:\Users\x`. Deja tal cual lo que ya es ruta de Windows. */
+/** `/c/Users/x` (MSYS) or `/C:/Users/x` → `C:\Users\x`. Leaves as is whatever is already a Windows path. */
 export function toWindowsPath(p: string): string {
   let s = p;
   const msys = /^\/([a-zA-Z])(\/|$)(.*)$/.exec(s);

@@ -1,4 +1,4 @@
-/** Diff unificado → líneas con número viejo/nuevo, y su versión lado a lado. */
+/** Unified diff → lines with old/new number, and its side-by-side version. */
 import { k } from "../i18n";
 
 export type LineKind = "add" | "del" | "ctx" | "hunk" | "meta";
@@ -41,11 +41,11 @@ export function parseDiff(text: string): DiffLine[] {
 export interface SideRow {
   left?: DiffLine;
   right?: DiffLine;
-  /** Fila de encabezado (hunk o meta) a lo ancho. */
+  /** Full-width header row (hunk or meta). */
   full?: DiffLine;
 }
 
-/** Empareja borrados con agregados dentro de cada bloque de cambios, como en un diff lado a lado. */
+/** Pairs deletions with additions within each block of changes, as in a side-by-side diff. */
 export function sideBySide(lines: DiffLine[]): SideRow[] {
   const rows: SideRow[] = [];
   let dels: DiffLine[] = [];
@@ -73,7 +73,7 @@ export const countChanges = (lines: DiffLine[]) => ({
   del: lines.filter((l) => l.kind === "del").length,
 });
 
-/** Letra de estado → palabra (se traduce con `t` al mostrarla). */
+/** Status letter → word (translated with `t` when shown). */
 export const STATUS_WORD: Record<string, string> = {
   M: k("modificado"),
   A: k("agregado"),

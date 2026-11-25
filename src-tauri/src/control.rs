@@ -1,11 +1,11 @@
-//! API de control para agentes: un servidor HTTP local (solo 127.0.0.1, con token) que deja a un
-//! agente ver y manejar AlphaTerm: listar pestañas, abrir pestañas, paneles y ventanas, correr
-//! comandos y leer su salida, y manejar Docker. Lo destructivo pasa por el guardián.
+//! Control API for agents: a local HTTP server (127.0.0.1 only, with a token) that lets an
+//! agent see and drive AlphaTerm: list tabs, open tabs, panes and windows, run
+//! commands and read their output, and manage Docker. Anything destructive goes through the Guardian.
 //!
-//! - La URL y el token quedan en `%APPDATA%\AlphaTerm\control.json` y en las variables
-//!   ALPHATERM_CONTROL_URL / ALPHATERM_CONTROL_TOKEN de cada pestaña (el token cambia en cada inicio).
-//! - `alphaterm-mcp.mjs` (en la misma carpeta) es un servidor MCP y también un CLI para usarla.
-//! - Lo que depende de las ventanas (pestañas, buffers) se le pregunta al frontend por eventos.
+//! - The URL and token are kept in `%APPDATA%\AlphaTerm\control.json` and in the
+//!   ALPHATERM_CONTROL_URL / ALPHATERM_CONTROL_TOKEN variables of each tab (the token changes on every start).
+//! - `alphaterm-mcp.mjs` (in the same folder) is an MCP server and also a CLI to use it.
+//! - Whatever depends on the windows (tabs, buffers) is asked of the frontend through events.
 
 use crate::guardian::{self, Ask, Decision, Kind};
 use crate::i18n::tr;
@@ -29,7 +29,7 @@ pub struct ControlState {
 }
 
 impl ControlState {
-    /// Variables para las shells nuevas (vacío si la API está apagada).
+    /// Variables for new shells (empty if the API is off).
     pub fn env(&self) -> Vec<(String, String)> {
         if !self.enabled.load(Ordering::SeqCst) {
             return vec![];
@@ -49,7 +49,7 @@ fn random_token() -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
 
-/// Arranca el servidor y escribe los scripts auxiliares.
+/// Starts the server and writes the helper scripts.
 pub fn start(app: AppHandle) {
     let server = match tiny_http::Server::http("127.0.0.1:0") {
         Ok(s) => s,
@@ -87,7 +87,7 @@ fn write_files(url: &str, token: &str) {
     let _ = std::fs::write(dir.join("guardian-hook.mjs"), HOOK_JS);
     let fwd = |p: std::path::PathBuf| p.display().to_string().replace('\\', "/");
     let hook_cmd = format!("node \"{}\"", fwd(dir.join("guardian-hook.mjs")));
-    // Stop: avisa cuándo Claude Code terminó de contestar (el navegador pasa de "trabajando" a "listo").
+    // Stop: signals when Claude Code finished answering (the browser goes from "trabajando" to "listo").
     let stop = json!([ { "hooks": [ { "type": "command", "command": hook_cmd, "timeout": 15 } ] } ]);
     let _ = crate::settings::save_to(&dir.join("claude-stop.json"), &json!({ "hooks": { "Stop": stop.clone() } }));
     let _ = crate::settings::save_to(
@@ -142,7 +142,7 @@ fn s(p: &Value, k: &str) -> Option<String> {
     p.get(k).and_then(Value::as_str).map(str::to_string)
 }
 
-/// Pregunta al guardián por un comando que va a una shell.
+/// Asks the Guardian about a command going to a shell.
 fn guard_command(app: &AppHandle, cmd: &str, caller: &Option<String>, pane: &Option<String>) -> Result<(), String> {
     let Some(r) = guardian::classify_command(cmd) else { return Ok(()) };
     let ask = Ask {
@@ -170,12 +170,12 @@ fn guard_command(app: &AppHandle, cmd: &str, caller: &Option<String>, pane: &Opt
     }
 }
 
-/// Quién pide algo por la API (para el guardián).
+/// Who makes a request through the API (for the Guardian).
 fn api_agent() -> &'static str {
     tr("Agente vía API", "Agent via API", "Agente via API")
 }
 
-/// "falta <parámetro>" (el nombre del parámetro no se traduce).
+/// "missing <parameter>" (the parameter name isn't translated).
 fn missing(name: &str) -> String {
     tr!("falta {name}", "missing {name}", "falta {name}")
 }
@@ -194,7 +194,7 @@ pub fn dispatch(app: &AppHandle, method: &str, p: Value, caller: Option<String>)
             "browser_key {browser, key}", "browser_scroll {browser, dy, dx, selector}", "browser_eval {browser, js}", "browser_snapshot {browser, max_lines}",
             "browser_console {browser, since, errors_only}", "browser_marks {browser}"
         ] })),
-        // --- Navegador integrado (el backend lo maneja por DevTools; abrir uno lo hace el frontend) ---
+        // --- Built-in browser (the backend handles it via DevTools; the frontend opens a new one) -----
         "browser_open" => {
             let mut p = p;
             if let Some(c) = &caller {
@@ -203,14 +203,14 @@ pub fn dispatch(app: &AppHandle, method: &str, p: Value, caller: Option<String>)
             ask_windows(app, "browser_open", p, Duration::from_secs(30), false)
         }
         m if m.starts_with("browser_") => crate::browser::control(app, m, &p, &caller),
-        // Hook Stop de Claude Code: el agente de ese panel terminó de contestar.
+        // Claude Code's Stop hook: the agent in that pane finished answering.
         "agent_stop" => {
             if let Some(c) = &caller {
                 let _ = app.emit("agent-stop", json!({ "pane": c }));
             }
             Ok(json!({ "ok": true }))
         }
-        // --- Docker (directo en el backend) ---
+        // --- Docker (directly in the backend) ---
         "docker_list" => Ok(json!({ "containers": crate::docker::containers()?, "presets": *st.presets.lock().unwrap() })),
         "docker_logs" => Ok(json!({ "logs": crate::docker::logs(&s(&p, "target").ok_or_else(|| missing("target"))?, p.get("tail").and_then(Value::as_u64).unwrap_or(200) as u32)? })),
         "docker_action" => {
@@ -241,9 +241,9 @@ pub fn dispatch(app: &AppHandle, method: &str, p: Value, caller: Option<String>)
             })?;
             Ok(json!({ "result": crate::docker::start_preset(&preset)? }))
         }
-        // --- Guardián (lo llama el hook de Claude Code) ---
+        // --- Guardian (called by Claude Code's hook) ------
         "guardian" => {
-            // Copia de cómo estaba el archivo, para el panel de modificaciones.
+            // Copy of what the file was like, for the Changes panel.
             crate::changes::hook_pre(&app.state::<crate::changes::ChangesState>().0, &p);
             if !app.state::<guardian::GuardianState>().claude.load(Ordering::SeqCst) {
                 return Ok(json!({ "decision": "allow", "reason": tr("el guardián no vigila a Claude Code", "the Guardian isn't watching Claude Code", "o Guardião não está vigiando o Claude Code") }));
@@ -257,12 +257,12 @@ pub fn dispatch(app: &AppHandle, method: &str, p: Value, caller: Option<String>)
             let d = guardian::ask(app, ask, Duration::from_secs(590));
             Ok(json!({ "decision": if d == Decision::Deny { "deny" } else { "allow" } }))
         }
-        // PostToolUse del hook: cómo quedó el archivo.
+        // PostToolUse of the hook: what the file ended up like.
         "changes_post" => {
             crate::changes::hook_post(&app.state::<crate::changes::ChangesState>().0, &p);
             Ok(json!({ "ok": true }))
         }
-        // --- Lo que maneja el frontend ---
+        // --- What the frontend handles ---
         "run" | "send" => {
             let text = s(&p, if method == "run" { "command" } else { "text" }).ok_or_else(|| tr("falta el comando", "missing command", "falta o comando"))?;
             if method == "run" || p.get("enter").and_then(Value::as_bool).unwrap_or(false) {
@@ -272,7 +272,7 @@ pub fn dispatch(app: &AppHandle, method: &str, p: Value, caller: Option<String>)
             ask_windows(app, method, p, Duration::from_millis(timeout + 5000), false)
         }
         "open_window" => {
-            // Se crea la ventana desde acá con un layout de una pestaña; el panel ya tiene su id.
+            // The window is created from here with a one-tab layout; the pane already has its id.
             let pane = format!("p{}", random_token()[..10].to_string());
             let tab = format!("t{}", random_token()[..10].to_string());
             let cmd = s(&p, "command").unwrap_or_default();
@@ -296,8 +296,8 @@ pub fn dispatch(app: &AppHandle, method: &str, p: Value, caller: Option<String>)
     }
 }
 
-/// Le pregunta a las ventanas de terminal. `all`: junta las respuestas de todas (list); si no, vale
-/// la primera que no diga "no es mío".
+/// Asks the terminal windows. `all`: gathers the answers from all of them (list); otherwise, the
+/// first one that doesn't say "no es mío" counts.
 fn ask_windows(app: &AppHandle, method: &str, params: Value, limit: Duration, all: bool) -> Result<Value, String> {
     let st = app.state::<ControlState>();
     let labels: Vec<String> = app.windows().into_keys().filter(|l| l != "settings").collect();
@@ -310,7 +310,7 @@ fn ask_windows(app: &AppHandle, method: &str, params: Value, limit: Duration, al
         let id = st.next.fetch_add(1, Ordering::SeqCst) + 1;
         st.pending.lock().unwrap().insert(id, tx.clone());
         ids.push(id);
-        // Para métodos sin panel (open_tab), contesta la ventana pedida o la principal.
+        // For methods without a pane (open_tab), the requested window answers, or the main one.
         let _ = app.emit_to(l, "control-request", json!({ "id": id, "method": method, "params": params, "window": l, "windows": labels }));
     }
     drop(tx);
@@ -354,7 +354,7 @@ fn ask_windows(app: &AppHandle, method: &str, params: Value, limit: Duration, al
     result
 }
 
-/// Respuesta del frontend a un `control-request`.
+/// The frontend's response to a `control-request`.
 #[tauri::command]
 pub fn control_respond(state: tauri::State<ControlState>, id: u64, reply: Value) {
     if let Some(tx) = state.pending.lock().unwrap().get(&id) {
@@ -362,7 +362,7 @@ pub fn control_respond(state: tauri::State<ControlState>, id: u64, reply: Value)
     }
 }
 
-/// La configuración (API prendida, guardián, recetas de Docker) llega desde el frontend.
+/// The settings (API on, Guardian, Docker recipes) come from the frontend.
 #[tauri::command]
 pub fn control_config(
     state: tauri::State<ControlState>,
@@ -380,7 +380,7 @@ pub fn control_config(
     *state.presets.lock().unwrap() = presets;
 }
 
-/// Rutas de los archivos para lanzar agentes con el guardián y el MCP de AlphaTerm.
+/// Paths of the files to launch agents with the Guardian and AlphaTerm's MCP.
 #[tauri::command]
 pub fn control_files() -> Value {
     let d = crate::settings::data_dir();

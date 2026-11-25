@@ -1,12 +1,12 @@
-//! Consumo "en vivo", como el System dashboard: se abre cada CLI escondida en una pseudoconsola
-//! (ConPTY, sin ventana), se le escribe su comando de consumo y se lee la pantalla.
-//! - Claude: `claude` → /usage (sesión de 5 h, semana, semana por modelo, uso extra, plan).
-//! - Codex: `codex` → /status (límites de 5 h y semanal, plan y modelo).
-//! - agy: `agy -p /quota --output-format json` (oficial, en JSON y sin gastar cuota).
+//! "Live" usage, like the System dashboard: each CLI is opened hidden in a pseudo-console
+//! (ConPTY, no window), its usage command is typed and the screen is read.
+//! - Claude: `claude` → /usage (5 h session, week, week per model, extra usage, plan).
+//! - Codex: `codex` → /status (5 h and weekly limits, plan and model).
+//! - agy: `agy -p /quota --output-format json` (official, in JSON and without spending quota).
 //!
-//! agy va siempre con AGY_CLI_DISABLE_AUTO_UPDATE=true (exactamente "true": agy ignora "1"). Sin
-//! esa variable, cada consulta puede lanzar su actualizador fuera de la consola escondida y en
-//! Windows aparece una ventana de cmd un instante (el destello que se veía cada 10 minutos).
+//! agy always runs with AGY_CLI_DISABLE_AUTO_UPDATE=true (exactly "true": agy ignores "1"). Without
+//! that variable, each query may launch its updater outside the hidden console and on
+//! Windows a cmd window flashes for an instant (the flash that used to show up every 10 minutes).
 
 use crate::usage::{Group, Table, Usage, UsageWindow};
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
@@ -28,8 +28,8 @@ fn home() -> PathBuf {
     std::env::var_os("USERPROFILE").map(PathBuf::from).unwrap_or_default()
 }
 
-/// Carpeta donde se abren Claude y Codex para preguntar (la misma que usa el dashboard: así no
-/// piden confirmar que se confía en la carpeta).
+/// Folder where Claude and Codex are opened to ask (the same one the dashboard uses: so they
+/// don't ask to confirm that the folder is trusted).
 fn probe_dir() -> PathBuf {
     let d = home().join("Desktop");
     if d.is_dir() {
@@ -39,12 +39,12 @@ fn probe_dir() -> PathBuf {
     }
 }
 
-// --- Programa de pantalla completa escondido ----------------------------------------------------
+// --- Hidden full-screen program -----------------------------------------------------------------
 
-/// Lo que ve el guion en cada vuelta.
+/// What the script sees on each round.
 pub struct Ctx<'a> {
     pub elapsed: Duration,
-    /// Tiempo sin salida nueva.
+    /// Time without new output.
     pub quiet: Duration,
     pub screen: &'a str,
 }
@@ -55,7 +55,7 @@ pub enum Step {
     Done,
 }
 
-/// Saca lo que se heredó del programa que abrió AlphaTerm (marcas y tokens de Claude Code…).
+/// Strips what was inherited from the program that opened AlphaTerm (Claude Code flags and tokens…).
 fn clean_env(cmd: &mut CommandBuilder) {
     static PERSISTENT: OnceLock<std::collections::HashSet<String>> = OnceLock::new();
     let persistent = PERSISTENT.get_or_init(crate::pty::env::persistent_names);
@@ -64,9 +64,9 @@ fn clean_env(cmd: &mut CommandBuilder) {
     }
 }
 
-/// Corre un programa con interfaz de texto en una pseudoconsola sin ventana. `step` recibe la
-/// pantalla cada ~200 ms y decide qué tipear o si ya está. Al final se le manda `quit` (para que
-/// cierre lo suyo) y se lo mata si sigue vivo. Devuelve la última pantalla.
+/// Runs a text-UI program in a pseudo-console without a window. `step` receives the
+/// screen every ~200 ms and decides what to type or whether it's done. At the end `quit` is sent (so it
+/// closes its own stuff) and it's killed if it's still alive. Returns the last screen.
 pub fn run_tui(
     exe: &Path,
     args: &[String],
@@ -101,8 +101,8 @@ pub fn run_tui(
     let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
     let mut writer = pair.master.take_writer().map_err(|e| e.to_string())?;
     let (tx, rx) = mpsc::channel::<Vec<u8>>();
-    // El lector sigue hasta el final aunque ya nadie escuche: si la salida no se vacía, cerrar la
-    // pseudoconsola se puede colgar.
+    // The reader keeps going to the end even if nobody is listening anymore: if the output isn't drained, closing
+    // the pseudo-console can hang.
     std::thread::spawn(move || {
         let mut buf = [0u8; 16 * 1024];
         loop {
@@ -115,9 +115,9 @@ pub fn run_tui(
         }
     });
     let mut parser = vt100::Parser::new(NonZeroU16::new(rows.max(10)).unwrap(), NonZeroU16::new(cols.max(40)).unwrap(), 0);
-    // No se contesta cuando preguntan dónde está el cursor (ESC[6n): con el modo de entrada de
-    // ConPTY la respuesta le llega al programa como texto tipeado (Codex la tomaba como mensaje).
-    // Sin respuesta andan igual, como en el dashboard.
+    // We don't answer when they ask where the cursor is (ESC[6n): with ConPTY's input mode
+    // the answer reaches the program as typed text (Codex took it as a message).
+    // They work fine without an answer, as in the dashboard.
     let feed = |parser: &mut vt100::Parser, _writer: &mut Box<dyn Write + Send>, chunk: &[u8]| parser.process(chunk);
 
     let start = Instant::now();
@@ -183,24 +183,24 @@ pub fn run_tui(
     Ok(screen)
 }
 
-/// Con ALPHATERM_PROBE_DUMP=<carpeta> se guarda la última pantalla de cada consulta (para ver qué
-/// cambió cuando una CLI cambia su formato).
+/// With ALPHATERM_PROBE_DUMP=<folder> the last screen of each query is saved (to see what
+/// changed when a CLI changes its format).
 fn dump(name: &str, screen: &str) {
     if let Some(dir) = std::env::var_os("ALPHATERM_PROBE_DUMP") {
         let _ = std::fs::write(PathBuf::from(dir).join(format!("{name}.txt")), screen);
     }
 }
 
-// --- Ayudas para leer pantallas ------------------------------------------------------------------
+// --- Helpers for reading screens -----------------------------------------------------------------
 
-/// Número justo antes de `s[..end]` ("… 42.5" → 42.5).
+/// Number right before `s[..end]` ("… 42.5" → 42.5).
 fn num_before(s: &str) -> Option<f64> {
     let t = s.trim_end();
     let start = t.char_indices().rev().take_while(|(_, c)| c.is_ascii_digit() || *c == '.').last().map(|(i, _)| i)?;
     t[start..].trim_matches('.').parse().ok()
 }
 
-/// "N% <palabra>" en la línea (sin distinguir mayúsculas): N.
+/// "N% <word>" in the line (case-insensitive): N.
 fn pct_with(line: &str, word: &str) -> Option<f64> {
     let low = line.to_ascii_lowercase();
     for (i, _) in low.match_indices('%') {
@@ -212,12 +212,12 @@ fn pct_with(line: &str, word: &str) -> Option<f64> {
     None
 }
 
-/// Saca los bordes de cajas y espacios de los costados.
+/// Strips box borders and side spaces.
 fn tidy(s: &str) -> String {
     s.trim_matches(|c: char| c.is_whitespace() || "│┃|╭╮╰╯─━".contains(c)).trim().to_string()
 }
 
-/// Texto de reinicio en las líneas siguientes ("Resets 3pm (America/Montevideo)" → "3pm (…)").
+/// Reset text in the following lines ("Resets 3pm (America/Montevideo)" → "3pm (…)").
 fn resets_in(lines: &[&str], from: usize, span: usize) -> Option<String> {
     for l in lines.iter().skip(from).take(span) {
         let low = l.to_ascii_lowercase();
@@ -243,7 +243,7 @@ fn win(label: &str, used: f64, resets_text: Option<String>, detail: bool) -> Usa
 
 // --- Claude ---------------------------------------------------------------------------------------
 
-/// Lo que se lee de la pantalla de /usage de Claude Code.
+/// What is read from Claude Code's /usage screen.
 pub fn parse_claude_screen(screen: &str) -> Option<(Vec<UsageWindow>, Vec<String>)> {
     let lines: Vec<&str> = screen.lines().collect();
     let mut out: Vec<UsageWindow> = Vec::new();
@@ -286,11 +286,11 @@ pub fn parse_claude_screen(screen: &str) -> Option<(Vec<UsageWindow>, Vec<String
             extras.push(tidy(l));
         }
     }
-    // Como el dashboard: vale si trae la sesión, la semana o el uso extra.
+    // Like the dashboard: valid if it has the session, the week or extra usage.
     out.iter().any(|w| !w.detail || w.label == "uso extra").then_some((out, extras))
 }
 
-/// "nombre      98%" → ("nombre", 98).
+/// "name      98%" → ("name", 98).
 fn name_pct(line: &str) -> Option<(String, f64)> {
     let t = tidy(line);
     let p = t.strip_suffix('%')?;
@@ -299,7 +299,7 @@ fn name_pct(line: &str) -> Option<(String, f64)> {
     (!name.is_empty()).then_some((name, n))
 }
 
-/// "98%  Revisá el plugin…" → ("Revisá el plugin…", 98).
+/// "98%  Review the plugin…" → ("Review the plugin…", 98).
 fn pct_name(line: &str) -> Option<(String, f64)> {
     let t = tidy(line);
     let (num, rest) = t.split_once('%')?;
@@ -308,8 +308,8 @@ fn pct_name(line: &str) -> Option<(String, f64)> {
     (!name.is_empty()).then_some((name, n))
 }
 
-/// Tablas de /usage: "Skills  % of usage", "Plugins  % of usage" (y la de modelos, cuando Claude
-/// la muestra) y lo que más consume ("What's contributing to your usage?").
+/// /usage tables: "Skills  % of usage", "Plugins  % of usage" (and the models one, when Claude
+/// shows it) and what consumes the most ("What's contributing to your usage?").
 pub fn parse_claude_tables(screen: &str) -> (Vec<Table>, Vec<String>) {
     let lines: Vec<&str> = screen.lines().collect();
     let mut tables = Vec::new();
@@ -343,7 +343,7 @@ pub fn parse_claude_tables(screen: &str) -> (Vec<Table>, Vec<String>) {
             }
             match row(&l) {
                 Some(r) => rows.push(r),
-                // Subtítulos de "What's contributing" ("Approximate · …", "Last 24h · …").
+                // Subtitles of "What's contributing" ("Approximate · …", "Last 24h · …").
                 None if rows.is_empty() && !l.contains('%') && l.len() < 70 => {}
                 None => break,
             }
@@ -374,13 +374,13 @@ fn spent(line: &str) -> Option<String> {
     (!a.is_empty() && !b.is_empty()).then(|| tr!("{a} de {b}", "{a} of {b}", "{a} de {b}"))
 }
 
-/// Banner de Claude Code: "Opus 5.5 · Claude Max" → ("Opus 5.5", "Max").
+/// Claude Code banner: "Opus 5.5 · Claude Max" → ("Opus 5.5", "Max").
 pub fn parse_claude_banner(screen: &str) -> Option<(String, String)> {
     for l in screen.lines() {
         if let Some(i) = l.find("· Claude ") {
             let plan = tidy(&l[i + "· Claude ".len()..]);
             let plan = plan.split_whitespace().next().unwrap_or("").to_string();
-            // En el banner de dos columnas hay texto a la izquierda: se toma el último tramo.
+            // In the two-column banner there's text on the left: the last segment is taken.
             let left = l[..i].rsplit('│').next().unwrap_or(&l[..i]);
             let left = tidy(left);
             let model = left.rsplit("  ").next().unwrap_or(&left).trim().to_string();
@@ -392,14 +392,14 @@ pub fn parse_claude_banner(screen: &str) -> Option<(String, String)> {
     None
 }
 
-/// Esfuerzo configurado en ~/.claude/settings.json (effortLevel).
+/// Effort configured in ~/.claude/settings.json (effortLevel).
 fn claude_effort() -> Option<String> {
     let t = std::fs::read_to_string(home().join(".claude").join("settings.json")).ok()?;
     let v: Value = serde_json::from_str(&t).ok()?;
     v.get("effortLevel").and_then(Value::as_str).map(str::to_string)
 }
 
-/// Pantallas que frenan la consulta (y por qué).
+/// Screens that stop the query (and why).
 fn blocked(screen: &str) -> Option<&'static str> {
     let low = screen.to_ascii_lowercase();
     if low.contains("do you trust the files in this folder") || low.contains("trust this folder") || low.contains("one you trust") {
@@ -417,7 +417,7 @@ fn blocked(screen: &str) -> Option<&'static str> {
 
 pub fn claude_live() -> Result<Usage, String> {
     let exe = crate::agents::resolve_in("claude", &crate::agents::search_dirs()).ok_or(crate::i18n::tr("Claude Code no está instalado.", "Claude Code isn't installed.", "O Claude Code não está instalado."))?;
-    // Sin servidores MCP ni hooks: es solo para mirar el consumo.
+    // No MCP servers or hooks: it's only for looking at usage.
     let args: Vec<String> = vec!["--strict-mcp-config".into(), "--settings".into(), r#"{"disableAllHooks":true}"#.into()];
     let mut stage = 0;
     let mut typed_at = Instant::now();
@@ -454,7 +454,7 @@ pub fn claude_live() -> Result<Usage, String> {
     let (tables, notes) = parse_claude_tables(&screen);
     extras.extend(notes);
     let (model, plan) = banner.map(|(m, p)| (Some(m), Some(p))).unwrap_or((None, None));
-    // El banner ya puede traer el esfuerzo ("Opus 5.5 with xhigh effort").
+    // The banner may already carry the effort ("Opus 5.5 with xhigh effort").
     let (model, effort) = match model.as_deref().and_then(|m| m.split_once(" with ")) {
         Some((name, rest)) => (Some(name.trim().to_string()), Some(rest.trim_end_matches("effort").trim().to_string()).filter(|e| !e.is_empty())),
         None => (model, claude_effort()),
@@ -480,7 +480,7 @@ pub fn claude_live() -> Result<Usage, String> {
 
 // --- Codex ----------------------------------------------------------------------------------------
 
-/// Lo que se lee de /status de Codex (la pantalla aplanada en una línea).
+/// What is read from Codex's /status (the screen flattened into one line).
 pub fn parse_codex_status(screen: &str) -> Option<(Vec<UsageWindow>, Option<String>, Option<String>)> {
     let flat = screen.split_whitespace().collect::<Vec<_>>().join(" ");
     let low = flat.to_ascii_lowercase();
@@ -501,7 +501,7 @@ pub fn parse_codex_status(screen: &str) -> Option<(Vec<UsageWindow>, Option<Stri
     if out.is_empty() {
         return None;
     }
-    // "Account: x@y (Plus)" → plan; "Model: gpt-5-codex (reasoning medium, …)" → modelo.
+    // "Account: x@y (Plus)" → plan; "Model: gpt-5-codex (reasoning medium, …)" → model.
     let plan = low.find("account").and_then(|i| {
         let a = &flat[i..];
         let o = a.find('(').filter(|o| *o < 80)?;
@@ -521,7 +521,7 @@ pub fn parse_codex_status(screen: &str) -> Option<(Vec<UsageWindow>, Option<Stri
     Some((out, plan, model))
 }
 
-/// Modelo por defecto de ~/.codex/config.toml (solo las claves de arriba, antes de la primera tabla).
+/// Default model from ~/.codex/config.toml (only the top-level keys, before the first table).
 fn codex_config_model() -> Option<String> {
     let t = std::fs::read_to_string(home().join(".codex").join("config.toml")).ok()?;
     let head = t.split("\n[").next().unwrap_or("");
@@ -561,7 +561,7 @@ pub fn codex_live() -> Result<Usage, String> {
                 at = Instant::now();
                 Step::Type("\r".into())
             }
-            // A veces el primer Enter solo elige el comando del menú.
+            // Sometimes the first Enter only selects the menu command.
             2 if !ready && at.elapsed() > Duration::from_secs(3) => {
                 stage = 3;
                 Step::Type("\r".into())
@@ -606,7 +606,7 @@ pub fn parse_agy_groups(v: &Value) -> Vec<Group> {
         .collect()
 }
 
-/// Modelo configurado en agy (si lo guarda en su settings.json).
+/// Model configured in agy (if it saves it in its settings.json).
 fn agy_model() -> Option<String> {
     let t = std::fs::read_to_string(home().join(".gemini").join("antigravity-cli").join("settings.json")).ok()?;
     let v: Value = serde_json::from_str(&t).ok()?;
@@ -618,7 +618,7 @@ fn agy_model() -> Option<String> {
 pub fn agy_live() -> Result<Usage, String> {
     let exe = crate::agents::resolve_in("agy", &crate::agents::search_dirs()).ok_or(crate::i18n::tr("agy no está instalado.", "agy isn't installed.", "O agy não está instalado."))?;
     let mut cmd = std::process::Command::new(&exe);
-    // Directo, sin shell: desde Git Bash, MSYS convierte "/quota" en una ruta y agy lo toma como prompt.
+    // Direct, no shell: from Git Bash, MSYS turns "/quota" into a path and agy takes it as a prompt.
     cmd.args(["-p", "/quota", "--output-format", "json"]).stdin(std::process::Stdio::null()).env(AGY_NO_UPDATE.0, AGY_NO_UPDATE.1);
     #[cfg(windows)]
     {
@@ -629,7 +629,7 @@ pub fn agy_live() -> Result<Usage, String> {
     let v = serde_json::from_slice::<Value>(&out).map_err(|_| crate::i18n::tr("agy respondió algo que no es JSON.", "agy answered with something that isn't JSON.", "O agy respondeu algo que não é JSON.").to_string())?;
     let now = now_ms() / 1000;
     let windows = crate::usage::parse_agy(&v, now).filter(|w| !w.is_empty()).ok_or(crate::i18n::tr("La respuesta de agy no trae grupos de cuota.", "agy's answer has no quota groups.", "A resposta do agy não traz grupos de cota."))?;
-    // Defensa: si por algún motivo agy corrió un turno (gastó), se avisa.
+    // Safeguard: if for some reason agy ran a turn (spent quota), a warning is shown.
     let tokens = v.pointer("/usage/total_tokens").and_then(Value::as_u64).unwrap_or(0);
     Ok(Usage {
         provider: "agy".into(),
@@ -775,19 +775,19 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "abre Claude Code de verdad; correr a mano"]
+    #[ignore = "really opens Claude Code; run by hand"]
     fn claude_real() {
         println!("{:#?}", claude_live());
     }
 
     #[test]
-    #[ignore = "abre Codex de verdad; correr a mano"]
+    #[ignore = "really opens Codex; run by hand"]
     fn codex_real() {
         println!("{:#?}", codex_live());
     }
 
     #[test]
-    #[ignore = "consulta agy de verdad; correr a mano"]
+    #[ignore = "really queries agy; run by hand"]
     fn agy_real() {
         println!("{:#?}", agy_live());
     }

@@ -1,7 +1,7 @@
 /**
- * Motor de predicciones: a partir de la línea (ya separada en palabras) decide qué se está
- * completando y junta las sugerencias de cada fuente (historial, catálogo, carpetas, PATH y la
- * sesión de PowerShell), filtradas por la palabra actual, ordenadas y sin repetidos.
+ * Suggestion engine: from the line (already split into words) it decides what is being
+ * completed and gathers the suggestions of each source (history, catalog, folders, PATH and the
+ * PowerShell session), filtered by the current word, sorted and deduplicated.
  */
 import { k } from "../i18n";
 import { catalogFor, findSpec, type ArgSource, type CmdSpec, type GenName, type Opt, type Value } from "./catalog";
@@ -12,18 +12,18 @@ import type { Shell } from "./types";
 export type Kind = "folder" | "file" | "history" | "command" | "option" | "value" | "pwsh";
 
 export interface Suggestion {
-  /** Texto que reemplaza la palabra (sin comillas: las pone `insertion`), o la línea entera. */
+  /** Text that replaces the word (without quotes: `insertion` adds them), or the whole line. */
   insert: string;
   label: string;
   desc?: string;
   kind: Kind;
   score: number;
   replace: "word" | "line";
-  /** Carpeta: se sigue completando adentro. */
+  /** Folder: keeps completing inside it. */
   dir?: boolean;
-  /** Índices de `label` que coinciden con lo escrito (para resaltarlos). */
+  /** Indexes of `label` that match what was typed (to highlight them). */
   hits?: number[];
-  /** Resultado de PowerShell: se reemplaza desde este índice de la línea y se inserta tal cual. */
+  /** PowerShell result: replaced from this line index and inserted as is. */
   from?: number;
 }
 
@@ -45,16 +45,16 @@ export interface Analysis {
   mode: "command" | "arg";
   word: Word;
   index: number;
-  /** Primera palabra, en minúsculas y sin `.exe`. */
+  /** First word, lowercase and without `.exe`. */
   command: string;
   spec: CmdSpec | null;
   source: ArgSource | null;
   opts: Opt[];
   subs: CmdSpec[];
   pathLike: boolean;
-  /** Conviene pedirle completados a la sesión de PowerShell. */
+  /** It's worth asking the PowerShell session for completions. */
   askPwsh: boolean;
-  /** El menú aparece solo (sin Ctrl+Espacio). */
+  /** The menu appears on its own (without Ctrl+Space). */
   auto: boolean;
 }
 
@@ -69,7 +69,7 @@ const MAX = 60;
 const norm = (s: string) => s.toLowerCase().replace(/\.(exe|cmd|bat|com)$/, "");
 const isNetwork = (s: string) => s.startsWith("\\\\") || s.startsWith("//");
 const looksLikePath = (s: string, shell: Shell) =>
-  // En cmd, `/s` es una opción: solo es ruta si hay otra barra (`/tmp/x`) o empieza distinto.
+  // In cmd, `/s` is an option: it is a path only if there is another slash (`/tmp/x`) or it starts differently.
   !(shell === "cmd" && /^\/[^\\/]*$/.test(s)) &&
   (/[\\/]/.test(s) || s.startsWith(".") || s.startsWith("~") || /^[a-zA-Z]:/.test(s));
 const isOptionLike = (s: string, shell: Shell) => s.startsWith("-") || (shell === "cmd" && s.startsWith("/"));
@@ -97,7 +97,7 @@ export function analyze(p: Parsed, shell: Shell): Analysis {
   }
 
   const spec = findSpec(command, shell);
-  // Subcomandos ya escritos (git → checkout, docker → compose → up…).
+  // Subcommands already typed (git → checkout, docker → compose → up…).
   let level: CmdSpec | null = spec;
   for (let i = 1; i < p.index && level?.subs; i++) {
     const next: CmdSpec | undefined = level.subs.find((s) => s.names.includes(p.words[i].value.toLowerCase()));
@@ -138,7 +138,7 @@ export function analyze(p: Parsed, shell: Shell): Analysis {
   };
 }
 
-/** Coincidencia de `label` con lo escrito: al principio (más puntaje) o adentro (solo si `contains`). */
+/** Match of `label` with what was typed: at the start (higher score) or inside (only if `contains`). */
 function match(label: string, typed: string, contains: boolean): { bonus: number; hits: number[] } | null {
   if (!typed) return { bonus: 0, hits: [] };
   const l = label.toLowerCase();
@@ -155,15 +155,15 @@ const matchesShell = (entry: string | null, shell: Shell) =>
 
 const sameDir = (a: string | null, b: string) => !!a && a.toLowerCase().replace(/\\+$/, "") === b.toLowerCase().replace(/\\+$/, "");
 
-/** Hay una ruta absoluta en los argumentos (vale desde cualquier carpeta). */
+/** There is an absolute path in the arguments (valid from any folder). */
 const ABSOLUTE = /\s["']?([a-zA-Z]:[\\/]|~|\\\\)/;
 
 function historyLines(hist: HistEntry[], ctx: Ctx, a: Analysis): Suggestion[] {
   const line = ctx.line.toLowerCase();
   if (!line.trim()) return [];
-  // `cd docs` hecho en otra carpeta no sirve acá: si el catálogo dice que el argumento es una ruta (o
-  // lo que se escribe lo es), solo el historial de esta carpeta. Los demás (cmdlets, CLIs que el
-  // catálogo no conoce) se quedan con todo el historial, con menos peso el de otras carpetas.
+  // A `cd docs` done in another folder is no use here: if the catalog says the argument is a path (or
+  // what is typed is one), only this folder's history. The rest (cmdlets, CLIs the
+  // catalog doesn't know) keep the whole history, with less weight for other folders'.
   const relative = a.mode === "arg" && ((a.spec !== null && (a.source === "folders" || a.source === "paths")) || a.pathLike);
   const now = ctx.now ?? Date.now();
   const groups = new Map<string, { command: string; count: number; at: number; here: boolean }>();
@@ -190,7 +190,7 @@ function historyLines(hist: HistEntry[], ctx: Ctx, a: Analysis): Suggestion[] {
   });
 }
 
-/** Argumentos usados antes con el mismo comando (hosts de ping, ssh…), sin opciones ni números. */
+/** Arguments used before with the same command (ping, ssh hosts…), without options or numbers. */
 function historyArgs(hist: HistEntry[], command: string, shell: Shell): Value[] {
   const out: Value[] = [];
   for (const e of [...hist].reverse()) {
@@ -206,7 +206,7 @@ function historyArgs(hist: HistEntry[], command: string, shell: Shell): Value[] 
 async function listing(a: Analysis, ctx: Ctx, src: Sources, dirsOnly: boolean): Promise<Suggestion[]> {
   const value = a.word.value;
   const cut = Math.max(value.lastIndexOf("\\"), value.lastIndexOf("/")) + 1;
-  // `'Mis Documentos\\'`: la barra final va doblada entre comillas (ver insert.ts); acá cuenta una.
+  // `'Mis Documentos\\'`: the trailing slash is doubled inside quotes (see insert.ts); here it counts as one.
   const dirPart = value.slice(0, cut).replace(/\\{2,}/g, "\\");
   const namePart = value.slice(cut);
   const out: Suggestion[] = [];
@@ -239,16 +239,16 @@ const PS_KIND: Record<string, Kind> = {
 
 function fromPwsh(ps: PsMsg | undefined, ctx: Ctx, a: Analysis): Suggestion[] {
   if (!ps || ps.type !== "completions") return [];
-  // Respuesta vieja (se siguió tipeando) o que no termina en el cursor: no sirve.
+  // Old response (typing went on) or one that doesn't end at the cursor: useless.
   if (ps.buffer !== ctx.line || ps.cursor !== ctx.line.length || ps.index + ps.length !== ps.cursor) return [];
-  // Primera palabra: después del historial y el catálogo (antes que el PATH). Argumentos de un
-  // comando que el catálogo no conoce: es la mejor fuente. De uno que conoce: al final.
+  // First word: after history and catalog (before PATH). Arguments of a
+  // command the catalog doesn't know: it is the best source. Of one it knows: last.
   const base = a.mode === "command" ? 300 : a.spec ? 250 : 640;
   const typed = ctx.line.slice(ps.index);
   return ps.results.map((r) => {
     const kind = PS_KIND[r.kind] ?? "pwsh";
     const tip = r.tip.trim();
-    // Los parámetros vienen sin guion en ListItemText ("Filter"): se muestra lo que se va a escribir.
+    // Parameters come without a dash in ListItemText ("Filter"): what is going to be typed is shown.
     const label = kind === "option" ? r.text : r.label;
     return {
       insert: r.text,
@@ -281,7 +281,7 @@ const dedupeKey = (s: Suggestion) =>
         .replace(/^['"]|['"]$/g, "")
         .replace(/^\.[\\/]/, "")
         .replace(/[\\/]+$/, "")
-        // Un programa con y sin extensión (el PATH propio vs. lo que devuelve PowerShell) es el mismo.
+        // A program with and without extension (our own PATH vs. what PowerShell returns) is the same.
         .replace(s.kind === "command" ? /\.(exe|cmd|bat|com|ps1)$/ : /$^/, "");
 
 export async function collect(a: Analysis, ctx: Ctx, src: Sources, ps?: PsMsg): Promise<Suggestion[]> {
@@ -319,7 +319,7 @@ export async function collect(a: Analysis, ctx: Ctx, src: Sources, ps?: PsMsg): 
     const source = a.source;
     if (Array.isArray(source)) out.push(...values(source, typed, 700));
     else if (source === "folders" || source === "paths") {
-      // `dir /` o `Get-Item -`: se está escribiendo una opción, no una ruta.
+      // `dir /` or `Get-Item -`: an option is being typed, not a path.
       if (!(isOptionLike(typed, ctx.shell) && !a.pathLike)) out.push(...(await listing(a, ctx, src, source === "folders")));
     }
     else if (source) {
@@ -329,11 +329,11 @@ export async function collect(a: Analysis, ctx: Ctx, src: Sources, ps?: PsMsg): 
   }
   out.push(...fromPwsh(ps, ctx, a));
 
-  // Nada con caracteres de control: un script de npm llamado "x\rcalc\r" (o una línea de historial de
-  // varias líneas, o un completer de PowerShell) se ejecutaría al insertarlo.
+  // Nothing with control characters: an npm script named "x\rcalc\r" (or a multi-line history line,
+  // or a PowerShell completer) would run on insertion.
   const safe = out.filter((s) => !/[\x00-\x1f\x7f]/.test(s.insert));
 
-  // Sin repetidos: gana el de más puntaje (o el primero).
+  // No repeats: the one with the higher score wins (or the first).
   const best = new Map<string, Suggestion>();
   for (const s of safe) {
     const key = dedupeKey(s);

@@ -3,13 +3,13 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { t } from "../i18n";
 import { between, CHANGELOG, commitText, fmtDate } from "./changelog";
 
-/** Novedades: cada versión con sus commits; se puede filtrar "de tal versión a tal otra". */
+/** What's new: each version with its commits; can be filtered "from one version to another". */
 export function ChangelogModal(props: { current?: string; onClose: () => void }) {
   const versions = CHANGELOG.filter((v) => v.version).map((v) => v.version!);
   const [from, setFrom] = createSignal<string>("");
   const [to, setTo] = createSignal<string>("");
   const shown = createMemo(() => between(CHANGELOG, from() || undefined, to() || undefined));
-  // Abierta de entrada: la versión que corre (o la primera de la lista).
+  // Open by default: the running version (or the first in the list).
   const [open, setOpen] = createSignal<Set<string>>(new Set([props.current ?? CHANGELOG[0]?.version ?? "sin publicar"]));
   const keyOf = (v: string | null) => v ?? "sin publicar";
   const toggle = (k: string) => {

@@ -1,6 +1,6 @@
 import { t } from "../i18n";
 
-/** Datos de un elemento marcado en el navegador (los arma la capa `browser-overlay.js`). */
+/** Data of an element marked in the browser (built by the `browser-overlay.js` layer). */
 export interface Mark {
   n: number;
   tag: string;
@@ -15,7 +15,7 @@ export interface Mark {
   component?: { framework: string; name: string; chain?: string[]; source?: { file?: string; line?: number } | null } | null;
 }
 
-/** Nombre corto para el chip: `button.primary «Enviar»` o el componente si lo hay. */
+/** Short name for the chip: `button.primary «Enviar»` or the component if there is one. */
 export function markLabel(m: Mark): string {
   let s = m.component?.name ? `${m.component.name} ‹${m.tag}›` : m.tag + (m.id ? `#${m.id}` : m.classes?.length ? `.${m.classes.slice(0, 2).join(".")}` : "");
   const text = (m.text ?? "").trim();
@@ -33,9 +33,9 @@ export interface Box {
 export const intersects = (a: Box, b: Box) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
 /**
- * Lo que flota en la interfaz de AlphaTerm (menús, modales, vistas previas). El navegador es otro
- * WebView2 encima de la ventana: nada de la interfaz lo puede tapar, así que mientras algo de esto
- * se superpone, el navegador se esconde.
+ * What floats over AlphaTerm's interface (menus, modals, previews). The browser is another
+ * WebView2 on top of the window: nothing in the interface can cover it, so while any of this
+ * overlaps it, the browser is hidden.
  */
 export const FLOATING = ".settings-overlay, .modal-backdrop, .guardian-backdrop, .ctx-menu, .menu, .sys-pop, .usage-pop, .path-preview, .suggest-menu, .floating";
 

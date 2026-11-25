@@ -6,7 +6,7 @@ import type { Group } from "./model";
 import { DEFAULTS, LIMITS } from "../settings/schema";
 import { k, t } from "../i18n";
 
-/** Colores para pestañas y carpetas (se ven bien en temas claros y oscuros). */
+/** Colors for tabs and folders (they look good on light and dark themes). */
 export const TAB_COLORS = ["#ef6b73", "#f2a65a", "#e5c07b", "#8bd49c", "#5fd7d7", "#60a5fa", "#a78bfa", "#f472b6"];
 
 export type TabStatus = "idle" | "running" | "waiting" | "attention" | "error" | "exited";
@@ -17,7 +17,7 @@ export interface TabItem {
   status: TabStatus;
   tooltip: string;
   panes: number;
-  /** Archivos cambiados en el repo git de la pestaña (si es un repo). */
+  /** Files changed in the tab's git repo (if it is a repo). */
   changes?: number;
   color?: string;
   groupId?: string;
@@ -27,13 +27,13 @@ interface Props {
   tabs: TabItem[];
   activeId: string;
   vertical: boolean;
-  /** Barra vertical plegada: angosta, con el estado y la inicial de cada pestaña. */
+  /** Collapsed vertical bar: narrow, with the status and the initial of each tab. */
   collapsed?: boolean;
   onCollapse?: () => void;
-  /** Ancho en px de la barra vertical desplegada; `onWidth` se llama al soltar el borde arrastrado. */
+  /** Width in px of the expanded vertical bar; `onWidth` is called when the dragged edge is released. */
   width?: number;
   onWidth?: (width: number) => void;
-  /** Atajos para el tooltip del botón "?". */
+  /** Shortcuts for the "?" button's tooltip. */
   help: [string, string][];
   editingId: string | null;
   profiles: Profile[];
@@ -48,7 +48,7 @@ interface Props {
   onToggleBar: () => void;
   onNewWindow: () => void;
   onSettings: () => void;
-  /** Widgets que van en la barra (CPU/RAM). */
+  /** Widgets that go in the bar (CPU/RAM). */
   widgets?: JSX.Element;
   groups: Group[];
   onColor: (id: string, color: string | undefined) => void;
@@ -71,13 +71,13 @@ const STATUS_LABEL: Record<TabStatus, string> = {
   exited: k("La shell terminó"),
 };
 
-/** Inicial para la barra plegada (la primera letra o número del título). */
+/** Initial for the collapsed bar (the first letter or digit of the title). */
 export const tabInitial = (title: string) => (title.match(/[\p{L}\p{N}]/u)?.[0] ?? "·").toUpperCase();
 
 export function TabBar(props: Props) {
   const [dragId, setDragId] = createSignal<string | null>(null);
   const compact = () => props.vertical && !!props.collapsed;
-  // Ancho de la barra vertical: mientras se arrastra el borde vive acá; al soltar se guarda.
+  // Width of the vertical bar: while the edge is dragged it lives here; on release it's saved.
   const [dragW, setDragW] = createSignal<number | null>(null);
   const barWidth = () => dragW() ?? props.width ?? DEFAULTS.tabBar.width;
   const startResize = (e: PointerEvent) => {
@@ -85,7 +85,7 @@ export function TabBar(props: Props) {
     const startX = e.clientX;
     const startW = barWidth();
     const [lo, hi] = LIMITS.tabBarWidth;
-    // Deja al menos 360 px para las terminales.
+    // Leaves at least 360 px for the terminals.
     const clamp = (w: number) => Math.round(Math.max(lo, Math.min(hi, window.innerWidth - 360, w)));
     document.body.classList.add("resizing", "resizing-row");
     const move = (ev: PointerEvent) => setDragW(clamp(startW + ev.clientX - startX));
@@ -124,7 +124,7 @@ export function TabBar(props: Props) {
       window.removeEventListener("keydown", esc);
     });
   });
-  // Primero la acción y después cerrar: con el menú cerrado, Solid ya no deja leer su valor (m()).
+  // Action first, then close: with the menu closed, Solid no longer lets you read its value (m()).
   const act = (f: () => void) => {
     try {
       f();
@@ -155,7 +155,7 @@ export function TabBar(props: Props) {
           aria-expanded={!compact()}
           onClick={() => props.onCollapse?.()}
         >
-          {/* Ícono de barra lateral: marco redondeado con una rayita a la izquierda (igual en los dos estados). */}
+          {/* Sidebar icon: rounded frame with a small bar on the left (same in both states). */}
           <svg width="17" height="14" viewBox="0 0 17 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
             <rect x="0.8" y="0.8" width="15.4" height="12.4" rx="3" />
             <path d="M4.4 4.4v5.2" />
@@ -219,7 +219,7 @@ export function TabBar(props: Props) {
               onMouseDown={(e) => {
                 if (e.button === 1) {
                   e.preventDefault();
-                  props.onClose(tab.id); // clic del medio cierra, como en los navegadores
+                  props.onClose(tab.id); // middle-click closes, like in browsers
                 } else if (e.button === 0) props.onSelect(tab.id);
               }}
               onDblClick={() => props.onStartRename(tab.id)}
@@ -244,7 +244,7 @@ export function TabBar(props: Props) {
                   onKeyDown={(e) => {
                     e.stopPropagation();
                     if (e.key !== "Enter" && e.key !== "Escape") return;
-                    // Sin esto, el mismo Enter llega a la terminal cuando recupera el foco.
+                    // Without this, the same Enter reaches the terminal when it regains focus.
                     e.preventDefault();
                     props.onRename(tab.id, e.key === "Enter" ? e.currentTarget.value : null);
                   }}
@@ -277,7 +277,7 @@ export function TabBar(props: Props) {
         </For>
         <div class="new-tab">
           <button class="btn add" title={t("Pestaña nueva (Ctrl+Shift+T)")} onClick={() => props.onNew()}>
-            {/* Dibujado: el carácter "+" no queda centrado en todas las fuentes. */}
+            {/* Drawn: the "+" character isn't centered in every font. */}
             <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
               <path d="M6 1.5v9M1.5 6h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
             </svg>

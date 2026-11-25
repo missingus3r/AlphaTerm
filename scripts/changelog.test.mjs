@@ -93,7 +93,7 @@ describe("traducciones del changelog", () => {
     const v = c("Versión 0.6.0", "Sube de 0.5.0 a 0.6.0.");
     expect(translateCommit(v, "en", {})).toEqual({ subject: "Version 0.6.0", body: "Bumps from 0.5.0 to 0.6.0." });
     expect(translateCommit(v, "pt", {})).toEqual({ subject: "Versão 0.6.0", body: "Sobe de 0.5.0 para 0.6.0." });
-    // Un cuerpo distinto del de release.mjs sí necesita traducción.
+    // A body different from release.mjs's does need translation.
     expect(translateCommit(c("Versión 0.6.0", "Otra cosa."), "en", {}).body).toBeNull();
     expect(translateCommit(c("Versión 0.6"), "en", {}).subject).toBeNull();
   });
@@ -132,7 +132,7 @@ describe("traducciones del changelog", () => {
     const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "src", "i18n", "changelog");
     const real = Object.fromEntries(CHANGELOG_LANGS.map((l) => [l, JSON.parse(fs.readFileSync(path.join(dir, `${l}.json`), "utf8"))]));
     expect(dictProblems(real)).toEqual([]);
-    // Los mismos asuntos en los dos idiomas.
+    // The same subjects in both languages.
     expect(Object.keys(real.pt).sort()).toEqual(Object.keys(real.en).sort());
   });
 });

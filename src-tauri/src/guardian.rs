@@ -1,12 +1,12 @@
-//! Guardián: antes de que un agente borre o modifique archivos, pregunta al usuario.
+//! Guardian: before an agent deletes or modifies files, it asks the user.
 //!
-//! Dónde puede frenar de verdad (y dónde no):
-//! - Claude Code lanzado desde AlphaTerm: con un hook PreToolUse (Write, Edit, MultiEdit,
-//!   NotebookEdit y comandos de Bash/PowerShell que borran o pisan) que le pregunta a la app.
-//! - Comandos que un agente manda por la API de control (`run`, `send`, docker rm…).
-//! - Codex: se lanza con su propio modo de aprobación (pregunta en su pantalla).
-//! - Otros agentes: Windows no deja frenar escrituras de otro programa sin un driver; ahí solo se
-//!   registran los cambios que se ven en la carpeta (aviso posterior).
+//! Where it can really stop things (and where it can't):
+//! - Claude Code launched from AlphaTerm: with a PreToolUse hook (Write, Edit, MultiEdit,
+//!   NotebookEdit and Bash/PowerShell commands that delete or overwrite) that asks the app.
+//! - Commands an agent sends through the control API (`run`, `send`, docker rm…).
+//! - Codex: launched with its own approval mode (it asks on its screen).
+//! - Other agents: Windows doesn't let you stop another program's writes without a driver; there it only
+//!   logs the changes seen in the folder (notice afterwards).
 
 use crate::i18n::tr;
 use serde::{Deserialize, Serialize};
@@ -30,7 +30,7 @@ pub struct Risk {
     pub reason: String,
 }
 
-/// Tramos de una línea de comandos (separados por ; & | y paréntesis), cada uno con sus palabras.
+/// Segments of a command line (separated by ; & | and parentheses), each with its words.
 fn segments(cmd: &str) -> Vec<Vec<String>> {
     cmd.split(|c: char| c == ';' || c == '&' || c == '|' || c == '(' || c == ')' || c == '\n')
         .map(|seg| seg.split_whitespace().map(|w| w.to_lowercase()).collect::<Vec<_>>())
@@ -38,7 +38,7 @@ fn segments(cmd: &str) -> Vec<Vec<String>> {
         .collect()
 }
 
-/// El programa de un tramo: sin ruta ni .exe, salteando "sudo", "call" y asignaciones VAR=x.
+/// The program of a segment: without path or .exe, skipping "sudo", "call" and VAR=x assignments.
 fn program(seg: &[String]) -> (String, &[String]) {
     let mut i = 0;
     while i < seg.len() && (seg[i] == "sudo" || seg[i] == "call" || seg[i] == "." || (seg[i].contains('=') && !seg[i].starts_with('-'))) {
@@ -51,7 +51,7 @@ fn program(seg: &[String]) -> (String, &[String]) {
     (name, &seg[i + 1..])
 }
 
-/// ¿Este comando de shell borra o pisa archivos? (PowerShell, cmd y bash.)
+/// Does this shell command delete or overwrite files? (PowerShell, cmd and bash.)
 pub fn classify_command(cmd: &str) -> Option<Risk> {
     let low = cmd.to_lowercase();
     let del = |r: &str| Some(Risk { kind: Kind::Delete, reason: r.into() });
@@ -92,7 +92,7 @@ pub fn classify_command(cmd: &str) -> Option<Risk> {
             _ => {}
         }
     }
-    // Redirecciones que pisan un archivo: "algo > archivo" (no ">>" ni "2>&1" ni "> $null"/"nul").
+    // Redirections that overwrite a file: "something > file" (not ">>" nor "2>&1" nor "> $null"/"nul").
     let bytes = low.as_bytes();
     for (i, &b) in bytes.iter().enumerate() {
         if b == b'>' {
@@ -111,25 +111,25 @@ pub fn classify_command(cmd: &str) -> Option<Risk> {
     None
 }
 
-/// "Quiere correr un comando que <motivo>" (el motivo es el de `classify_command`).
+/// "Wants to run a command that <reason>" (the reason comes from `classify_command`).
 pub fn command_summary(reason: &str) -> String {
     tr!("Quiere correr un comando que {reason}", "Wants to run a command that {reason}", "Quer executar um comando que {reason}")
 }
 
-// --- Pedidos al usuario --------------------------------------------------------------------------
+// --- Requests to the user ------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Ask {
     pub id: u64,
     pub kind: Kind,
-    /// Quién lo pide ("Claude Code", "API de control"…).
+    /// Who requests it ("Claude Code", "control API"…).
     pub agent: String,
-    /// Herramienta o acción ("Edit", "Bash", "run"…).
+    /// Tool or action ("Edit", "Bash", "run"…).
     pub tool: String,
     pub summary: String,
     pub paths: Vec<String>,
-    /// Texto extra (comando, diff de una edición…).
+    /// Extra text (command, an edit's diff…).
     pub detail: Option<String>,
     pub cwd: Option<String>,
     pub session: Option<String>,
@@ -139,7 +139,7 @@ pub struct Ask {
 #[serde(rename_all = "camelCase")]
 pub enum Decision {
     Allow,
-    /// Permitir todo lo de este tipo, de esta sesión de agente, por 30 minutos.
+    /// Allow everything of this kind, for this agent session, for 30 minutes.
     AllowSession,
     Deny,
 }
@@ -149,7 +149,7 @@ pub enum Decision {
 pub struct LogEntry {
     pub at: u64,
     pub ask: Ask,
-    /// En español siempre ("permitido…", "bloqueado"): el frontend la compara y la traduce.
+    /// Always in Spanish ("permitido…", "bloqueado"): the frontend compares it and translates it.
     pub decision: String,
 }
 
@@ -157,11 +157,11 @@ pub struct LogEntry {
 pub struct GuardianState {
     pub enabled: std::sync::atomic::AtomicBool,
     pub watch_modify: std::sync::atomic::AtomicBool,
-    /// Preguntar por lo que hace Claude Code (el hook también está para registrar cambios).
+    /// Ask about what Claude Code does (the hook is also there to log changes).
     pub claude: std::sync::atomic::AtomicBool,
     pending: Mutex<HashMap<u64, Sender<Decision>>>,
     open: Mutex<Vec<Ask>>,
-    /// (sesión, tipo) → permitido hasta.
+    /// (session, kind) → allowed until.
     allow_until: Mutex<HashMap<(String, Kind), Instant>>,
     log: Mutex<Vec<LogEntry>>,
     next: std::sync::atomic::AtomicU64,
@@ -181,7 +181,7 @@ impl GuardianState {
     }
 }
 
-/// Pregunta al usuario (bloquea hasta que conteste, como mucho `limit`). Sin respuesta: no se permite.
+/// Asks the user (blocks until they answer, at most `limit`). No answer: not allowed.
 pub fn ask(app: &AppHandle, mut a: Ask, limit: Duration) -> Decision {
     use std::sync::atomic::Ordering::SeqCst;
     let g = app.state::<GuardianState>();
@@ -200,7 +200,7 @@ pub fn ask(app: &AppHandle, mut a: Ask, limit: Duration) -> Decision {
     g.pending.lock().unwrap().insert(a.id, tx);
     g.open.lock().unwrap().push(a.clone());
     let _ = app.emit("guardian-ask", &a);
-    // Que la ventana pida atención (titila en la barra de tareas).
+    // Makes the window request attention (flashes in the taskbar).
     for (label, w) in app.windows() {
         if label != "settings" {
             let _ = w.request_user_attention(Some(tauri::UserAttentionType::Critical));
@@ -228,7 +228,7 @@ pub fn guardian_answer(state: tauri::State<GuardianState>, id: u64, decision: De
     state.pending.lock().unwrap().get(&id).map(|tx| tx.send(decision).is_ok()).unwrap_or(false)
 }
 
-/// Pedidos esperando respuesta (para una ventana que se abre con uno en curso).
+/// Requests waiting for a response (for a window that opens while one is in progress).
 #[tauri::command]
 pub fn guardian_open(state: tauri::State<GuardianState>) -> Vec<Ask> {
     state.open.lock().unwrap().clone()
@@ -239,7 +239,7 @@ pub fn guardian_log(state: tauri::State<GuardianState>) -> Vec<LogEntry> {
     state.log.lock().unwrap().iter().rev().cloned().collect()
 }
 
-/// Lo que manda el hook de Claude Code: decide si hay que preguntar y arma el pedido.
+/// What Claude Code's hook sends: decides whether to ask and builds the request.
 pub fn from_claude_hook(v: &Value) -> Option<Ask> {
     let tool = v.get("tool_name")?.as_str()?.to_string();
     let input = v.get("tool_input").cloned().unwrap_or(Value::Null);

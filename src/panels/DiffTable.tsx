@@ -1,7 +1,7 @@
 import { For, Show } from "solid-js";
 import { sideBySide, type DiffLine } from "./diff";
 
-/** Tabla de un diff, unificada o lado a lado (las clases son las del panel de git). */
+/** Table of a diff, unified or side by side (the classes are those of the git panel). */
 export function DiffTable(props: { lines: DiffLine[]; split: boolean }) {
   return (
     <Show

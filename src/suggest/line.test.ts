@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseLine, readInput, type BufLike } from "./line";
 
-/** Buffer falso: cada fila es un string de `cols` columnas; `wrapped[i]` = la fila i continúa la anterior. */
+/** Fake buffer: each row is a string of `cols` columns; `wrapped[i]` = row i continues the previous one. */
 function buf(rows: string[], wrapped: boolean[] = []): BufLike {
   return {
     getLine: (i) =>

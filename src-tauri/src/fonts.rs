@@ -1,8 +1,8 @@
-//! Fuentes instaladas en Windows (registro del sistema y del usuario).
+//! Fonts installed in Windows (system and user registry).
 //!
-//! El frontend filtra cuáles son monoespaciadas midiéndolas, y el addon de ligaduras de xterm
-//! necesita los bytes del archivo de la fuente: los damos desde acá, sin pedirle al WebView
-//! el permiso de "fuentes locales".
+//! The frontend filters which ones are monospaced by measuring them, and xterm's ligatures addon
+//! needs the bytes of the font file: we provide them from here, without asking the WebView
+//! for the "local fonts" permission.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -15,8 +15,8 @@ const STYLES: &[&str] = &[
     "condensed", "semicondensed", "extended", "retina",
 ];
 
-/// Una entrada del registro ("Cascadia Code Bold (TrueType)") → familias y si es la variante normal.
-/// Las colecciones vienen como "Cambria & Cambria Math (TrueType)".
+/// A registry entry ("Cascadia Code Bold (TrueType)") → families and whether it's the regular variant.
+/// Collections come as "Cambria & Cambria Math (TrueType)".
 pub fn parse_entry(name: &str) -> Vec<(String, bool)> {
     let base = match name.rfind(" (") {
         Some(i) if name.ends_with(')') => &name[..i],
@@ -39,7 +39,7 @@ pub fn parse_entry(name: &str) -> Vec<(String, bool)> {
         .collect()
 }
 
-/// Familia → archivo (preferimos la variante normal, si no, la primera que aparezca).
+/// Family → file (we prefer the regular variant, otherwise the first one that shows up).
 fn table() -> BTreeMap<String, PathBuf> {
     let mut out: BTreeMap<String, (PathBuf, bool)> = BTreeMap::new();
     #[cfg(windows)]
@@ -52,7 +52,7 @@ fn table() -> BTreeMap<String, PathBuf> {
             for (name, value) in key.enum_values().flatten() {
                 let Ok(file) = <String as winreg::types::FromRegValue>::from_reg_value(&value) else { continue };
                 let path = PathBuf::from(&file);
-                // Las del sistema vienen sin ruta; las instaladas por el usuario, con ruta completa.
+                // System ones come without a path; user-installed ones, with the full path.
                 let path = if path.is_absolute() { path } else { sys_fonts.join(path) };
                 for (family, regular) in parse_entry(&name) {
                     match out.get(&family) {
@@ -69,13 +69,13 @@ fn table() -> BTreeMap<String, PathBuf> {
     out.into_iter().map(|(k, (p, _))| (k, p)).collect()
 }
 
-/// Familias instaladas (todas; el frontend se queda con las monoespaciadas).
+/// Installed families (all of them; the frontend keeps the monospaced ones).
 #[tauri::command]
 pub fn fonts_list() -> Vec<String> {
     table().into_keys().collect()
 }
 
-/// Bytes del archivo de una familia (para que el addon de ligaduras lea sus tablas).
+/// Bytes of a family's file (so the ligatures addon can read its tables).
 #[tauri::command]
 pub fn font_file(family: String) -> Result<tauri::ipc::Response, String> {
     let t = table();
@@ -97,7 +97,7 @@ mod tests {
             parse_entry("Cambria & Cambria Math (TrueType)"),
             vec![("Cambria".into(), true), ("Cambria Math".into(), true)]
         );
-        // Una palabra de estilo sola es el nombre, no un estilo.
+        // A lone style word is the name, not a style.
         assert_eq!(parse_entry("Bold (OpenType)"), vec![("Bold".into(), true)]);
         assert_eq!(parse_entry("JetBrains Mono ExtraBold"), vec![("JetBrains Mono".into(), false)]);
     }
@@ -107,7 +107,7 @@ mod tests {
         let t = table();
         assert!(t.contains_key("Consolas"), "Consolas viene con Windows");
         assert!(t["Consolas"].exists());
-        // La variante normal gana sobre la negrita.
+        // The regular variant wins over bold.
         assert!(t["Consolas"].file_name().unwrap().to_string_lossy().eq_ignore_ascii_case("consola.ttf"));
     }
 }

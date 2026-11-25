@@ -1,20 +1,20 @@
-// Idiomas de la interfaz: español (el del código), inglés y portugués.
+// Interface languages: Spanish (the code's own), English and Portuguese.
 //
-// El texto en español es la clave: `t("Pestaña nueva")`. Las traducciones viven en
-// `src/i18n/en/*.json` y `src/i18n/pt/*.json` (un archivo por área, todos se juntan acá), con el
-// texto en español como clave y la traducción como valor. `scripts/i18n-check.mjs` (y su test)
-// falla si un texto marcado no tiene traducción, si sobra una o si no coinciden las {variables}.
+// The Spanish text is the key: `t("Pestaña nueva")`. Translations live in
+// `src/i18n/en/*.json` and `src/i18n/pt/*.json` (one file per area, all merged here), with the
+// Spanish text as key and the translation as value. `scripts/i18n-check.mjs` (and its test)
+// fails if a marked text has no translation, if one is left over or if the {variables} don't match.
 //
-// - En JSX y en código que corre al mostrar algo: `t("…")`. Lee el idioma actual, así que en JSX
-//   se actualiza solo cuando se cambia el idioma.
-// - En constantes de módulo (listas, etiquetas): `k("…")` al definirlas (solo marca el texto) y
-//   `t(valor)` al mostrarlas.
-// - Variables con llaves: `t("Cerrar {n} pestañas", { n })`.
+// - In JSX and in code that runs when something is shown: `t("…")`. It reads the current language, so in JSX
+//   it updates by itself when the language changes.
+// - In module constants (lists, labels): `k("…")` when defining them (it only marks the text) and
+//   `t(value)` when showing them.
+// - Variables in braces: `t("Cerrar {n} pestañas", { n })`.
 import { createSignal } from "solid-js";
 
 export type Lang = "es" | "en" | "pt";
 
-/** Idiomas en su propio nombre (no se traducen: cada uno se reconoce en su idioma). */
+/** Languages in their own name (not translated: each one is recognized in its own language). */
 export const LANGS: [Lang, string][] = [
   ["es", "Español"],
   ["en", "English"],
@@ -40,7 +40,7 @@ export function setLang(l: Lang) {
 
 export const isLang = (v: unknown): v is Lang => v === "es" || v === "en" || v === "pt";
 
-/** Idioma para una instalación nueva, según el del sistema (inglés si no es español ni portugués). */
+/** Language for a new install, based on the system's (English if it's neither Spanish nor Portuguese). */
 export function detectLang(system = typeof navigator !== "undefined" ? navigator.language : ""): Lang {
   const l = system.toLowerCase();
   if (l.startsWith("es")) return "es";
@@ -48,22 +48,22 @@ export function detectLang(system = typeof navigator !== "undefined" ? navigator
   return "en";
 }
 
-/** Locale para fechas y números (`toLocaleString`, `Intl.NumberFormat`). */
+/** Locale for dates and numbers (`toLocaleString`, `Intl.NumberFormat`). */
 export const locale = (): string => ({ es: "es-UY", en: "en-US", pt: "pt-BR" })[lang()];
 
-/** Marca un texto para traducir sin traducirlo (constantes de módulo): se traduce al mostrarlo con `t`. */
+/** Marks a text for translation without translating it (module constants): it's translated when shown with `t`. */
 export const k = <S extends string>(s: S): S => s;
 
 const fill = (s: string, params?: Record<string, string | number>) =>
   params ? s.replace(/\{(\w+)\}/g, (m, name: string) => (name in params ? String(params[name]) : m)) : s;
 
-/** Traduce un texto escrito en español al idioma actual (si falta la traducción, queda en español). */
+/** Translates a text written in Spanish into the current language (if the translation is missing, it stays in Spanish). */
 export function t(es: string, params?: Record<string, string | number>): string {
   const l = lang();
   return fill(l === "es" ? es : (DICTS[l][es] ?? es), params);
 }
 
-/** Lo mismo que `t` pero para un idioma dado (sin depender del actual). */
+/** Same as `t` but for a given language (without depending on the current one). */
 export function tIn(l: Lang, es: string, params?: Record<string, string | number>): string {
   return fill(l === "es" ? es : (DICTS[l][es] ?? es), params);
 }

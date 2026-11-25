@@ -41,7 +41,7 @@ const ChangesPanel = lazy(() => import("../panels/ChangesPanel"));
 const SettingsView = lazy(() => import("../settings/SettingsView"));
 const DOCK_PREF = "alphaterm.dock";
 
-/** Estado vivo de cada panel (clave: id del panel). */
+/** Live state of each pane (key: pane id). */
 interface PaneState extends PaneInfo {
   sessionId?: number;
   pid?: number | null;
@@ -62,7 +62,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     const name = props.info.profiles.find((p) => p.id === id)?.name;
     return name ? profileLabel(name) : id;
   };
-  // Shell por defecto: la de la configuración si está instalada; si no, la que detectó el backend.
+  // Default shell: the one from settings if it's installed; otherwise, the one the backend detected.
   const defaultProfile = () => {
     const id = settings().terminal.defaultProfile;
     return props.info.profiles.some((p) => p.id === id && p.available) ? id : props.info.defaultProfile;
@@ -73,7 +73,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   const toggleBar = () => props.store.update((d) => void (d.tabBar.position = vertical() ? "top" : "left"));
   const keymap = createMemo(() => buildKeymap(settings().shortcuts));
   const match = (e: KeyboardEvent) => matchShortcut(e, keymap());
-  // Estado guardado de la sesión anterior (si hay y se pidió restaurar).
+  // Saved state from the previous session (if there is one and a restore was requested).
   const restored: SavedWindow | null = props.initial
     ? restoreSession(props.initial, {
         relaunch: settings().session.relaunchAgents,
@@ -110,7 +110,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   };
   createEffect(() => layout().tabs.forEach((t) => M.leaves(t.root).filter((l) => !l.browser).forEach(ensurePane)));
 
-  // Limpia el estado de paneles que ya no existen.
+  // Clears the state of panes that no longer exist.
   createEffect(() => {
     const alive = new Set(layout().tabs.flatMap((t) => M.leaves(t.root).filter((l) => !l.browser).map((l) => l.id)));
     for (const id of Object.keys(panes)) {
@@ -121,19 +121,19 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     }
   });
 
-  // Sin pestañas, la ventana se cierra (como Windows Terminal).
+  // With no tabs, the window closes (like Windows Terminal).
   createEffect(() => {
     if (layout().tabs.length === 0) void getCurrentWindow().close();
   });
 
-  // Con el navegador enfocado, el título sale de la terminal de la pestaña (si hay).
+  // With the browser focused, the title comes from the tab's terminal (if any).
   const titlePane = (t: M.Tab) => panes[t.activePane] ?? panes[M.leaves(t.root).find((l) => !l.browser)?.id ?? ""];
   const titleOf = (tab: M.Tab) => {
     const first = M.leaves(tab.root).find((l) => !l.browser);
     return tabTitle(tab.manualTitle, titlePane(tab), first ? profileName(first.profileId) : t("Navegador"));
   };
 
-  // Un agente "arrancó" cuando su comando empezó a correr (por integración o por proceso).
+  // An agent "started" when its command began running (by integration or by process).
   createEffect(() => {
     for (const [id, p] of Object.entries(panes)) {
       if (p.agentId && !p.agentStarted && agentRunning(p)) setPanes(id, "agentStarted", true);
@@ -168,7 +168,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     }),
   );
 
-  // Título de la ventana = título de la pestaña activa.
+  // Window title = title of the active tab.
   createEffect(() => {
     const t = active();
     const title = windowTitle() ? windowTitle()! : t ? `${titleOf(t)} — AlphaTerm` : "AlphaTerm";
@@ -176,7 +176,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     void getCurrentWindow().setTitle(title).catch(() => {});
   });
 
-  // Rama git: se busca cuando cambia la carpeta o termina un comando (puede haber cambiado de rama).
+  // Git branch: looked up when the folder changes or a command ends (the branch may have changed).
   const branchKey = (id: string) => `${panes[id]?.cwd ?? ""}|${panes[id]?.running ? 1 : 0}`;
   const lastBranchKey = new Map<string, string>();
   createEffect(() => {
@@ -189,7 +189,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     }
   });
 
-  // Proceso en primer plano de todas las sesiones (una sola foto de procesos por consulta).
+  // Foreground process of all sessions (a single process snapshot per query).
   createEffect(() => {
     const ms = settings().behavior.foregroundPollMs;
     const poll = async () => {
@@ -204,25 +204,25 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
           const name = f?.name;
           if (panes[paneId] && panes[paneId].fgProcess !== name) {
             setPanes(paneId, "fgProcess", name);
-            // Sin integración, el título del programa se va con el programa.
+            // Without integration, the program's title goes away with the program.
             if (!name && !panes[paneId].integrated) setPanes(paneId, "agentTitle", undefined);
           }
         }
       } catch {
-        /* la próxima vuelta reintenta */
+        /* the next round retries */
       }
     };
     const timer = setInterval(poll, ms);
     onCleanup(() => clearInterval(timer));
   });
 
-  // --- Acciones -------------------------------------------------------------------------------
-  /** Divide un panel (el de la barrita, o el activo con los atajos). */
+  // --- Actions --------------------------------------------------------------------------------
+  /** Splits a pane (the bar's, or the active one with the shortcuts). */
   const splitAt = (tabId: string, paneId: string, dir: M.SplitDir | "auto") => {
     const t = tabById(tabId);
     const l = t ? M.findLeaf(t.root, paneId) : undefined;
     if (!t || !l) return;
-    // Desde un navegador se abre una terminal en la carpeta de su dueño.
+    // From a browser, a terminal is opened in its owner's folder.
     const base = l.browser ? M.findLeaf(t.root, l.browser.owner ?? "") ?? M.leaves(t.root).find((x) => !x.browser) : l;
     let d: M.SplitDir = dir === "auto" ? "row" : dir;
     if (dir === "auto") {
@@ -230,9 +230,9 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
       const el = document.querySelector(".tab-view.visible");
       const w = (r?.w ?? 1) * (el?.clientWidth ?? 1);
       const h = (r?.h ?? 1) * (el?.clientHeight ?? 1);
-      d = w >= h * 1.6 ? "row" : "column"; // en una terminal el ancho "vale" menos que el alto
+      d = w >= h * 1.6 ? "row" : "column"; // in a terminal, width "is worth" less than height
     }
-    // El panel nuevo hereda perfil y carpeta del actual.
+    // The new pane inherits the current one's profile and folder.
     update((x) => M.splitPane(x, t.id, l.id, d, M.leaf(base?.profileId || defaultProfile(), (base && panes[base.id]?.cwd) ?? base?.cwd)));
   };
   const doSplit = (dir: M.SplitDir | "auto") => {
@@ -241,7 +241,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   };
 
   const closePane = (tabId: string, paneId: string) => update((x) => M.closePane(x, tabId, paneId));
-  /** Cerrar desde la barrita o el menú: si hay algo corriendo, pregunta antes (dentro de la app). */
+  /** Close from the bar or the menu: if something is running, it asks first (inside the app). */
   const askClose = async (tabId: string, paneId: string) => {
     const p = panes[paneId];
     if (p && paneBusy(p)) {
@@ -250,7 +250,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     }
     closePane(tabId, paneId);
   };
-  /** Enfoca un panel ya (el clic en la barrita no le da el foco a la terminal por sí solo). */
+  /** Focuses a pane right away (clicking the bar doesn't focus the terminal by itself). */
   const focusNow = (tabId: string, paneId: string) => {
     if (tabById(tabId)?.activePane !== paneId) update((x) => M.focusPane(x, tabId, paneId));
     queueMicrotask(() => handles.get(paneId)?.focus());
@@ -260,9 +260,9 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     focusNow(tabId, paneId);
     setPaneMenu({ x: Math.min(e.clientX, window.innerWidth - 230), y: Math.min(e.clientY, window.innerHeight - 180), tabId, paneId });
   };
-  /** Lo que se pinta mientras se arrastra un panel: dónde va a quedar. */
+  /** What is drawn while a pane is dragged: where it will end up. */
   const [dropHint, setDropHint] = createSignal<{ tabId: string; rect: M.Rect; center: boolean } | null>(null);
-  /** Agarrar la barrita: enfoca el panel y, si se arrastra, lo mueve al soltarlo sobre otro. */
+  /** Grab the bar: focuses the pane and, if dragged, moves it when dropped onto another. */
   const grab = (tabId: string, paneId: string, e: PointerEvent) => {
     focusNow(tabId, paneId);
     const container = (e.target as HTMLElement)?.closest?.(".tab-view");
@@ -282,8 +282,8 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     });
   };
 
-  // --- Paneles laterales en mosaico -----------------------------------------------------------
-  // Se guardan en la sesión de la ventana y, como preferencia, para las ventanas nuevas.
+  // --- Tiled side panels ----------------------------------------------------------------------
+  // Saved in the window's session and, as a preference, for new windows.
   const readDock = (): D.Dock => {
     try {
       return D.normalizeDock(JSON.parse(localStorage.getItem(DOCK_PREF) ?? "null"));
@@ -293,7 +293,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   };
   const initialDock = (): D.Dock => {
     if (restored?.dock) return D.normalizeDock(restored.dock);
-    // Sesiones viejas (un solo panel).
+    // Old sessions (a single panel).
     if (restored && typeof restored.panel === "string" && PANELS.some((x) => x.id === restored.panel)) {
       return D.openPanel({ cols: [] }, restored.panel as PanelId);
     }
@@ -305,16 +305,16 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     try {
       localStorage.setItem(DOCK_PREF, JSON.stringify(d));
     } catch {
-      /* no importa */
+      /* doesn't matter */
     }
   };
   const panelOpen = (p: PanelId) => D.isOpen(dock(), p);
   const togglePanel = (p: PanelId) => setDock(D.togglePanel(dock(), p));
   const showPanel = (p: PanelId) => setDock(D.openPanel(dock(), p));
-  /** Repositorio que muestra el panel de git (null = el de la carpeta del panel activo). */
+  /** Repository shown by the git panel (null = the one of the active pane's folder). */
   const [gitRoot, setGitRoot] = createSignal<string | null>(null);
 
-  // Ancho de una columna: se arrastra su borde izquierdo.
+  // Width of a column: its left edge is dragged.
   const startColDrag = (colId: string, e: PointerEvent) => {
     e.preventDefault();
     const startX = e.clientX;
@@ -330,7 +330,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
-  // Alto entre dos paneles de una columna.
+  // Height between two panels in a column.
   const startSplitDrag = (colId: string, i: number, e: PointerEvent) => {
     e.preventDefault();
     const col = (e.target as HTMLElement).closest(".dock-col");
@@ -347,15 +347,15 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
-  // Reordenar: se arrastra la barra de título de un panel.
+  // Reorder: drag a panel's title bar.
   const [dragPanel, setDragPanel] = createSignal<PanelId | null>(null);
   const dropOn = (to: D.DropTarget) => {
     const p = dragPanel();
     setDragPanel(null);
     if (p) setDock(D.movePanel(dock(), p, to));
   };
-  // Contador de cambios git por pestaña (carpeta del panel activo de cada una). Cada 10 s con la
-  // ventana visible y cuando termina un comando.
+  // Git change counter per tab (folder of each one's active pane). Every 10 s with the
+  // window visible and when a command ends.
   const [gitCounts, setGitCounts] = createSignal<Record<string, number | null>>({});
   const tabCwds = createMemo(() => [...new Set(layout().tabs.map((t) => panes[t.activePane]?.cwd).filter((c): c is string => !!c))].join("\n"));
   const refreshCounts = async () => {
@@ -378,11 +378,11 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     return id ? panes[id]?.cwd : undefined;
   };
 
-  // PATH completo (proceso + registro + carpetas de agentes): un agente instalado después de
-  // abrir AlphaTerm igual se encuentra.
+  // Full PATH (process + registry + agent folders): an agent installed after
+  // opening AlphaTerm is still found.
   const [pathEnv] = createResource(() => invoke<string>("agents_path_env").catch(() => ""));
 
-  // --- Historial de comandos: se guarda cada comando que termina (shells con integración) ------
+  // --- Command history: every command that ends is saved (shells with integration) -------------
   const [historyVersion, setHistoryVersion] = createSignal(0);
   const wasRunning = new Map<string, boolean>();
   createEffect(() => {
@@ -404,7 +404,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     handles.get(id)?.send(command, runIt);
     handles.get(id)?.focus();
   };
-  // Proveedor de consumo del agente de la pestaña activa (lanzado desde el panel o tipeado).
+  // Usage provider of the active tab's agent (launched from the panel or typed).
   const activeProvider = () => {
     const id = activePaneId();
     const p = id ? panes[id] : undefined;
@@ -412,8 +412,8 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     return providerFor(p.agentId, p.running ? p.lastCommand : undefined, p.fgProcess);
   };
 
-  // --- Resumen de pestañas con un modelo (opcional): cada N s (mínimo 30), solo las que tuvieron
-  // salida desde la última vez, de a 3 por vuelta. Si falla, se deja de intentar hasta el próximo cambio.
+  // --- Tab summary with a model (optional): every N s (minimum 30), only the ones that had
+  // output since last time, 3 per round. If it fails, it stops trying until the next change.
   const hadOutput = new Set<string>();
   createEffect(() => {
     for (const [id, p] of Object.entries(panes)) if (p.active) hadOutput.add(id);
@@ -442,7 +442,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     onCleanup(() => clearInterval(t));
   });
 
-  // --- API de control: esta ventana contesta por sus paneles --------------------------------------
+  // --- Control API: this window answers for its panes ---------------------------------------------
   onMount(async () => {
     const label = getCurrentWindow().label;
     const un = await listen<{ id: number; method: string; params: Record<string, unknown>; window: string; windows: string[] }>("control-request", async (e) => {
@@ -472,7 +472,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     onCleanup(un);
   });
 
-  // --- Sesión: se guarda un rato después de cada cambio (layout, carpetas, título, panel) ----------
+  // --- Session: saved a moment after each change (layout, folders, title, panel) -------------------
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   createEffect(() => {
     const snapshot = serialize(layout(), (id) => (panes[id] ? { cwd: panes[id].cwd, agentId: panes[id].agentId } : undefined), {
@@ -485,9 +485,9 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
   });
   onCleanup(() => clearTimeout(saveTimer));
 
-  // --- Servidores ------------------------------------------------------------------------------
-  // Se consultan cada 3 s con el panel abierto; con el panel cerrado, cada 10 s y solo si alguna
-  // pestaña está corriendo algo (para guardar la receta de lo que nazca ahí).
+  // --- Servers ---------------------------------------------------------------------------------
+  // Queried every 3 s with the panel open; with the panel closed, every 10 s and only if some
+  // tab is running something (to save the recipe of whatever starts there).
   const [servers, setServers] = createSignal<Server[]>([]);
   const [serversLoading, setServersLoading] = createSignal(false);
   const [serversError, setServersError] = createSignal<string | null>(null);
@@ -508,7 +508,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
       const list = await invoke<Server[]>("ports_list");
       setServers(list);
       setServersError(null);
-      // Recetas: lo que nació en una pestaña con un comando conocido.
+      // Recipes: what started in a tab with a known command.
       let recipes = settings().recipes;
       for (const s of list) {
         const c = candidate(s, paneOf(s.shellPid));
@@ -529,17 +529,17 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     const t = setInterval(() => !document.hidden && void refreshServers(), ms);
     onCleanup(() => clearInterval(t));
   });
-  /** Inicia una receta en una pestaña de fondo (no le saca el foco a la actual). */
+  /** Launches a recipe in a background tab (doesn't take focus from the current one). */
   const startRecipe = (r: Recipe) => {
     const env: Record<string, string> = { ...(pathEnv() ? { PATH: pathEnv()! } : {}), ...r.env };
     update((x) => ({ ...M.addTab(x, M.newTab(defaultProfile(), r.cwd || undefined, { command: r.command, env })), activeTab: x.activeTab }));
     setTimeout(() => void refreshServers(), 4000);
   };
-  // Archivos para lanzar Claude Code con el MCP de AlphaTerm y el hook del guardián.
+  // Files to launch Claude Code with AlphaTerm's MCP and the Guardian hook.
   const [controlFiles] = createResource(() => invoke<{ claudeSettings: string; claudeStop: string; claudeMcp: string; mcpScript: string }>("control_files").catch(() => null));
   /**
-   * Comando con el que arranca un agente: el suyo, las opciones elegidas en el panel (con las
-   * comillas de la shell del perfil) y, en Claude y Codex, el guardián y la API de control.
+   * Command an agent starts with: its own, the options chosen in the panel (with the
+   * quotes of the profile's shell) and, for Claude and Codex, the Guardian and the control API.
    */
   const agentCommand = (agent: AgentDef, profileId: string) => {
     const first = agentKind(agent.command);
@@ -548,13 +548,13 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     const f = controlFiles();
     if (first === "claude" && f) {
       if (s.control.enabled) extra.push(`--mcp-config "${f.claudeMcp}"`);
-      // El mismo archivo trae el hook del guardián y el que registra las modificaciones.
+      // The same file carries the Guardian hook and the one that records the changes.
       if ((s.guardian.enabled && s.guardian.claude) || (s.changes.enabled && s.changes.claude)) extra.push(`--settings "${f.claudeSettings}"`);
-      // Solo el hook Stop: el navegador sabe cuándo terminó de contestar ("trabajando… listo").
+      // Only the Stop hook: the browser knows when it finished answering ("working… done").
       else if (s.control.enabled && f.claudeStop) extra.push(`--settings "${f.claudeStop}"`);
     }
-    // Codex no tiene hooks: se usa su propio modo de aprobación (pide permiso para escribir), salvo
-    // que el comando o las opciones ya digan cómo aprobar (si no, choca con lo elegido).
+    // Codex has no hooks: its own approval mode is used (asks permission to write), unless
+    // the command or the options already say how to approve (otherwise it clashes with what was chosen).
     const chosen = [agent.command, ...launchParts(agent).flag].join(" ");
     if (first === "codex" && s.guardian.enabled && s.guardian.codex && !/(\s|^)(-s|--sandbox|-a|--ask-for-approval|--approve-for-me|--dangerously-bypass-approvals-and-sandbox)(\s|=|$)/.test(chosen)) {
       extra.push("-s read-only -a on-request");
@@ -567,15 +567,15 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     update((x) => M.addTab(x, M.newTab(profile, cwd, { command: agentCommand(agent, profile), env, agentId: agent.id })));
     if (cwd) props.store.update((d) => void (d.recentDirs = pushRecent(d.recentDirs, cwd)));
   };
-  // --- Navegador integrado ------------------------------------------------------------------------
-  /** URL probable para un navegador nuevo: el último servidor que nació en esa pestaña. */
+  // --- Built-in browser ---------------------------------------------------------------------------
+  /** Probable URL for a new browser: the last server that started in that tab. */
   const guessUrl = (tabId: string) => {
     const s = [...servers()].reverse().find((x) => paneOf(x.shellPid)?.tabId === tabId && x.ports.length);
     return s ? `http://localhost:${s.ports[0]}` : undefined;
   };
   /**
-   * Abre un navegador al lado de un panel (o reusa el de la pestaña). Devuelve su id. El dueño (a
-   * quién van los pedidos) es la terminal al lado de la que se abre.
+   * Opens a browser next to a pane (or reuses the tab's). Returns its id. The owner (who
+   * the requests go to) is the terminal it's opened next to.
    */
   const openBrowser = (o: { url?: string; tabId?: string; pane?: string; dir?: M.SplitDir; reuse?: boolean; focus?: boolean }) => {
     const t = o.tabId ? tabById(o.tabId) : active();
@@ -603,7 +603,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     const u = prompt(t("¿Qué dirección abro en el navegador?"), guessUrl(tab.id) ?? "http://localhost:5173");
     if (u !== null && u.trim()) openBrowser({ url: u.trim() });
   };
-  /** Nombre corto de un panel de terminal: agente (o programa, o shell) · carpeta. */
+  /** Short name of a terminal pane: agent (or program, or shell) · folder. */
   const paneLabel = (id: string) => {
     const p = panes[id];
     if (!p) return "";
@@ -611,7 +611,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     const where = p.cwd ? p.cwd.split(/[\\/]/).filter(Boolean).pop() : "";
     return `${agent?.name ?? p.fgProcess ?? p.shellName}${where ? ` · ${where}` : ""}`;
   };
-  /** Terminales de la pestaña a las que se les puede mandar un pedido. */
+  /** Terminals in the tab that a request can be sent to. */
   const targetsOf = (tabId: string): Target[] => {
     const t = tabById(tabId);
     if (!t) return [];
@@ -623,11 +623,11 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     const p = panes[id];
     if (!p) return undefined;
     const def = settings().agents.find((a) => a.id === p.agentId);
-    // El hook Stop solo lo tiene un Claude Code lanzado por AlphaTerm con la API prendida.
+    // Only a Claude Code launched by AlphaTerm with the API on has the Stop hook.
     const hook = !!def && agentKind(def.command) === "claude" && settings().control.enabled;
     return { active: p.active, bell: p.bell, hook };
   };
-  /** Pega el pedido en la terminal del agente y lo manda (Enter aparte: si no, queda en el pegado). */
+  /** Pastes the request into the agent's terminal and sends it (Enter separately: otherwise it stays in the paste). */
   const sendToAgent = (pane: string, message: string) => {
     const h = handles.get(pane);
     if (!h || !h.paste(message)) return false;
@@ -635,9 +635,9 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     return true;
   };
 
-  // --- Modificaciones: se vigila la carpeta de cada panel con un agente andando -----------------
-  // (el backend copia la carpeta al empezar y compara cada cambio con esa copia).
-  const watching = new Map<string, string>(); // panel → carpeta
+  // --- Changes: the folder of each pane with a running agent is watched -------------------------
+  // (the backend copies the folder at the start and compares each change against that copy).
+  const watching = new Map<string, string>(); // pane → folder
   createEffect(() => {
     const c = settings().changes;
     const agents = settings().agents;
@@ -667,7 +667,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     for (const id of watching.keys()) void invoke("changes_unwatch", { pane: id }).catch(() => {});
   });
 
-  // Shells de esta ventana (para el consumo por pestaña del widget de CPU/RAM).
+  // Shells of this window (for the per-tab usage of the CPU/RAM widget).
   const tabProcs = createMemo<TabProcs[]>(() =>
     layout().tabs.flatMap((t) =>
       M.leaves(t.root)
@@ -756,12 +756,12 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     }
   };
 
-  // Atajos cuando el foco no está en una terminal (por ejemplo, después de hacer clic en la barra).
+  // Shortcuts when focus isn't in a terminal (for example, after clicking the bar).
   onMount(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest?.(".xterm, input, select, textarea")) return;
       const a = match(e);
-      // Con la configuración abierta, los atajos no tocan las pestañas de atrás.
+      // With settings open, the shortcuts don't touch the tabs behind.
       if (settingsOpen() && a?.type !== "openSettings") return;
       if (a) {
         e.preventDefault();
@@ -772,23 +772,23 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
     onCleanup(() => window.removeEventListener("keydown", onKey));
   });
 
-  // Al cambiar de pestaña, el foco va al panel activo.
+  // On tab change, focus goes to the active pane.
   createEffect(on(activePaneId, (id) => id && queueMicrotask(() => handles.get(id)?.focus())));
 
-  // --- Divisores -------------------------------------------------------------------------------
+  // --- Dividers --------------------------------------------------------------------------------
   const startDrag = (tabId: string, area: M.SplitArea, e: PointerEvent) => {
-    // El elemento real (con eventos delegados, currentTarget no siempre es el divisor).
+    // The real element (with delegated events, currentTarget isn't always the divider).
     const el = e.target as HTMLElement;
     const container = el.closest(".tab-view");
     if (!container) return;
-    e.preventDefault(); // que no seleccione texto mientras se arrastra
+    e.preventDefault(); // so it doesn't select text while dragging
     const box = container.getBoundingClientRect();
     document.body.classList.add("resizing", area.dir === "row" ? "resizing-row" : "resizing-column");
     const move = (ev: PointerEvent) => {
       const fx = (ev.clientX - box.left) / box.width;
       const fy = (ev.clientY - box.top) / box.height;
       const ratio = area.dir === "row" ? (fx - area.rect.x) / area.rect.w : (fy - area.rect.y) / area.rect.h;
-      // Se frena en ⅓, ½ y ⅔ si queda a pocos píxeles.
+      // Snaps at ⅓, ½ and ⅔ if it's within a few pixels.
       const extentPx = area.dir === "row" ? box.width * area.rect.w : box.height * area.rect.h;
       update((x) => M.setRatio(x, tabId, area.id, M.snapRatio(ratio, extentPx)));
     };
@@ -900,7 +900,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
         onStartRename={setEditingId}
         onRename={(id, title) => {
           const t = tabById(id);
-          // Si se confirma el nombre automático sin tocarlo, sigue siendo automático.
+          // If the automatic name is confirmed without touching it, it stays automatic.
           const untouched = t && !t.manualTitle && title?.trim() === titleOf(t);
           if (title !== null && !untouched) update((x) => M.renameTab(x, id, title));
           setEditingId(null);
@@ -935,7 +935,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
       />
       <div class="body">
       <main class="tab-area">
-        {/* Se itera por id (texto) para que Solid no vuelva a crear terminales cuando cambia el árbol. */}
+        {/* Iterated by id (text) so Solid doesn't recreate terminals when the tree changes. */}
         <For each={layout().tabs.map((t) => t.id)}>
           {(tabId) => {
             const tab = () => tabById(tabId);
@@ -1018,7 +1018,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
                             if (panes[paneId]) setPanes(paneId, p);
                           }}
                           onExit={(code) => {
-                            // Salida limpia (por ejemplo `exit`): se cierra el panel, como Windows Terminal.
+                            // Clean exit (for example `exit`): the pane closes, like Windows Terminal.
                             if (code === 0) {
                               closePane(tabId, paneId);
                               return true;

@@ -1,19 +1,19 @@
 #!/usr/bin/env node
-// Hook de Claude Code (lo instala AlphaTerm con --settings al lanzar Claude Code).
-// - PreToolUse: AlphaTerm copia cómo está el archivo (para el panel de modificaciones) y el
-//   guardián pregunta antes de editar, crear o borrar archivos. Si el usuario no lo permite,
-//   Claude Code recibe "deny" con el motivo.
-// - PostToolUse: AlphaTerm anota cómo quedó el archivo.
-// - Stop: Claude Code terminó de contestar (el navegador integrado pasa de "trabajando" a "listo").
-// Si AlphaTerm no responde, no frena (Claude Code sigue con sus propios permisos).
+// Claude Code hook (AlphaTerm installs it with --settings when launching Claude Code).
+// - PreToolUse: AlphaTerm copies the state of the file (for the Changes panel) and the
+//   Guardian asks before editing, creating or deleting files. If the user doesn't allow it,
+//   Claude Code receives "deny" with the reason.
+// - PostToolUse: AlphaTerm records how the file ended up.
+// - Stop: Claude Code finished answering (the built-in browser goes from "working" to "ready").
+// If AlphaTerm doesn't respond, it doesn't block (Claude Code continues with its own permissions).
 import fs from "node:fs";
 import path from "node:path";
 
-/** Carpeta de AlphaTerm: la de control.json y settings.json. */
+/** AlphaTerm folder: the one with control.json and settings.json. */
 const DIR = path.join(process.env.APPDATA || "", "AlphaTerm");
 
-// Idioma del motivo (es, en, pt): ALPHATERM_LANG (lo tienen las pestañas de AlphaTerm) o, si no
-// está, la clave `language` de settings.json, en la misma carpeta que control.json; si no, español.
+// Language of the reason (es, en, pt): ALPHATERM_LANG (AlphaTerm's tabs have it) or, if it is not
+// set, the `language` key of settings.json, in the same folder as control.json; otherwise, Spanish.
 function detectLang() {
   const ok = (l) => (typeof l === "string" && ["es", "en", "pt"].includes(l.trim().toLowerCase()) ? l.trim().toLowerCase() : null);
   const env = ok(process.env.ALPHATERM_LANG);
@@ -77,7 +77,7 @@ process.stdin.on("end", async () => {
       );
     }
   } catch {
-    // AlphaTerm cerrado o sin respuesta: no se frena.
+    // AlphaTerm closed or not responding: not blocked.
   }
   process.exit(0);
 });

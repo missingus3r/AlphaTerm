@@ -129,7 +129,7 @@ describe("collect", () => {
     const r = await run("dir /", "cmd", src);
     expect(r.map((s) => s.insert)).toContain("/s");
     expect(r.some((s) => s.kind === "folder")).toBe(false);
-    // Con otra barra sí es una ruta.
+    // With another slash it is a path.
     expect(analyze(parseLine("type /tmp/x", "cmd"), "cmd").source).toBe("paths");
   });
 
@@ -166,7 +166,7 @@ describe("collect", () => {
       history: [h("git push origin main", "C:\\otra", 1), h("git pull", "C:\\proy", 5), h("git push origin predicciones", "C:\\proy", 30)],
     });
     const r = await run("git p", "ps", src);
-    // Misma carpeta primero; entre esas, la más reciente.
+    // Same folder first; among those, the most recent.
     expect(r[0]).toMatchObject({ insert: "git pull", replace: "line", kind: "history" });
     expect(r[1].insert).toBe("git push origin predicciones");
     expect(r.filter((s) => s.kind === "history").map((s) => s.insert)).toContain("git push origin main");

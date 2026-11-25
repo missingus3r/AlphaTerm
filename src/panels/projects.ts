@@ -1,4 +1,4 @@
-/** Lista de proyectos: lo descubierto por el backend + lo agregado a mano + carpetas recientes. */
+/** Project list: what the backend discovered + what was added by hand + recent folders. */
 
 export interface Found {
   path: string;
@@ -39,7 +39,7 @@ export function mergeProjects(found: Found[], manual: string[], recent: string[]
   recent.forEach((r) => add(r, "reciente"));
   const hide = new Set(hidden.map(key));
   const list = [...by.values()].map((p) => ({ ...p, hidden: hide.has(key(p.path)) }));
-  // Los fijados a mano primero; después, por uso.
+  // Hand-pinned ones first; then by use.
   return list.sort((a, b) => Number(b.sources.includes("manual")) - Number(a.sources.includes("manual")) || b.lastUsed - a.lastUsed);
 }
 

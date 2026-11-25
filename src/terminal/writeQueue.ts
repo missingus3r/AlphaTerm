@@ -1,7 +1,7 @@
 /**
- * Escrituras hacia la shell en orden. Cada `invoke` es una petición independiente y el backend
- * puede atenderlas en cualquier orden: con teclas rápidas eso invertía letras ("cmd" → "cdm").
- * La cola manda de a una y junta lo que se tipea mientras espera la respuesta.
+ * Writes to the shell, in order. Each `invoke` is an independent request and the backend
+ * may serve them in any order: with fast typing that swapped letters ("cmd" → "cdm").
+ * The queue sends one at a time and gathers what is typed while it waits for the response.
  */
 export class WriteQueue {
   private pending = "";
@@ -23,7 +23,7 @@ export class WriteQueue {
         try {
           await this.send(chunk);
         } catch {
-          // La sesión pudo haber terminado: lo que no llegó se descarta.
+          // The session may have ended: whatever didn't arrive is discarded.
         }
       }
     } finally {

@@ -1,4 +1,4 @@
-//! Datos para la heurística del título: proceso en primer plano de cada sesión y rama git.
+//! Data for the title heuristic: each session's foreground process and git branch.
 
 use serde::Serialize;
 use std::collections::HashMap;
@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 
-/// Hosts de consola: son hijos del shell pero no son "lo que está corriendo".
+/// Console hosts: they are children of the shell but are not "what is running".
 const IGNORED: &[&str] = &["conhost.exe", "openconsole.exe"];
 
 #[derive(Default)]
@@ -27,7 +27,7 @@ struct Node {
     start: u64,
 }
 
-/// El descendiente más nuevo del shell (ignorando hosts de consola). Si hay empate, el más profundo.
+/// The newest descendant of the shell (ignoring console hosts). On a tie, the deepest.
 fn pick_foreground(nodes: &HashMap<u32, Node>, shell: u32) -> Option<Foreground> {
     let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
     for (pid, n) in nodes {
@@ -41,12 +41,12 @@ fn pick_foreground(nodes: &HashMap<u32, Node>, shell: u32) -> Option<Foreground>
     while let Some((pid, depth)) = stack.pop() {
         seen += 1;
         if seen > 10_000 {
-            break; // por las dudas, ante ciclos de PIDs reciclados
+            break; // just in case, against cycles of recycled PIDs
         }
         for &c in children.get(&pid).map(Vec::as_slice).unwrap_or(&[]) {
             let n = &nodes[&c];
             if n.start < nodes.get(&pid).map(|p| p.start).unwrap_or(0) {
-                continue; // PID reciclado: el "hijo" es más viejo que el padre
+                continue; // recycled PID: the "child" is older than the parent
             }
             stack.push((c, depth + 1));
             if IGNORED.contains(&n.name.to_lowercase().as_str()) {
@@ -93,7 +93,7 @@ impl ProcState {
     }
 }
 
-/// Busca el `.git` subiendo desde `cwd`. Soporta worktrees (`.git` como archivo con `gitdir:`).
+/// Looks for the `.git` going up from `cwd`. Supports worktrees (`.git` as a file with `gitdir:`).
 pub fn git_dir(cwd: &Path) -> Option<PathBuf> {
     for dir in cwd.ancestors() {
         let g = dir.join(".git");
@@ -110,7 +110,7 @@ pub fn git_dir(cwd: &Path) -> Option<PathBuf> {
     None
 }
 
-/// Rama actual leyendo `HEAD` (sin lanzar git). Detached: los primeros 7 caracteres del hash.
+/// Current branch by reading `HEAD` (without launching git). Detached: the first 7 characters of the hash.
 pub fn git_branch(cwd: &Path) -> Option<String> {
     let head = std::fs::read_to_string(git_dir(cwd)?.join("HEAD")).ok()?;
     let head = head.trim();

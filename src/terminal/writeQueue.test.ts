@@ -4,7 +4,7 @@ import { WriteQueue } from "./writeQueue";
 describe("WriteQueue", () => {
   it("mantiene el orden aunque cada envío tarde distinto", async () => {
     const received: string[] = [];
-    // Envíos con demoras al azar: sin cola, llegarían desordenados.
+    // Sends with random delays: without a queue, they would arrive out of order.
     const q = new WriteQueue(
       (d) => new Promise((r) => setTimeout(() => (received.push(d), r(undefined)), Math.random() * 5)),
     );
@@ -12,7 +12,7 @@ describe("WriteQueue", () => {
     for (const ch of text) q.write(ch);
     await new Promise((r) => setTimeout(r, 200));
     expect(received.join("")).toBe(text);
-    // Lo que se tipea mientras espera se junta: menos llamadas que teclas.
+    // What is typed while waiting is gathered: fewer calls than keys.
     expect(received.length).toBeLessThan(text.length);
   });
 

@@ -26,7 +26,7 @@ export interface TabProcs {
   pid: number;
 }
 
-/** CPU y RAM en vivo con sparkline de 60 s. Clic: top de procesos y consumo de cada pestaña. */
+/** Live CPU and RAM with a 60 s sparkline. Click: top processes and usage of each tab. */
 export function SysWidget(props: { everyMs: number; tabs: TabProcs[]; vertical: boolean }) {
   const [stats, setStats] = createSignal<Stats | null>(null);
   const [cpuHist, setCpuHist] = createSignal<number[]>([]);
@@ -38,14 +38,14 @@ export function SysWidget(props: { everyMs: number; tabs: TabProcs[]; vertical: 
   createEffect(() => {
     const ms = props.everyMs;
     const tick = async () => {
-      if (document.hidden) return; // ventana minimizada: no se pregunta
+      if (document.hidden) return; // minimized window: don't ask
       try {
         const s = await invoke<Stats>("sys_stats");
         setStats(s);
         setCpuHist((h) => pushSample(h, s.cpu));
         setMemHist((h) => pushSample(h, (s.memUsed / s.memTotal) * 100));
       } catch {
-        /* la próxima */
+        /* the next one */
       }
     };
     void tick();
@@ -53,15 +53,15 @@ export function SysWidget(props: { everyMs: number; tabs: TabProcs[]; vertical: 
     onCleanup(() => clearInterval(timer));
   });
 
-  // Mientras el detalle está abierto, el top se pide cada segundo (la CPU por proceso necesita
-  // dos muestras: la primera vuelta viene en 0).
+  // While the detail is open, the top is requested every second (per-process CPU needs
+  // two samples: the first round comes back as 0).
   createEffect(() => {
     if (!open()) return;
     const tick = async () => {
       try {
         setTop(await invoke<Top>("sys_top", { shells: props.tabs.map((tab) => tab.pid) }));
       } catch {
-        /* la próxima */
+        /* the next one */
       }
     };
     void tick();
@@ -77,7 +77,7 @@ export function SysWidget(props: { everyMs: number; tabs: TabProcs[]; vertical: 
   });
 
   const memPct = () => (stats() ? (stats()!.memUsed / stats()!.memTotal) * 100 : 0);
-  /** Parte de la RAM total que usa algo (para pestañas y procesos). */
+  /** Share of total RAM something uses (for tabs and processes). */
   const ofTotal = (bytes: number) => (stats()?.memTotal ? fmtPct((bytes / stats()!.memTotal) * 100) : "");
   /** "12 GB de 32 GB (38 %)". */
   const ram = () => (stats() ? t("{used} de {total} ({pct})", { used: fmtBytes(stats()!.memUsed), total: fmtBytes(stats()!.memTotal), pct: fmtPct(memPct()) }) : "–");
@@ -90,8 +90,8 @@ export function SysWidget(props: { everyMs: number; tabs: TabProcs[]; vertical: 
         title={`CPU ${fmtPct(stats()?.cpu ?? 0)} · RAM ${ram()}
 ${t("Clic: procesos")}`}
       >
-        {/* Cada medida es un bloque (texto + gráfica): en la barra vertical la gráfica va abajo y
-            plegada quedan solo los números. */}
+        {/* Each measure is a block (text + graph): in the vertical bar the graph goes below and
+            collapsed only the numbers remain. */}
         <span class="sys-metric">
           <span class={`sys-val lv-${level(stats()?.cpu ?? 0)}`}>
             <span class="sys-name">CPU </span>

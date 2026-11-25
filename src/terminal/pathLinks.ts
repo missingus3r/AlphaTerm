@@ -8,7 +8,7 @@ interface Stat {
   size: number;
 }
 
-// Caché corta de existencia (la salida de un agente repite rutas muchas veces).
+// Short existence cache (an agent's output repeats paths many times).
 const statCache = new Map<string, { at: number; stat: Stat | null }>();
 async function statAll(paths: string[]): Promise<(Stat | null)[]> {
   const now = Date.now();
@@ -23,7 +23,7 @@ async function statAll(paths: string[]): Promise<(Stat | null)[]> {
 export const openPath = (path: string, dir: boolean) =>
   invoke("fs_open", { path, with: dir ? "explorer" : "default" }).catch((e) => console.warn("No se pudo abrir", path, e));
 
-// --- Vista previa flotante -------------------------------------------------------------------------
+// --- Floating preview -------------------------------------------------------------------------
 
 let pop: HTMLDivElement | null = null;
 let showTimer: ReturnType<typeof setTimeout> | undefined;
@@ -98,7 +98,7 @@ function showPreview(path: string, stat: Stat, x: number, y: number) {
 
 const fmtSize = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`);
 
-/** Links a rutas existentes en la salida: clic abre (carpeta en el Explorador, archivo con su programa). */
+/** Links to existing paths in the output: click opens (folder in Explorer, file with its program). */
 export function registerPathLinks(term: Terminal, getCwd: () => string | undefined): IDisposable {
   const provider = term.registerLinkProvider({
     provideLinks(y, callback) {

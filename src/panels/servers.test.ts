@@ -25,7 +25,7 @@ describe("recetas de servidores", () => {
     list = mergeRecipe(list, { ...c, command: "npm  run DEV", cwd: "c:\\web\\", ports: [24678] }, id);
     expect(list).toHaveLength(1);
     expect(list[0].ports).toEqual([5173, 24678]);
-    // Sin cambios y visto hace poco: devuelve la misma lista (no se reescribe la configuración).
+    // No changes and seen recently: returns the same list (the settings are not rewritten).
     expect(mergeRecipe(list, { ...c, ports: [5173] }, id)).toBe(list);
   });
 

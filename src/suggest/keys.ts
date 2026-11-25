@@ -1,21 +1,21 @@
 /**
- * Teclas con el menú de sugerencias (tabla del diseño). La flecha arriba es del historial de la
- * shell salvo que se esté navegando el menú; Enter ejecuta salvo que se haya elegido una fila.
+ * Keys with the suggestion menu (design table). The up arrow belongs to the shell's
+ * history unless the menu is being navigated; Enter runs unless a row was chosen.
  */
 import type { KeyLike } from "../terminal/keys";
 
 /**
- * - `pass`: la tecla sigue a la shell (o a los atajos) como siempre.
- * - `toShell`: cerrar el menú y dejar pasar la tecla.
- * - `close`: cerrar el menú y tragarse la tecla.
- * - `up` / `down` / `accept` / `open`: las toma el menú.
+ * - `pass`: the key goes on to the shell (or the shortcuts) as usual.
+ * - `toShell`: close the menu and let the key through.
+ * - `close`: close the menu and swallow the key.
+ * - `up` / `down` / `accept` / `open`: the menu takes them.
  */
 export type MenuKey = "pass" | "up" | "down" | "accept" | "close" | "open" | "toShell";
 
 export interface MenuKeyState {
   open: boolean;
   navigating: boolean;
-  /** Sugerencias activadas en la configuración. */
+  /** Suggestions enabled in the settings. */
   enabled: boolean;
 }
 

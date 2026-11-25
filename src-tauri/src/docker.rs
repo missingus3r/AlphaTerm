@@ -1,5 +1,5 @@
-//! Docker con la CLI: estado del motor, contenedores, imágenes, acciones, logs y "recetas"
-//! (contenedores configurados para iniciar con un clic). Lo usan el panel y la API de control.
+//! Docker via the CLI: engine status, containers, images, actions, logs and "recipes"
+//! (containers configured to start with one click). Used by the panel and the control API.
 
 use crate::i18n::tr;
 use serde::{Deserialize, Serialize};
@@ -89,7 +89,7 @@ pub async fn docker_status() -> EngineStatus {
     .unwrap_or(EngineStatus { installed: false, running: false, version: None, error: Some(tr("error interno", "internal error", "erro interno").into()), desktop: false })
 }
 
-/// Abre Docker Desktop (arranca el motor).
+/// Opens Docker Desktop (starts the engine).
 #[tauri::command]
 pub fn docker_desktop() -> Result<(), String> {
     let exe = desktop_exe().ok_or(tr("No se encontró Docker Desktop", "Docker Desktop wasn't found", "O Docker Desktop não foi encontrado"))?;
@@ -157,7 +157,7 @@ fn valid_ref(s: &str) -> bool {
     !s.is_empty() && !s.starts_with('-') && s.chars().all(|c| c.is_ascii_alphanumeric() || "._-/:@".contains(c))
 }
 
-/// start | stop | restart | rm (rm fuerza: también si está corriendo).
+/// start | stop | restart | rm (rm forces: also if it is running).
 pub fn action(target: &str, act: &str) -> Result<String, String> {
     if !valid_ref(target) {
         return Err(tr("Contenedor inválido", "Invalid container", "Contêiner inválido").into());
@@ -182,7 +182,7 @@ pub fn logs(target: &str, tail: u32) -> Result<String, String> {
         return Err(tr("Contenedor inválido", "Invalid container", "Contêiner inválido").into());
     }
     let n = tail.clamp(1, 5000).to_string();
-    // Los logs salen por stdout y stderr del contenedor: se piden juntos.
+    // Logs come out on the container's stdout and stderr: they are requested together.
     let exe = docker().ok_or(tr("Docker no está instalado", "Docker isn't installed", "O Docker não está instalado"))?;
     let mut c = Command::new(exe);
     c.args(["logs", "--tail", &n, "--timestamps", target]);
@@ -206,7 +206,7 @@ pub async fn docker_logs(target: String, tail: u32) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || logs(&target, tail)).await.map_err(|e| e.to_string())?
 }
 
-/// Contenedor configurado para iniciar con un clic.
+/// Container configured to start with one click.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Preset {
@@ -218,12 +218,12 @@ pub struct Preset {
     pub env: std::collections::BTreeMap<String, String>,
     #[serde(default)]
     pub volumes: Vec<String>,
-    /// Comando del contenedor (opcional), separado por espacios.
+    /// Container command (optional), separated by spaces.
     #[serde(default)]
     pub command: String,
 }
 
-/// Argumentos de `docker run` para una receta (sin shell: cada valor va como argumento aparte).
+/// Arguments of `docker run` for a recipe (no shell: each value goes as a separate argument).
 pub fn run_args(p: &Preset) -> Result<Vec<String>, String> {
     if !valid_ref(&p.image) {
         return Err(tr!("Imagen inválida: {}", "Invalid image: {}", "Imagem inválida: {}"; p.image));
@@ -257,7 +257,7 @@ pub fn run_args(p: &Preset) -> Result<Vec<String>, String> {
     Ok(a)
 }
 
-/// Inicia una receta: si el contenedor ya existe, lo arranca; si no, lo crea con `docker run`.
+/// Starts a recipe: if the container already exists, it starts it; if not, it creates it with `docker run`.
 pub fn start_preset(p: &Preset) -> Result<String, String> {
     let args = run_args(p)?;
     let name = args[3].clone();

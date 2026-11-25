@@ -19,7 +19,7 @@ describe("opciones de arranque de los agentes", () => {
     expect(quoteArg('di "sí"', "ps5")).toBe(`'di \\"sí\\"'`);
     expect(quoteArg("it's", "posix")).toBe(`'it'\\''s'`);
     expect(quoteArg('a "b"', "cmd")).toBe(`"a \\"b\\""`);
-    expect(quoteArg("Bash,Edit", "ps5")).toBe("'Bash,Edit'"); // la coma arma un arreglo en PowerShell
+    expect(quoteArg("Bash,Edit", "ps5")).toBe("'Bash,Edit'"); // the comma builds an array in PowerShell
     expect(shellKindOf("powershell")).toBe("ps5");
     expect(shellKindOf("gitbash")).toBe("posix");
   });

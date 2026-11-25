@@ -38,7 +38,7 @@ interface Branch {
 }
 
 interface Props {
-  /** Carpeta de la que partir (la del proyecto elegido o la del panel activo). */
+  /** Folder to start from (the chosen project's or the active pane's). */
   dir?: string;
   onChanged: () => void;
   onTerminal: (dir: string) => void;
@@ -89,7 +89,7 @@ export default function GitPanel(props: Props) {
     if (view() === "branches") void refetchBranches();
     props.onChanged();
   };
-  // Mientras el panel está abierto, el estado se refresca cada 4 s (barato) y al volver a la ventana.
+  // While the panel is open, the status refreshes every 4 s (cheap) and when returning to the window.
   createEffect(
     on(root, (r) => {
       if (!r) return;

@@ -1,4 +1,4 @@
-// Primero: sus macros (`tr!`) quedan a mano en los demás módulos.
+// First: its macros (`tr!`) are at hand in the other modules.
 #[macro_use]
 pub mod i18n;
 pub mod agents;
@@ -27,11 +27,11 @@ pub mod windows;
 use std::sync::Arc;
 use tauri::{Manager, WindowEvent};
 
-/// Momento en que arrancó el proceso (para medir el arranque en frío).
+/// Moment the process started (to measure the cold start).
 static STARTED: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
 
-/// Marca de tiempo para benchmarks: ms desde que arrancó el proceso. Con ALPHATERM_BENCH=<archivo>
-/// se agrega una línea "nombre ms" a ese archivo.
+/// Timestamp for benchmarks: ms since the process started. With ALPHATERM_BENCH=<file>
+/// a line "name ms" is appended to that file.
 #[tauri::command]
 fn bench_mark(webview: tauri::Webview, name: String) -> u128 {
     let ms = STARTED.get().map(|t| t.elapsed().as_millis()).unwrap_or(0);
@@ -44,16 +44,16 @@ fn bench_mark(webview: tauri::Webview, name: String) -> u128 {
     ms
 }
 
-/// Versión de esta compilación (para el footer y "Acerca").
+/// Version of this build (for the footer and "About").
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppInfo {
     version: &'static str,
-    /// Commit corto; con "+" si había cambios sin commitear al compilar.
+    /// Short commit; with "+" if there were uncommitted changes at build time.
     commit: &'static str,
-    /// Cuándo se compiló (unix, segundos).
+    /// When it was built (unix, seconds).
     built: u64,
-    /// Dónde está el ejecutable que corre.
+    /// Where the running executable is.
     exe: String,
 }
 
@@ -86,7 +86,7 @@ pub fn run() {
         .manage({
             settings::migrate_from_novaterm();
             let path = settings::data_dir().join("settings.json");
-            // El idioma de la configuración, hasta que el frontend lo confirme con set_locale.
+            // The language from the settings, until the frontend confirms it with set_locale.
             if let Some(l) = settings::load_from(&path).value.as_ref().and_then(i18n::from_settings) {
                 i18n::set_lang(l);
             }
@@ -100,12 +100,12 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let WindowEvent::Destroyed = event {
-                // Al cerrarse una ventana, sus shells mueren con ella (las otras ventanas siguen).
+                // When a window closes, its shells die with it (the other windows keep going).
                 window.state::<Arc<pty::PtyState>>().kill_owner(window.label());
                 projects::unwatch_window(&window.state::<projects::WatchState>(), window.label());
                 changes::unwatch_owner(&window.state::<changes::ChangesState>(), window.label());
                 browser::window_closed(window.app_handle(), window.label());
-                // Si ya no queda ninguna terminal, la configuración no se queda sola abierta.
+                // If no terminal is left, the settings window isn't left open on its own.
                 let app = window.app_handle();
                 let terminals = app
                     .windows()

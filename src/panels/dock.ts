@@ -1,13 +1,13 @@
 /**
- * Paneles laterales en mosaico ("tiles"): columnas a la derecha de la terminal; cada columna
- * apila paneles. Abrir uno lo pone debajo (si la última columna tiene lugar) o en una columna
- * nueva al costado. Se puede cambiar el ancho de cada columna, el alto de cada panel y moverlos.
+ * Side panels as tiles: columns to the right of the terminal; each column
+ * stacks panels. Opening one puts it below (if the last column has room) or in a new
+ * column at the side. The width of each column and the height of each panel can be changed, and they can be moved.
  */
 export type DockPanelId = "agents" | "servers" | "projects" | "git" | "history" | "docker" | "changes";
 
 export interface DockPanel {
   id: DockPanelId;
-  /** Proporción del alto dentro de la columna. */
+  /** Proportion of the height within the column. */
   size: number;
 }
 
@@ -32,7 +32,7 @@ const colId = () => `c${Date.now().toString(36)}${(seq++).toString(36)}`;
 export const isOpen = (d: Dock, p: DockPanelId) => d.cols.some((c) => c.panels.some((x) => x.id === p));
 export const openIds = (d: Dock) => d.cols.flatMap((c) => c.panels.map((p) => p.id));
 
-/** Abre un panel: debajo, en la última columna con lugar; si no hay, en una columna nueva. */
+/** Opens a panel: below, in the last column with room; if there is none, in a new column. */
 export function openPanel(d: Dock, p: DockPanelId): Dock {
   if (isOpen(d, p)) return d;
   const last = d.cols[d.cols.length - 1];
@@ -53,7 +53,7 @@ export function setColWidth(d: Dock, id: string, width: number): Dock {
   return { cols: d.cols.map((c) => (c.id === id ? { ...c, width: w } : c)) };
 }
 
-/** Mueve el borde entre el panel `i` y el `i+1` de una columna (fracción del alto de la columna). */
+/** Moves the border between panel `i` and `i+1` of a column (fraction of the column's height). */
 export function resizeSplit(d: Dock, id: string, i: number, frac: number): Dock {
   return {
     cols: d.cols.map((c) => {
@@ -61,7 +61,7 @@ export function resizeSplit(d: Dock, id: string, i: number, frac: number): Dock 
       const total = c.panels.reduce((s, p) => s + p.size, 0);
       const pair = c.panels[i].size + c.panels[i + 1].size;
       const before = c.panels.slice(0, i).reduce((s, p) => s + p.size, 0);
-      // `frac` es la posición del borde (0..1) dentro de la columna.
+      // `frac` is the position of the border (0..1) within the column.
       let a = frac * total - before;
       a = Math.min(pair - 0.15 * total, Math.max(0.15 * total, a));
       const panels = c.panels.map((p, k) => (k === i ? { ...p, size: a } : k === i + 1 ? { ...p, size: pair - a } : p));
@@ -72,7 +72,7 @@ export function resizeSplit(d: Dock, id: string, i: number, frac: number): Dock 
 
 export type DropTarget = { kind: "panel"; target: DockPanelId; after: boolean } | { kind: "newCol"; index: number };
 
-/** Mueve un panel: junto a otro (arriba o abajo) o a una columna nueva en la posición dada. */
+/** Moves a panel: next to another (above or below) or to a new column at the given position. */
 export function movePanel(d: Dock, p: DockPanelId, to: DropTarget): Dock {
   if (!isOpen(d, p) || (to.kind === "panel" && to.target === p)) return d;
   const moving = d.cols.flatMap((c) => c.panels).find((x) => x.id === p)!;
@@ -89,7 +89,7 @@ export function movePanel(d: Dock, p: DockPanelId, to: DropTarget): Dock {
   } else {
     const fresh = { id: colId(), width, panels: [{ ...moving, size: 1 }] };
     const kept = cols.filter((c) => c.panels.length > 0);
-    // El índice se calcula sobre las columnas originales: se ajusta si la columna de origen desaparece.
+    // The index is computed over the original columns: it is adjusted if the source column disappears.
     const removedBefore = d.cols.slice(0, to.index).filter((c, k) => c.panels.length === 1 && c.panels[0].id === p && cols[k].panels.length === 0).length;
     const idx = Math.max(0, Math.min(kept.length, to.index - removedBefore));
     kept.splice(idx, 0, fresh);
@@ -98,7 +98,7 @@ export function movePanel(d: Dock, p: DockPanelId, to: DropTarget): Dock {
   return { cols: cols.filter((c) => c.panels.length > 0) };
 }
 
-/** Acepta lo guardado (sesión o preferencia) y lo deja válido. */
+/** Accepts what was saved (session or preference) and makes it valid. */
 export function normalizeDock(v: unknown): Dock {
   const ids: DockPanelId[] = ["agents", "servers", "projects", "git", "history", "docker", "changes"];
   const seen = new Set<string>();

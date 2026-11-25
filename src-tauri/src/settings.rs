@@ -1,8 +1,8 @@
-//! Configuración en `%APPDATA%\AlphaTerm\settings.json`.
+//! Settings in `%APPDATA%\AlphaTerm\settings.json`.
 //!
-//! El backend no conoce el esquema (lo define y normaliza el frontend): guarda un objeto JSON,
-//! lo escribe de forma atómica, avisa a todas las ventanas cuando cambia y detecta ediciones
-//! hechas a mano en el archivo. Nunca pisa un archivo roto sin guardar antes una copia.
+//! The backend doesn't know the schema (the frontend defines and normalizes it): it stores a JSON object,
+//! writes it atomically, notifies all windows when it changes and detects edits
+//! made by hand to the file. It never overwrites a broken file without saving a copy first.
 
 use crate::i18n::tr;
 use serde::Serialize;
@@ -17,8 +17,8 @@ pub const EVENT: &str = "settings-changed";
 const POLL: Duration = Duration::from_millis(1000);
 const MAX_IMAGE: usize = 25 * 1024 * 1024;
 
-/// Carpeta de datos de la app (`%APPDATA%\AlphaTerm`). Con ALPHATERM_DATA_DIR se usa otra (para
-/// probar una versión nueva al lado de la que está abierta sin tocar su sesión ni su configuración).
+/// App data folder (`%APPDATA%\AlphaTerm`). With ALPHATERM_DATA_DIR another one is used (to
+/// try a new version next to the open one without touching its session or its settings).
 pub fn data_dir() -> PathBuf {
     if let Some(d) = std::env::var_os("ALPHATERM_DATA_DIR").filter(|d| !d.is_empty()) {
         return PathBuf::from(d);
@@ -27,8 +27,8 @@ pub fn data_dir() -> PathBuf {
     base.join("AlphaTerm")
 }
 
-/// La app se llamaba NovaTerm: la primera vez se copia `%APPDATA%\NovaTerm` a `%APPDATA%\AlphaTerm`
-/// (sin borrar la vieja). Devuelve si copió algo.
+/// The app used to be called NovaTerm: the first time, `%APPDATA%\NovaTerm` is copied to `%APPDATA%\AlphaTerm`
+/// (the old one isn't deleted). Returns whether it copied anything.
 pub fn migrate_from_novaterm() -> bool {
     if std::env::var_os("ALPHATERM_DATA_DIR").is_some() {
         return false;
@@ -57,7 +57,7 @@ pub fn migrate_dir(old: &Path, new: &Path) -> bool {
     copy(old, new).is_ok()
 }
 
-/// Huella del archivo para saber si cambió (fecha de modificación + tamaño).
+/// Fingerprint of the file to know whether it changed (modification time + size).
 type Stamp = Option<(SystemTime, u64)>;
 
 fn stamp(path: &Path) -> Stamp {
@@ -68,14 +68,14 @@ fn stamp(path: &Path) -> Stamp {
 #[serde(rename_all = "camelCase")]
 pub struct Loaded {
     pub path: String,
-    /// `None` si el archivo no existe o no se pudo leer (se usan los valores por defecto).
+    /// `None` if the file doesn't exist or couldn't be read (defaults are used).
     pub value: Option<Value>,
     pub warning: Option<String>,
 }
 
 #[derive(Serialize, Clone)]
 struct Changed {
-    /// Ventana que guardó, o "file" si alguien editó el archivo a mano.
+    /// Window that saved, or "file" if someone edited the file by hand.
     source: String,
     value: Value,
 }
@@ -87,7 +87,7 @@ pub fn load_from(path: &Path) -> Loaded {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Loaded { path: shown, value: None, warning: None },
         Err(e) => return Loaded { path: shown, value: None, warning: Some(tr!("No se pudo leer: {e}", "Couldn't read: {e}", "Não foi possível ler: {e}")) },
     };
-    // Un BOM al principio (Bloc de notas viejo) no es un error.
+    // A BOM at the start (old Notepad) isn't an error.
     match serde_json::from_str::<Value>(text.trim_start_matches('\u{feff}')) {
         Ok(v @ Value::Object(_)) => Loaded { path: shown, value: Some(v), warning: None },
         Ok(_) => Loaded {
@@ -109,8 +109,8 @@ pub fn load_from(path: &Path) -> Loaded {
     }
 }
 
-/// Escribe el JSON de forma atómica (archivo temporal + rename). Si el archivo actual existe
-/// pero está roto, antes lo copia a `settings.json.bak` para no perder lo que se escribió a mano.
+/// Writes the JSON atomically (temp file + rename). If the current file exists
+/// but is broken, it first copies it to `settings.json.bak` so what was written by hand isn't lost.
 pub fn save_to(path: &Path, value: &Value) -> Result<(), String> {
     if !value.is_object() {
         return Err(tr("La configuración tiene que ser un objeto JSON", "Settings must be a JSON object", "As configurações precisam ser um objeto JSON").into());
@@ -129,7 +129,7 @@ pub fn save_to(path: &Path, value: &Value) -> Result<(), String> {
 
 pub struct SettingsState {
     path: PathBuf,
-    /// Huella de la última versión conocida (escrita por nosotros o ya avisada).
+    /// Fingerprint of the last known version (written by us or already notified).
     known: Mutex<Stamp>,
 }
 
@@ -139,7 +139,7 @@ impl SettingsState {
         Self { path, known }
     }
 
-    /// Vigila el archivo y avisa a las ventanas cuando alguien lo edita a mano.
+    /// Watches the file and notifies the windows when someone edits it by hand.
     pub fn watch(app: AppHandle) {
         std::thread::Builder::new()
             .name("settings-watch".into())
@@ -152,7 +152,7 @@ impl SettingsState {
                     continue;
                 }
                 let loaded = load_from(&state.path);
-                // Un archivo a medio escribir por un editor puede no parsear: se espera a la próxima vuelta.
+                // A file half-written by an editor may not parse: wait for the next round.
                 let Some(value) = loaded.value else {
                     if loaded.warning.is_some() {
                         *known = now;
@@ -177,7 +177,7 @@ pub fn settings_load(state: tauri::State<SettingsState>) -> Loaded {
 #[tauri::command]
 pub fn settings_save(app: AppHandle, webview: Webview, state: tauri::State<SettingsState>, value: Value) -> Result<(), String> {
     {
-        // Escritura y huella bajo el mismo candado: el vigilante no confunde esto con una edición a mano.
+        // Write and fingerprint under the same lock: the watcher doesn't mistake this for a manual edit.
         let mut known = state.known.lock().unwrap();
         save_to(&state.path, &value)?;
         *known = stamp(&state.path);
@@ -185,7 +185,7 @@ pub fn settings_save(app: AppHandle, webview: Webview, state: tauri::State<Setti
     app.emit(EVENT, Changed { source: webview.label().to_string(), value }).map_err(|e| e.to_string())
 }
 
-/// Abre el archivo con el programa asociado (para editarlo a mano).
+/// Opens the file with the associated program (to edit it by hand).
 #[tauri::command]
 pub fn settings_reveal(state: tauri::State<SettingsState>) -> Result<(), String> {
     if !state.path.exists() {
@@ -198,7 +198,7 @@ pub fn settings_reveal(state: tauri::State<SettingsState>) -> Result<(), String>
         .map_err(|e| e.to_string())
 }
 
-/// Abre la ventana de configuración (o la trae al frente si ya está abierta).
+/// Opens the settings window (or brings it to the front if it's already open).
 #[tauri::command]
 pub async fn settings_open(app: AppHandle) -> Result<(), String> {
     if let Some(w) = app.get_webview_window("settings") {
@@ -215,13 +215,13 @@ pub async fn settings_open(app: AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
-// --- Imagen de fondo ----------------------------------------------------------------------------
+// --- Background image ---------------------------------------------------------------------------
 
 fn backgrounds_dir() -> PathBuf {
     data_dir().join("fondos")
 }
 
-/// Nombre de archivo seguro (sin rutas ni caracteres raros) con extensión de imagen conocida.
+/// Safe file name (no paths or odd characters) with a known image extension.
 pub fn safe_image_name(name: &str) -> Option<String> {
     let base = Path::new(name).file_name()?.to_string_lossy().to_string();
     let ext = Path::new(&base).extension()?.to_string_lossy().to_lowercase();
@@ -235,8 +235,8 @@ pub fn safe_image_name(name: &str) -> Option<String> {
     Some(clean)
 }
 
-/// Guarda una copia de la imagen elegida en `%APPDATA%\AlphaTerm\fondos` (así sigue andando
-/// aunque el original se mueva). Recibe los bytes crudos y el nombre en el header `x-name`.
+/// Saves a copy of the chosen image in `%APPDATA%\AlphaTerm\fondos` (so it keeps working
+/// even if the original is moved). Takes the raw bytes and the name in the `x-name` header.
 #[tauri::command]
 pub fn background_store(request: tauri::ipc::Request) -> Result<String, String> {
     let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
@@ -255,7 +255,7 @@ pub fn background_store(request: tauri::ipc::Request) -> Result<String, String> 
     Ok(path.display().to_string())
 }
 
-/// Lee una imagen de fondo. Solo de la carpeta de fondos: no es un lector de archivos genérico.
+/// Reads a background image. Only from the backgrounds folder: it's not a generic file reader.
 #[tauri::command]
 pub fn background_read(path: String) -> Result<tauri::ipc::Response, String> {
     let dir = fs::canonicalize(backgrounds_dir()).map_err(|_| tr("No hay imágenes de fondo guardadas", "There are no saved background images", "Não há imagens de fundo salvas").to_string())?;

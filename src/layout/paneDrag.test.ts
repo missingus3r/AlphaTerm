@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { startPaneDrag, type DragEnv } from "./paneDrag";
 import type { Rect } from "./model";
 
-/** Ventana y body de mentira: el controlador solo escucha eventos y pone clases. */
+/** Fake window and body: the controller only listens to events and sets classes. */
 function fakeEnv() {
   const win = new EventTarget();
   const classes = new Set<string>();

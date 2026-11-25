@@ -1,12 +1,12 @@
-//! Agrupado de la salida del PTY y contrapresión.
+//! PTY output batching and backpressure.
 //!
-//! El lector manda trozos crudos por un canal acotado. Este módulo los junta y los entrega:
-//! - Un trozo que llega después de un rato sin salida se manda enseguida (eco de teclas sin demora).
-//! - Si llega dentro de la ventana del envío anterior, estamos en ráfaga: se junta durante la
-//!   ventana (~4 ms) o hasta `max_bytes` (64 KB), y se manda todo junto.
-//! - `Flow` cuenta los bytes enviados y todavía no confirmados por el frontend. Si pasan la marca
-//!   alta, el agrupador espera hasta bajar de la marca baja. Mientras espera no lee del canal, el
-//!   canal acotado se llena, el lector se bloquea y ConPTY frena al proceso que escribe.
+//! The reader sends raw chunks through a bounded channel. This module gathers and delivers them:
+//! - A chunk that arrives after a while without output is sent right away (key echo without delay).
+//! - If it arrives within the window of the previous send, we are in a burst: chunks are gathered
+//!   during the window (~4 ms) or up to `max_bytes` (64 KB), and sent all together.
+//! - `Flow` counts the bytes sent and not yet acknowledged by the frontend. If they pass the high
+//!   mark, the batcher waits until it drops below the low mark. While it waits it doesn't read from
+//!   the channel, the bounded channel fills up, the reader blocks and ConPTY throttles the writing process.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, TryRecvError};
@@ -25,7 +25,7 @@ impl Default for BatchConfig {
     }
 }
 
-/// Bytes en vuelo entre el backend y xterm.js.
+/// Bytes in flight between the backend and xterm.js.
 pub struct Flow {
     pending: Mutex<u64>,
     cv: Condvar,
@@ -53,13 +53,13 @@ impl Flow {
         *self.pending.lock().unwrap()
     }
 
-    /// Libera a quien esté esperando (la sesión se cierra).
+    /// Releases whoever is waiting (the session is closing).
     pub fn close(&self) {
         self.closed.store(true, Ordering::SeqCst);
         self.cv.notify_all();
     }
 
-    /// Si se pasó la marca alta, bloquea hasta bajar de la baja (histéresis).
+    /// If the high mark was passed, blocks until it drops below the low one (hysteresis).
     pub fn wait_for_room(&self) {
         let mut p = self.pending.lock().unwrap();
         if *p <= self.high {
@@ -82,7 +82,7 @@ fn drain_ready(rx: &Receiver<Vec<u8>>, buf: &mut Vec<u8>, max: usize) -> bool {
     true
 }
 
-/// Corre hasta que el lector cierre el canal o `sink` devuelva `false`.
+/// Runs until the reader closes the channel or `sink` returns `false`.
 pub fn run(rx: Receiver<Vec<u8>>, cfg: BatchConfig, flow: &Flow, mut sink: impl FnMut(Vec<u8>) -> bool) {
     let mut last_flush: Option<Instant> = None;
     while let Ok(first) = rx.recv() {
@@ -166,7 +166,7 @@ mod tests {
     #[test]
     fn rafaga_se_agrupa() {
         let cfg = BatchConfig { window: Duration::from_millis(40), max_bytes: 1 << 20 };
-        // 1 trozo suelto, después 10 trozos seguidos cada 1 ms.
+        // 1 single chunk, then 10 chunks in a row every 1 ms.
         let mut chunks = vec![(0, b"x".to_vec())];
         chunks.extend((0..10).map(|_| (1, b"yy".to_vec())));
         let out = collect(chunks, cfg);
@@ -181,7 +181,7 @@ mod tests {
         let chunks = (0..20).map(|_| (0, vec![b'z'; 4])).collect();
         let out = collect(chunks, cfg);
         assert_eq!(out.iter().map(Vec::len).sum::<usize>(), 80);
-        // Un envío puede pasarse por un trozo como máximo.
+        // A send can overshoot by one chunk at most.
         assert!(out.iter().all(|b| b.len() < 10 + 4));
     }
 
@@ -203,7 +203,7 @@ mod tests {
             tx.send(vec![0u8; 100]).unwrap();
             thread::sleep(Duration::from_millis(5));
         }
-        // 200 bytes en vuelo > 150: el tercer envío tiene que esperar el ack.
+        // 200 bytes in flight > 150: the third send has to wait for the ack.
         thread::sleep(Duration::from_millis(100));
         assert!(flow.pending() <= 200, "pending = {}", flow.pending());
         let before_ack = Instant::now();

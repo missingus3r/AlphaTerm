@@ -1,12 +1,12 @@
-//! Consumo por suscripción. Cada proveedor dice de dónde sale el dato y si es exacto.
+//! Usage per subscription. Each provider says where the data comes from and whether it's exact.
 //!
-//! Dos fuentes por proveedor; gana la más nueva:
-//! - En vivo (`usage_live`, como el System dashboard): al abrir AlphaTerm y cada N minutos se abre
-//!   cada CLI escondida y se le pregunta (/usage, /status, agy /quota). Trae también plan, modelo,
-//!   ventanas por modelo y uso extra. No hace falta haber usado el agente.
-//! - Archivos (baratos, se leen seguido): Claude, los límites que Claude Code le pasa a su statusline
-//!   (no se lee `.credentials.json` ni se llama a ningún endpoint; sin statusline, se estima con los
-//!   tokens de los transcripts); Codex, el último evento `rate_limits` de sus sesiones.
+//! Two sources per provider; the newest wins:
+//! - Live (`usage_live`, like the System dashboard): when AlphaTerm opens and every N minutes each
+//!   CLI is opened hidden and queried (/usage, /status, agy /quota). It also brings plan, model,
+//!   per-model windows and extra usage. The agent doesn't need to have been used.
+//! - Files (cheap, read often): Claude, the limits Claude Code passes to its statusline
+//!   (`.credentials.json` isn't read and no endpoint is called; without a statusline, it's estimated from
+//!   the tokens in the transcripts); Codex, the last `rate_limits` event of its sessions.
 
 use crate::i18n::tr;
 use serde::Serialize;
@@ -22,19 +22,19 @@ use tauri::{AppHandle, Emitter};
 #[serde(rename_all = "camelCase")]
 pub struct UsageWindow {
     pub label: String,
-    /// Usado, 0–100.
+    /// Used, 0–100.
     pub used_pct: f64,
-    /// Unix (segundos).
+    /// Unix (seconds).
     pub resets_at: Option<i64>,
-    /// Reinicio tal como lo escribe el programa ("3pm (America/Montevideo)"), si no hay hora exacta.
+    /// Reset as the program writes it ("3pm (America/Montevideo)"), if there's no exact time.
     pub resets_text: Option<String>,
-    /// La ventana ya se reinició después del dato: el porcentaje real es desconocido.
+    /// The window already reset after the data was taken: the real percentage is unknown.
     pub stale: bool,
-    /// Solo para el detalle (ventanas por modelo, uso extra): el footer muestra las principales.
+    /// Only for the detail (per-model windows, extra usage): the footer shows the main ones.
     pub detail: bool,
 }
 
-/// Tabla del detalle: qué se lleva el consumo (skills, plugins, modelos…), en porcentaje.
+/// Detail table: what the usage goes to (skills, plugins, models…), as a percentage.
 #[derive(Serialize, Debug, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Table {
@@ -42,7 +42,7 @@ pub struct Table {
     pub rows: Vec<(String, f64)>,
 }
 
-/// Grupo de modelos que comparten cuota (agy).
+/// Group of models that share a quota (agy).
 #[derive(Serialize, Debug, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Group {
@@ -56,16 +56,16 @@ pub struct Usage {
     pub provider: String,
     pub exact: bool,
     pub source: String,
-    /// Cuándo se tomó el dato (unix ms).
+    /// When the data was taken (unix ms).
     pub updated_at: Option<i64>,
     pub windows: Vec<UsageWindow>,
     pub note: Option<String>,
-    /// Hay una consulta en vivo en curso.
+    /// A live query is in progress.
     pub refreshing: bool,
     pub plan: Option<String>,
-    /// Modelo por defecto (y esfuerzo).
+    /// Default model (and effort).
     pub model: Option<String>,
-    /// Líneas sueltas del detalle (uso extra en dólares, sesiones en paralelo…).
+    /// Loose detail lines (extra usage in dollars, parallel sessions…).
     pub extras: Vec<String>,
     pub groups: Vec<Group>,
     pub tables: Vec<Table>,
@@ -79,8 +79,8 @@ fn home() -> PathBuf {
     std::env::var_os("USERPROFILE").map(PathBuf::from).unwrap_or_default()
 }
 
-/// Etiqueta de una ventana de consumo. Queda en español siempre: el frontend la usa como id (largo
-/// de la ventana, pronóstico) y la traduce al mostrarla.
+/// Label of a usage window. It always stays in Spanish: the frontend uses it as an id (window
+/// length, forecast) and translates it when displaying it.
 pub fn window_label(minutes: i64) -> String {
     match minutes {
         300 => "5 h".into(),
@@ -98,7 +98,7 @@ fn win(label: impl Into<String>, used: f64, resets: Option<i64>, now: i64) -> Us
 
 // --- Claude --------------------------------------------------------------------------------------
 
-/// Archivos donde una statusline deja el JSON de Claude Code (el de AlphaTerm y el del Control Panel).
+/// Files where a statusline leaves Claude Code's JSON (AlphaTerm's and the Control Panel's).
 pub fn claude_statusline_files() -> Vec<PathBuf> {
     vec![crate::settings::data_dir().join("claude-statusline.json"), home().join(".claude").join("control-panel").join("statusline.json")]
 }
@@ -170,8 +170,8 @@ pub fn fmt_tokens(n: u64) -> String {
     }
 }
 
-/// Tokens de Claude en las últimas 5 h y 7 días, sumando los `usage` de los transcripts
-/// (sin repetir mensajes, que aparecen varias veces mientras se escriben).
+/// Claude tokens in the last 5 h and 7 days, summing the `usage` of the transcripts
+/// (without repeated messages, which show up several times while being written).
 fn claude_tokens(now: i64) -> (u64, u64) {
     let root = home().join(".claude").join("projects");
     let since7 = now - 7 * 86400;
@@ -230,7 +230,7 @@ fn collect_files(dir: &Path, out: &mut Vec<PathBuf>, keep: &dyn Fn(&Path) -> boo
     }
 }
 
-/// "2026-10-26T21:16:12.185Z" → unix segundos (solo UTC, que es lo que escriben estas herramientas).
+/// "2026-10-26T21:16:12.185Z" → unix seconds (UTC only, which is what these tools write).
 pub fn parse_rfc3339(s: &str) -> Option<i64> {
     let b = s.as_bytes();
     if b.len() < 19 {
@@ -238,7 +238,7 @@ pub fn parse_rfc3339(s: &str) -> Option<i64> {
     }
     let n = |r: std::ops::Range<usize>| s.get(r)?.parse::<i64>().ok();
     let (y, mo, d, h, mi, se) = (n(0..4)?, n(5..7)?, n(8..10)?, n(11..13)?, n(14..16)?, n(17..19)?);
-    // Días desde 1970 (algoritmo de Howard Hinnant).
+    // Days since 1970 (Howard Hinnant's algorithm).
     let y2 = if mo <= 2 { y - 1 } else { y };
     let era = y2.div_euclid(400);
     let yoe = y2 - era * 400;
@@ -246,7 +246,7 @@ pub fn parse_rfc3339(s: &str) -> Option<i64> {
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
     let days = era * 146097 + doe - 719468;
     let mut t = days * 86400 + h * 3600 + mi * 60 + se;
-    // Desfase explícito (+hh:mm / -hh:mm).
+    // Explicit offset (+hh:mm / -hh:mm).
     let tail = &s[19..];
     let tz = tail.trim_start_matches(|c: char| c == '.' || c.is_ascii_digit());
     if let (Some(sign), Some(hh), Some(mm)) = (tz.chars().next(), tz.get(1..3).and_then(|x| x.parse::<i64>().ok()), tz.get(4..6).and_then(|x| x.parse::<i64>().ok())) {
@@ -375,17 +375,17 @@ pub(crate) fn run_with_timeout(mut cmd: std::process::Command, limit: Duration) 
     reader.join().map_err(|_| tr("error leyendo la salida", "error reading the output", "erro ao ler a saída").to_string())
 }
 
-// --- Cuál se muestra: la consulta en vivo o los archivos ----------------------------------------
+// --- Which one is shown: the live query or the files --------------------------------------------
 
 fn unknown_provider(p: &str) -> String {
     tr!("proveedor desconocido: {p}", "unknown provider: {p}", "provedor desconhecido: {p}")
 }
 
-/// Lo leído de los archivos (barato, pero varias ventanas lo piden seguido).
+/// What was read from the files (cheap, but several windows ask for it often).
 static CACHE: Mutex<Vec<(String, Instant, Usage)>> = Mutex::new(Vec::new());
 const CACHE_FOR: Duration = Duration::from_secs(30);
 
-/// Se olvida lo leído de los archivos (cambió el idioma: notas y fuentes se vuelven a armar).
+/// What was read from the files is forgotten (language changed: notes and sources are rebuilt).
 pub fn forget_cache() {
     CACHE.lock().unwrap().clear();
 }
@@ -422,20 +422,20 @@ fn live() -> &'static Mutex<Live> {
 
 static APP: OnceLock<AppHandle> = OnceLock::new();
 
-/// Avisa a las ventanas que cambió algo de la consulta en vivo (empezó o terminó).
+/// Tells the windows that something about the live query changed (it started or finished).
 fn emit_live() {
     if let Some(a) = APP.get() {
         let _ = a.emit("usage-live", ());
     }
 }
 
-/// Una consulta en vivo a la vez por proveedor.
+/// One live query at a time per provider.
 static LOCK_CLAUDE: Mutex<()> = Mutex::new(());
 static LOCK_CODEX: Mutex<()> = Mutex::new(());
 static LOCK_AGY: Mutex<()> = Mutex::new(());
 
-/// Consulta en vivo (bloquea: Claude tarda 10–20 s). Si había otra en curso, se espera esa y
-/// alcanza con su resultado. Los errores quedan anotados y se muestran en la nota.
+/// Live query (blocks: Claude takes 10–20 s). If another one was in progress, it waits for that one and
+/// its result is enough. Errors are recorded and shown in the note.
 pub fn probe(provider: &str) -> Result<(), String> {
     let lock = match provider {
         "claude" => &LOCK_CLAUDE,
@@ -475,9 +475,9 @@ pub fn probe(provider: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Junta la consulta en vivo con lo de los archivos: gana el dato más nuevo. Si los archivos son
-/// más nuevos (se usó el agente después de la consulta), mandan sus ventanas y se suma lo que solo
-/// trae la consulta (plan, modelo, ventanas por modelo, uso extra).
+/// Merges the live query with the files' data: the newest data wins. If the files are
+/// newer (the agent was used after the query), their windows take over and what only
+/// the query brings is added (plan, model, per-model windows, extra usage).
 pub fn merge(lv: Option<Usage>, pas: Option<Usage>, provider: &str) -> Usage {
     match (lv, pas) {
         (Some(l), Some(p)) if p.exact && p.updated_at.unwrap_or(0) > l.updated_at.unwrap_or(0) => {
@@ -530,7 +530,7 @@ pub fn best(provider: &str) -> Usage {
     u
 }
 
-/// `force` (Actualizar): consulta en vivo ahora (o espera la que está en curso).
+/// `force` (Refresh): query live now (or wait for the one in progress).
 #[tauri::command]
 pub async fn usage_get(provider: String, force: Option<bool>) -> Result<Usage, String> {
     if !["claude", "codex", "agy"].contains(&provider.as_str()) {
@@ -557,8 +557,8 @@ struct LiveConfig {
 
 static CONFIG: Mutex<Option<LiveConfig>> = Mutex::new(None);
 
-/// Lo manda el frontend al arrancar y cuando cambia la configuración: qué proveedores consultar en
-/// vivo y cada cuánto. La primera vez arranca las rondas (la primera, enseguida: al abrir AlphaTerm).
+/// Sent by the frontend at startup and when the settings change: which providers to query
+/// live and how often. The first time it starts the rounds (the first one right away: when AlphaTerm opens).
 #[tauri::command]
 pub fn usage_config(app: AppHandle, claude: bool, codex: bool, agy: bool, every_min: u64) {
     let _ = APP.set(app);
@@ -584,7 +584,7 @@ fn rounds() {
             let _ = h.join();
         }
         let done = Instant::now();
-        // Hasta la próxima ronda (si cambia el intervalo, vale el nuevo).
+        // Until the next round (if the interval changes, the new one applies).
         loop {
             std::thread::sleep(Duration::from_secs(5));
             let every = CONFIG.lock().unwrap().map(|c| c.every_min).unwrap_or(15);
@@ -595,10 +595,10 @@ fn rounds() {
     }
 }
 
-// --- Statusline de AlphaTerm para Claude Code ---------------------------------------------------------
+// --- AlphaTerm statusline for Claude Code -------------------------------------------------------------
 
-const STATUSLINE_JS: &str = r#"// Statusline de AlphaTerm para Claude Code: guarda los límites que Claude Code le pasa
-// (para el footer de consumo de AlphaTerm) y muestra una línea corta. Sin dependencias.
+const STATUSLINE_JS: &str = r#"// AlphaTerm statusline for Claude Code: saves the limits Claude Code passes to it
+// (for AlphaTerm's usage footer) and shows a short line. No dependencies.
 const fs = require("fs");
 const path = require("path");
 let raw = "";
@@ -613,7 +613,7 @@ process.stdin.on("end", () => {
     fs.writeFileSync(file + ".tmp", JSON.stringify({ ...data, _capturedAt: Date.now() }));
     fs.renameSync(file + ".tmp", file);
   } catch {}
-  // Idioma: ALPHATERM_LANG (pestañas de AlphaTerm) o el de la configuración de AlphaTerm.
+  // Language: ALPHATERM_LANG (AlphaTerm tabs) or the one in AlphaTerm's settings.
   let lang = process.env.ALPHATERM_LANG;
   if (!["es", "en", "pt"].includes(lang)) {
     try { lang = JSON.parse(fs.readFileSync(path.join(process.env.APPDATA || "", "AlphaTerm", "settings.json"), "utf8").replace(/^\uFEFF/, "")).language; } catch {}
@@ -630,11 +630,11 @@ process.stdin.on("end", () => {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StatuslineStatus {
-    /// Comando configurado hoy en ~/.claude/settings.json (si hay).
+    /// Command currently configured in ~/.claude/settings.json (if any).
     current: Option<String>,
-    /// El configurado es el de AlphaTerm.
+    /// The configured one is AlphaTerm's.
     ours: bool,
-    /// El script del comando configurado existe (si se pudo saber).
+    /// The configured command's script exists (if it could be determined).
     current_exists: Option<bool>,
 }
 
@@ -646,7 +646,7 @@ fn statusline_script() -> PathBuf {
     crate::settings::data_dir().join("statusline.js")
 }
 
-/// Primera ruta entre comillas de un comando (para saber si el script existe).
+/// First quoted path in a command (to know whether the script exists).
 fn quoted_path(cmd: &str) -> Option<PathBuf> {
     let start = cmd.find('"')? + 1;
     let end = start + cmd[start..].find('"')?;
@@ -664,8 +664,8 @@ pub fn usage_statusline_status() -> StatuslineStatus {
     StatuslineStatus { current, ours, current_exists }
 }
 
-/// Instala la statusline de AlphaTerm en Claude Code. Solo se llama cuando el usuario toca el botón.
-/// Guarda una copia de ~/.claude/settings.json antes de cambiarlo y conserva el resto del archivo.
+/// Installs AlphaTerm's statusline in Claude Code. Only called when the user clicks the button.
+/// Saves a copy of ~/.claude/settings.json before changing it and keeps the rest of the file.
 #[tauri::command]
 pub fn usage_statusline_install() -> Result<String, String> {
     let script = statusline_script();
@@ -755,7 +755,7 @@ mod tests {
         assert_eq!(m.windows.iter().map(|x| (x.label.as_str(), x.used_pct)).collect::<Vec<_>>(), vec![("5 h", 12.0), ("semana", 31.0), ("semana · Sonnet", 4.0)]);
         assert_eq!(m.plan.as_deref(), Some("Max"));
         assert_eq!(m.model.as_deref(), Some("Opus 5.5"));
-        // Archivos más viejos (o estimados): manda la consulta en vivo.
+        // Older (or estimated) files: the live query rules.
         let files_old = Usage { updated_at: Some(500), ..files_new.clone() };
         assert_eq!(merge(Some(live.clone()), Some(files_old), "claude"), live);
         let estimate = Usage { exact: false, updated_at: Some(9000), ..files_new };
@@ -764,7 +764,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "lee datos reales de la máquina (Codex); correr a mano"]
+    #[ignore = "reads real data from this machine (Codex); run by hand"]
     fn codex_real() {
         let u = codex();
         println!("{u:?}");

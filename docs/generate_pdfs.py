@@ -1,10 +1,10 @@
-"""Genera los PDF de la documentación (especificación, plan y guía de código) en cada idioma.
+"""Generates the documentation PDFs (specification, plan and code guide) in each language.
 
-Los txt son la fuente de verdad: si cambian, se vuelve a correr este script.
-- es: docs/es/Terminal_Plan.txt y docs/es/Code_Guide.txt → docs/
-- en: docs/en/Terminal_Plan.txt y Code_Guide.txt → docs/en/
-- pt: docs/pt/Terminal_Plan.txt y Code_Guide.txt → docs/pt/
-Uso:  python docs/generate_pdfs.py [es] [en] [pt]   (sin idiomas: los tres; necesita fpdf2)
+The txt files are the source of truth: when they change, run this script again.
+- es: docs/es/Terminal_Plan.txt and docs/es/Code_Guide.txt → docs/es/
+- en: docs/en/Terminal_Plan.txt and Code_Guide.txt → docs/en/
+- pt: docs/pt/Terminal_Plan.txt and Code_Guide.txt → docs/pt/
+Usage:  python docs/generate_pdfs.py [es] [en] [pt]   (no languages: all three; needs fpdf2)
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ NEGRO = (25, 25, 25)
 
 
 def leer_secciones(texto: str) -> tuple[list[str], dict[str, list[str]]]:
-    """Separa el txt en el encabezado y las secciones marcadas con líneas de '='."""
+    """Splits the txt into the header and the sections marked with lines of '='."""
     lineas = texto.replace("\r\n", "\n").split("\n")
     encabezado: list[str] = []
     secciones: dict[str, list[str]] = {}
@@ -45,7 +45,7 @@ def leer_secciones(texto: str) -> tuple[list[str], dict[str, list[str]]]:
 
 
 def agrupar(lineas: list[str]) -> list[tuple[str, int, str]]:
-    """Convierte líneas con cortes duros en bloques (tipo, sangría, texto)."""
+    """Turns hard-wrapped lines into blocks (kind, indent, text)."""
     bloques: list[tuple[str, int, str]] = []
     en_arbol = False
     for crudo in lineas:
@@ -185,7 +185,7 @@ def construir(nombre: str, titulo: str, subtitulo: str, guardado: str,
     print(f"{destino.name}: {doc.page_no()} páginas")
 
 
-# Por idioma: fuentes, carpeta de salida, nombres, títulos y cómo empiezan las secciones de cada PDF.
+# Per language: sources, output folder, names, titles and how each PDF's sections start.
 IDIOMAS = {
     "es": {
         "plan": "docs/es/Terminal_Plan.txt", "guia": "docs/es/Code_Guide.txt", "salida": "docs/es",

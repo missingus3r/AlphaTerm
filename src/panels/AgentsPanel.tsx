@@ -34,11 +34,11 @@ export interface RunningAgent {
 interface Props {
   agents: AgentDef[];
   running: RunningAgent[];
-  /** Carpeta del panel activo (la propuesta por defecto). */
+  /** Folder of the active pane (the default suggestion). */
   activeCwd?: string;
   recentDirs: string[];
   onLaunch: (agent: AgentDef, cwd: string | undefined) => void;
-  /** Shell de las pestañas nuevas (para mostrar el comando con sus comillas). */
+  /** Shell of new tabs (to show the command with its quotes). */
   shell: ShellKind;
   onFocus: (tabId: string, paneId: string) => void;
   update: (f: (d: Settings) => void) => void;
@@ -66,11 +66,11 @@ export default function AgentsPanel(props: Props) {
     async () => invoke<Detected[]>("agents_detect", { commands: props.agents.map((a) => a.command) }),
   );
   const pathOf = (i: number) => detected()?.[i]?.path ?? null;
-  const [dir, setDir] = createSignal<string | null>(null); // null = la del panel activo
+  const [dir, setDir] = createSignal<string | null>(null); // null = the active pane's
   const cwd = () => dir() ?? props.activeCwd;
   const [editing, setEditing] = createSignal<string | null>(null);
   const [showHidden, setShowHidden] = createSignal(false);
-  // Consumo debajo de cada agente que lo tiene (Claude, Codex, agy): el mismo dato del footer, con detalle.
+  // Usage below each agent that has it (Claude, Codex, agy): the same data as the footer, with details.
   const providerOf = (a: AgentDef) => providerFor(a.id, a.command);
   const [folded, setFolded] = createSignal<string[]>(readFolded());
   const toggleFold = (id: string) => {
@@ -79,7 +79,7 @@ export default function AgentsPanel(props: Props) {
     try {
       localStorage.setItem(FOLD_PREF, JSON.stringify(next));
     } catch {
-      /* no importa */
+      /* doesn't matter */
     }
   };
   onMount(() => {
@@ -139,8 +139,8 @@ export default function AgentsPanel(props: Props) {
       </div>
 
       <ul class="agent-list">
-        {/* Por id, no por objeto: cada cambio de la configuración trae objetos nuevos y la fila
-            entera (con las opciones abiertas y lo que se está escribiendo) se volvería a crear. */}
+        {/* By id, not by object: every settings change brings new objects and the whole row
+            (with the options open and what is being typed) would be recreated. */}
         <For each={props.agents.map((x) => x.id)}>
           {(id) => {
             const i = () => props.agents.findIndex((x) => x.id === id);
@@ -189,7 +189,7 @@ export default function AgentsPanel(props: Props) {
                           aria-expanded={editing() === id}
                           onClick={() => setEditing(editing() === id ? null : id)}
                         >
-                          {/* Deslizadores: las opciones se eligen antes de lanzar. */}
+                          {/* Sliders: options are chosen before launching. */}
                           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
                             <path d="M2 4h12M2 8h12M2 12h12" opacity=".55" />
                             <circle cx="5" cy="4" r="1.8" fill="currentColor" stroke="none" />
@@ -198,7 +198,7 @@ export default function AgentsPanel(props: Props) {
                           </svg>
                         </button>
                       </li>
-                      {/* Las opciones van pegadas a la fila, antes del consumo (que es largo). */}
+                      {/* The options sit right next to the row, before the usage (which is long). */}
                       <Show when={editing() === id}>
                         <AgentOptions
                           agent={a()}

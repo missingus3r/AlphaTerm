@@ -1,17 +1,17 @@
 /**
- * Menú de sugerencias debajo del cursor (o arriba si no entra). Lo posiciona con el tamaño de celda
- * de la terminal; las letras que coinciden con lo escrito van resaltadas.
+ * Suggestion menu below the cursor (or above if it doesn't fit). It positions it using the terminal's cell size;
+ * the letters that match what was typed are highlighted.
  *
- * Las descripciones llegan en español (marcadas con `k()` en el catálogo, el motor y los
- * generadores) y se traducen acá. Las que no son textos nuestros (ayuda de PowerShell, el comando de
- * un script de npm, datos de Docker) no tienen traducción y `t` las deja como vienen.
+ * Descriptions arrive in Spanish (marked with `k()` in the catalog, the engine and the
+ * generators) and are translated here. Those that are not our texts (PowerShell help, an npm script's
+ * command, Docker data) have no translation and `t` leaves them as they come.
  */
 import { createEffect, For, Show, type JSX } from "solid-js";
 import { t } from "../i18n";
 import type { Kind } from "./engine";
 import type { MenuView } from "./controller";
 
-/** Posición de la pantalla de xterm dentro del panel y tamaño de celda, en px. */
+/** Position of the xterm screen within the pane and cell size, in px. */
 export interface Geom {
   x: number;
   y: number;

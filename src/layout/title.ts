@@ -1,30 +1,30 @@
 /**
- * Nombre-resumen de pestaña. Prioridad:
- *   1. título fijado a mano;
- *   2. título OSC que pone el programa en primer plano (por ejemplo Claude Code resume la tarea);
- *   3. heurística: comando en curso + carpeta + rama git ("npm run dev · frontend (main)");
- *   4. (F9) resumen por LLM opcional.
+ * Tab summary name. Priority:
+ *   1. title pinned by hand;
+ *   2. OSC title set by the foreground program (for example Claude Code summarizes the task);
+ *   3. heuristic: running command + folder + git branch ("npm run dev · frontend (main)");
+ *   4. (F9) optional LLM summary.
  */
 import { t } from "../i18n";
 
 export interface PaneInfo {
   shellName: string;
-  /** El shell manda OSC 133: sabemos con certeza si hay un comando corriendo. */
+  /** The shell sends OSC 133: we know for certain whether a command is running. */
   integrated: boolean;
   running: boolean;
   cwd?: string;
   lastCommand?: string;
   exitCode?: number | null;
-  /** Título OSC válido como resumen (puesto por el programa, no por el prompt del shell). */
+  /** Valid OSC title as a summary (set by the program, not by the shell prompt). */
   agentTitle?: string;
-  /** Proceso en primer plano según el backend (descendiente más nuevo del shell). */
+  /** Foreground process according to the backend (newest descendant of the shell). */
   fgProcess?: string;
   branch?: string;
-  /** Resumen hecho por un modelo (opcional, F9). */
+  /** Summary made by a model (optional, F9). */
   llmTitle?: string;
 }
 
-/** Títulos que ponen los propios shells o ConPTY: no dicen nada de la tarea. */
+/** Titles set by the shells themselves or ConPTY: they say nothing about the task. */
 export function isShellTitle(t: string): boolean {
   const s = t.trim();
   return (
@@ -37,13 +37,13 @@ export function isShellTitle(t: string): boolean {
   );
 }
 
-/** cmd pone de título "C:\WINDOWS\system32\cmd.exe - <comando>" mientras corre algo: se extrae el comando. */
+/** cmd sets the title to "C:\WINDOWS\system32\cmd.exe - <command>" while something runs: the command is extracted. */
 export function cmdRunningCommand(t: string): string | null {
   const m = /^(?:.*[\\/])?cmd(?:\.exe)?\s+-\s+(.+)$/i.exec(t.trim());
   return m?.[1]?.trim() || null;
 }
 
-/** El comando del título de cmd lleva un espacio de más tras el nombre: si es el mismo que se tipeó, vale el tipeado. */
+/** The command in cmd's title has an extra space after the name: if it's the same one that was typed, the typed one counts. */
 export function preferTyped(typed: string | undefined, fromTitle: string): string {
   const flat = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
   return typed && flat(typed) === flat(fromTitle) ? typed : fromTitle;
@@ -56,14 +56,14 @@ export function folderName(cwd?: string): string {
   return /^[a-zA-Z]:$/.test(last) ? `${last}\\` : last;
 }
 
-/** "C:\x\node.exe server.js --port 3000" → "node server.js --port" (hasta 3 palabras, 32 caracteres). */
+/** "C:\x\node.exe server.js --port 3000" → "node server.js --port" (up to 3 words, 32 characters). */
 export function commandLabel(cmd?: string): string {
   if (!cmd) return "";
-  // En "cd x; npm run dev" lo que corre es lo último; en "git log | less", lo primero del tramo.
+  // In "cd x; npm run dev" what runs is the last part; in "git log | less", the first of the stretch.
   const chain = cmd.split(/;|&&|\|\|/).map((s) => s.trim()).filter(Boolean);
   const segment = (chain[chain.length - 1] ?? "").split("|")[0] ?? "";
   const tokens = segment.trim().match(/"[^"]*"|'[^']*'|\S+/g) ?? [];
-  // Operadores de llamada de PowerShell (`& "ruta.exe"`, `. script`): no son el comando.
+  // PowerShell call operators (`& "ruta.exe"`, `. script`): they aren't the command.
   while (tokens[0] === "&" || tokens[0] === ".") tokens.shift();
   const first = tokens[0];
   if (first === undefined) return "";
@@ -79,8 +79,8 @@ export function heuristicTitle(p: PaneInfo): string {
   let what = "";
   if (p.running) what = commandLabel(p.lastCommand) || p.fgProcess || "";
   else if (!p.integrated && p.fgProcess) {
-    // Sin integración, el último comando conocido (por ejemplo, del título de cmd) solo vale
-    // si coincide con el proceso que está corriendo; si no, puede ser uno viejo.
+    // Without integration, the last known command (for example, from cmd's title) only counts
+    // if it matches the running process; otherwise it may be an old one.
     const label = commandLabel(p.lastCommand);
     const same = label.split(" ")[0]?.toLowerCase() === p.fgProcess.toLowerCase();
     what = same ? label : p.fgProcess;
@@ -89,7 +89,7 @@ export function heuristicTitle(p: PaneInfo): string {
   return what || place || p.shellName;
 }
 
-/** Orden: título que puso el programa > resumen del modelo (si está activado) > heurística. */
+/** Order: title set by the program > model summary (if enabled) > heuristic. */
 export function paneTitle(p: PaneInfo): string {
   return p.agentTitle?.trim() || p.llmTitle?.trim() || heuristicTitle(p);
 }

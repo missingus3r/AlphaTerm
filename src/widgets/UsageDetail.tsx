@@ -4,14 +4,14 @@ import { forecast, PROVIDER_NAMES, resetOf, windowMs, type ProviderId, type Usag
 import { loadUsage, nowTick, usageBusy, usageError, usageOf } from "./usageStore";
 import { k, locale, t } from "../i18n";
 
-// Las etiquetas de las ventanas las manda el backend en castellano ("5 h", "semana", "semana · Sonnet",
-// "Gemini · semana"): son ids (las compara `windowMs`), se traducen solo al mostrarlas.
+// Window labels are sent by the backend in Spanish ("5 h", "semana", "semana · Sonnet",
+// "Gemini · semana"): they are ids (`windowMs` compares them), translated only when displayed.
 const WINDOW_NAMES = new Map<string, string>([
   ["semana", k("semana")],
   ["día", k("día")],
   ["uso extra", k("uso extra")],
 ]);
-/** Una parte de la etiqueta ("semana", "5 h", "Sonnet") en el idioma de la interfaz. */
+/** A part of the label ("semana", "5 h", "Sonnet") in the interface language. */
 export const windowName = (part: string) => {
   const es = WINDOW_NAMES.get(part);
   if (es) return t(es);
@@ -19,7 +19,7 @@ export const windowName = (part: string) => {
   return days ? t("{n} días", { n: days[1] }) : part;
 };
 
-/** "Sesión (5 h)", "Semana", "Semana · Sonnet", "Uso extra" (en agy, la ventana dentro del grupo). */
+/** "Sesión (5 h)", "Semana", "Semana · Sonnet", "Uso extra" (in agy, the window within the group). */
 export function prettyLabel(label: string): string {
   if (label === "5 h") return t("Sesión (5 h)");
   if (label === "semana") return t("Semana");
@@ -30,14 +30,14 @@ export function prettyLabel(label: string): string {
   return windowName(label);
 }
 
-/** "en 2 h 10 min" hasta `ms`. */
+/** "en 2 h 10 min" until `ms`. */
 export function untilMs(ms: number, now: number): string {
   const m = Math.ceil((ms - now) / 60_000);
   if (m <= 0) return t("ya se reinició");
   return t("en {time}", { time: fmtSpan(m, true) });
 }
 
-/** Hora (hoy) o día y hora. */
+/** Time (today) or day and time. */
 function when(ms: number, now: number): string {
   const d = new Date(ms);
   const time = d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
@@ -45,7 +45,7 @@ function when(ms: number, now: number): string {
   return `${d.toLocaleDateString(locale(), { weekday: "short", day: "numeric", month: "short" })} ${time}`;
 }
 
-/** "2 h 10 min" (duración, sin el "en"). */
+/** "2 h 10 min" (duration, without the "en"). */
 const dur = (ms: number) => {
   const m = Math.ceil(ms / 60_000);
   return m <= 0 ? t("ya se reinició") : fmtSpan(m, true);
@@ -74,7 +74,7 @@ function Row(props: { w: UsageWindow; u: Usage }) {
   );
 }
 
-/** Previsión de una ventana semanal (como la del System dashboard). */
+/** Forecast for a weekly window (like the System dashboard's). */
 function Forecast(props: { w: UsageWindow; u: Usage }) {
   const f = createMemo(() => {
     const r = resetOf(props.w, props.u.updatedAt);
@@ -97,11 +97,11 @@ function Forecast(props: { w: UsageWindow; u: Usage }) {
   );
 }
 
-/** Detalle del consumo de un proveedor: plan y modelo, cada ventana con su reinicio, por modelo, previsión. */
+/** Usage detail of a provider: plan and model, each window with its reset, per model, forecast. */
 export function UsageDetail(props: { id: ProviderId; compact?: boolean }) {
   const u = () => usageOf(props.id);
   const err = () => usageError(props.id);
-  // agy: las ventanas van agrupadas por grupo de modelos.
+  // agy: windows are grouped by model group.
   const groups = createMemo(() => {
     const x = u();
     if (!x) return [];

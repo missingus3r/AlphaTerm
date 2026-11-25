@@ -1,13 +1,13 @@
-//! Navegador integrado: un WebView2 hijo dentro de la ventana de AlphaTerm, puesto exactamente
-//! sobre el lugar de su panel (el frontend le manda el rectángulo). Se maneja por el protocolo de
-//! DevTools (CDP) del propio WebView2: capturas, clics, teclas, evaluar JS y leer la consola.
+//! Built-in browser: a child WebView2 inside the AlphaTerm window, placed exactly
+//! over the spot of its pane (the frontend sends the rectangle). It's driven through the
+//! DevTools protocol (CDP) of WebView2 itself: screenshots, clicks, keys, evaluating JS and reading the console.
 //!
-//! En cada página se inyecta `scripts/browser-overlay.js` (la capa de marcado). La capa le habla a
-//! AlphaTerm por la función `__alphaterm`, que se agrega con `Runtime.addBinding`: las marcas
-//! llegan como eventos `Runtime.bindingCalled` y se reenvían a la ventana como `browser-marks`.
+//! `scripts/browser-overlay.js` (the marking layer) is injected into every page. The layer talks to
+//! AlphaTerm through the `__alphaterm` function, added with `Runtime.addBinding`: marks
+//! arrive as `Runtime.bindingCalled` events and are forwarded to the window as `browser-marks`.
 //!
-//! Los métodos que hablan con CDP bloquean esperando la respuesta: nunca llamarlos desde el hilo
-//! principal (los comandos son async y van por `spawn_blocking`; la API de control usa sus hilos).
+//! The methods that talk to CDP block waiting for the response: never call them from the main
+//! thread (commands are async and go through `spawn_blocking`; the control API uses its own threads).
 
 use crate::i18n::{tr, Lang};
 use serde_json::{json, Value};
@@ -26,7 +26,7 @@ pub struct Entry {
     pub id: String,
     pub label: String,
     pub window: String,
-    /// Panel de terminal "dueño" (el agente que lo abrió, o al que van los pedidos).
+    /// "Owner" terminal pane (the agent that opened it, or the one requests go to).
     pub owner: Mutex<Option<String>>,
     pub opened: Instant,
     console: Mutex<VecDeque<Value>>,
@@ -52,7 +52,7 @@ pub fn normalize_url(raw: &str) -> String {
     if s.contains("://") || s.starts_with("about:") || s.starts_with("data:") {
         return s.to_string();
     }
-    // Solo un puerto ("5173"): el servidor local.
+    // Just a port ("5173"): the local server.
     if s.chars().all(|c| c.is_ascii_digit()) {
         return format!("http://localhost:{s}");
     }
@@ -79,7 +79,7 @@ fn webview(app: &AppHandle, e: &Entry) -> Result<tauri::Webview, String> {
     app.get_webview(&e.label).ok_or_else(|| tr("El navegador ya no está abierto", "The browser is no longer open", "O navegador não está mais aberto").into())
 }
 
-/// Lista de navegadores abiertos (para la API).
+/// List of open browsers (for the API).
 pub fn list(app: &AppHandle) -> Vec<Value> {
     let state = app.state::<BrowserState>();
     let mut v: Vec<_> = state.0.lock().unwrap().values().cloned().collect();
@@ -92,7 +92,7 @@ pub fn list(app: &AppHandle) -> Vec<Value> {
         .collect()
 }
 
-/// Navegador para un pedido de la API: el pedido, el del panel que llama, o el último abierto.
+/// Browser for an API request: the requested one, the calling pane's, or the last one opened.
 pub fn resolve(app: &AppHandle, wanted: Option<String>, caller: &Option<String>) -> Result<Arc<Entry>, String> {
     if let Some(id) = wanted.filter(|s| !s.is_empty()) {
         return get(app, &id);
@@ -153,7 +153,7 @@ pub fn cdp(_app: &AppHandle, _e: &Entry, _method: &str, _params: Value) -> Resul
     Err(tr("El navegador integrado solo está hecho para Windows", "The built-in browser only works on Windows", "O navegador integrado só funciona no Windows").into())
 }
 
-/// Suscribe los eventos de DevTools que interesan (marcas, consola, errores).
+/// Subscribes to the DevTools events of interest (marks, console, errors).
 #[cfg(windows)]
 fn subscribe(app: &AppHandle, e: &Arc<Entry>) {
     use webview2_com::{take_pwstr, DevToolsProtocolEventReceivedEventHandler};
@@ -210,7 +210,7 @@ fn on_event(app: &AppHandle, id: &str, ev: &str, raw: &str) {
                             }
                         }
                     }
-                    // Página nueva: las marcas de la anterior ya no valen.
+                    // New page: the previous page's marks no longer apply.
                     *e.marks.lock().unwrap() = json!([]);
                     let _ = app.emit_to(&e.window, "browser-page", json!({ "id": id, "url": msg.get("url"), "title": msg.get("title"), "hmr": msg.get("hmr") }));
                 }
@@ -269,9 +269,9 @@ fn push_console(app: &AppHandle, e: &Entry, level: &str, text: String, at: Optio
     }
 }
 
-// --- Operaciones ------------------------------------------------------------------------------
+// --- Operations -------------------------------------------------------------------------------
 
-/// Evalúa JS en la página (espera promesas) y devuelve el valor como JSON.
+/// Evaluates JS in the page (awaits promises) and returns the value as JSON.
 pub fn eval(app: &AppHandle, e: &Entry, js: &str) -> Result<Value, String> {
     let r = cdp(app, e, "Runtime.evaluate", json!({ "expression": js, "returnByValue": true, "awaitPromise": true, "userGesture": true }))?;
     if let Some(ex) = r.get("exceptionDetails") {
@@ -281,7 +281,7 @@ pub fn eval(app: &AppHandle, e: &Entry, js: &str) -> Result<Value, String> {
     Ok(r["result"].get("value").cloned().unwrap_or(Value::Null))
 }
 
-/// Captura en PNG: la vista, la página entera, o un recorte (coordenadas de documento, px CSS).
+/// PNG capture: the viewport, the whole page, or a clip (document coordinates, CSS px).
 pub fn screenshot(app: &AppHandle, e: &Entry, clip: Option<(f64, f64, f64, f64)>, full: bool) -> Result<Vec<u8>, String> {
     use base64::Engine;
     let mut params = json!({ "format": "png" });
@@ -305,7 +305,7 @@ fn no_element(selector: &str) -> String {
     tr!("No encontré ningún elemento con el selector {selector}", "No element matches the selector {selector}", "Nenhum elemento corresponde ao seletor {selector}")
 }
 
-/// Centro de un elemento en la vista (lo trae a la vista antes).
+/// Center of an element in the viewport (scrolls it into view first).
 fn point_of(app: &AppHandle, e: &Entry, selector: &str) -> Result<(f64, f64, String), String> {
     let js = format!(
         "(() => {{ const el = document.querySelector({sel}); if (!el) return null; el.scrollIntoView({{block:'center', inline:'center'}}); \
@@ -328,7 +328,7 @@ pub fn click(app: &AppHandle, e: &Entry, selector: Option<&str>, x: Option<f64>,
             String::new(),
         ),
     };
-    // Que la capa de marcado no se trague el clic si está en modo edición.
+    // So the marking layer doesn't swallow the click if it's in edit mode.
     let _ = eval(app, e, "window.__alphaPass = true");
     let mut res = Ok(());
     for (t, buttons) in [("mouseMoved", 0), ("mousePressed", 1), ("mouseReleased", 0)] {
@@ -351,8 +351,8 @@ pub fn type_text(app: &AppHandle, e: &Entry, text: &str, selector: Option<&str>)
     Ok(json!({ "typed": text.chars().count() }))
 }
 
-/// Teclas especiales por nombre: Enter, Tab, Escape, Backspace, Delete, ArrowUp/Down/Left/Right,
-/// Home, End, PageUp, PageDown. Con modificadores: "Ctrl+A", "Shift+Tab".
+/// Special keys by name: Enter, Tab, Escape, Backspace, Delete, ArrowUp/Down/Left/Right,
+/// Home, End, PageUp, PageDown. With modifiers: "Ctrl+A", "Shift+Tab".
 pub fn key(app: &AppHandle, e: &Entry, combo: &str) -> Result<Value, String> {
     let parts: Vec<&str> = combo.split('+').map(str::trim).collect();
     let (mods, name) = parts.split_at(parts.len().saturating_sub(1));
@@ -412,7 +412,7 @@ pub fn navigate(app: &AppHandle, e: &Entry, url: &str) -> Result<String, String>
     Ok(u)
 }
 
-/// Espera a que la página termine de cargar (o se cumpla el tiempo).
+/// Waits for the page to finish loading (or for the time to run out).
 pub fn wait_load(app: &AppHandle, e: &Entry, ms: u64) {
     let end = Instant::now() + Duration::from_millis(ms);
     std::thread::sleep(Duration::from_millis(250));
@@ -445,7 +445,7 @@ pub fn page(e: &Entry) -> Value {
     e.page.lock().unwrap().clone()
 }
 
-// --- Pedido al agente --------------------------------------------------------------------------
+// --- Request to the agent ----------------------------------------------------------------------
 
 fn stamp() -> String {
     let ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
@@ -485,7 +485,7 @@ fn line_of_mark(l: Lang, m: &Value) -> String {
     desc
 }
 
-/// Texto que se le escribe al agente en su terminal. Puro (testeado).
+/// Text typed to the agent in its terminal. Pure (tested).
 #[allow(clippy::too_many_arguments)]
 pub fn compose(l: Lang, text: &str, url: &str, marks: &[Value], shots: &[(usize, String)], page_shot: Option<&str>, full_shot: Option<&str>, detail: &str, global: bool) -> String {
     let mut out = String::new();
@@ -584,8 +584,8 @@ fn write_png(dir: &Path, name: &str, bytes: &[u8]) -> Result<String, String> {
     Ok(p.display().to_string())
 }
 
-/// Arma el pedido: capturas (vista con números, cada marca recortada, página entera si es global),
-/// `pedido.md` y `marcas.json`, y el texto para el agente.
+/// Builds the request: screenshots (viewport with numbers, each mark cropped, the whole page if global),
+/// `pedido.md` and `marcas.json`, and the text for the agent.
 pub fn request(app: &AppHandle, e: &Entry, text: &str, global: bool, l: Lang) -> Result<Value, String> {
     let marks: Vec<Value> = e.marks.lock().unwrap().as_array().cloned().unwrap_or_default();
     if marks.is_empty() && !global {
@@ -633,7 +633,7 @@ pub fn request(app: &AppHandle, e: &Entry, text: &str, global: bool, l: Lang) ->
     Ok(json!({ "message": message, "dir": dir.display().to_string(), "marks": marks.len() }))
 }
 
-// --- Comandos del frontend ----------------------------------------------------------------------
+// --- Frontend commands --------------------------------------------------------------------------
 
 fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, String> + Send + 'static) -> impl std::future::Future<Output = Result<T, String>> {
     async move { tauri::async_runtime::spawn_blocking(f).await.map_err(|err| err.to_string())? }
@@ -674,7 +674,7 @@ pub async fn browser_open(app: AppHandle, window: tauri::Window, id: String, url
             }
             let _ = app_title.emit_to(&win_title, "browser-title", json!({ "id": id_title, "title": title }));
         })
-        // Ventanas nuevas (target=_blank, window.open): se abren en el mismo panel.
+        // New windows (target=_blank, window.open): they open in the same pane.
         .on_new_window(move |url, _features| {
             let (app, label) = (app_new.clone(), label_new.clone());
             std::thread::spawn(move || {
@@ -706,8 +706,8 @@ pub async fn browser_open(app: AppHandle, window: tauri::Window, id: String, url
         cdp(&app2, &e, "Runtime.enable", json!({}))?;
         cdp(&app2, &e, "Runtime.addBinding", json!({ "name": "__alphaterm" }))?;
         cdp(&app2, &e, "Page.enable", json!({}))?;
-        // La primera página pudo cargar antes de la función: se le pregunta directamente (si no,
-        // avisa sola en su evento `load`).
+        // The first page may have loaded before the function was there: it's asked directly (otherwise,
+        // it reports by itself in its `load` event).
         if let Ok(v) = eval(&app2, &e, "window.__alphaOverlay ? { url: location.href, title: document.title, hmr: __alphaOverlay.hmr() } : null") {
             if v.is_object() {
                 *e.page.lock().unwrap() = v.clone();
@@ -766,7 +766,7 @@ pub async fn browser_eval(app: AppHandle, id: String, js: String) -> Result<Valu
 
 #[tauri::command]
 pub async fn browser_request(app: AppHandle, id: String, text: String, global: bool, lang: Option<String>) -> Result<Value, String> {
-    // El idioma de la ventana que lo pide (si lo manda); si no, el de la app.
+    // The language of the window making the request (if it sends it); otherwise, the app's.
     let l = lang.as_deref().and_then(Lang::parse).unwrap_or_else(crate::i18n::lang);
     blocking(move || {
         let e = get(&app, &id)?;
@@ -792,14 +792,14 @@ pub fn browser_close(app: AppHandle, id: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Se cerró una ventana: sus navegadores se fueron con ella.
+/// A window was closed: its browsers went with it.
 pub fn window_closed(app: &AppHandle, label: &str) {
     app.state::<BrowserState>().0.lock().unwrap().retain(|_, e| e.window != label);
 }
 
-// --- API de control (agentes) ------------------------------------------------------------------
+// --- Control API (agents) ----------------------------------------------------------------------
 
-/// "Falta <parámetro>" (el nombre del parámetro no se traduce).
+/// "Missing <parameter>" (the parameter name isn't translated).
 fn missing(name: &str) -> String {
     tr!("Falta {name}", "Missing {name}", "Falta {name}")
 }
@@ -808,7 +808,7 @@ fn st(p: &Value, k: &str) -> Option<String> {
     p.get(k).and_then(Value::as_str).map(str::to_string).filter(|s| !s.is_empty())
 }
 
-/// Métodos `browser_*` que resuelve el backend directamente (abrir uno nuevo lo hace el frontend).
+/// `browser_*` methods that the backend resolves directly (opening a new one is done by the frontend).
 pub fn control(app: &AppHandle, method: &str, p: &Value, caller: &Option<String>) -> Result<Value, String> {
     if method == "browser_list" {
         return Ok(json!({ "browsers": list(app) }));

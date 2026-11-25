@@ -1,12 +1,12 @@
 /**
- * Catálogo propio de comandos para las predicciones: qué hace cada uno, sus subcomandos, opciones
- * y de dónde salen los valores de sus argumentos. Los que tienen datos en vivo (carpetas, ramas,
- * hosts…) nombran un generador (`GenName`, ver `generators.ts`).
+ * Own command catalog for command suggestions: what each one does, its subcommands, options
+ * and where the values of its arguments come from. Those with live data (folders, branches,
+ * hosts…) name a generator (`GenName`, see `generators.ts`).
  *
- * Los comandos internos de cmd que en PowerShell son alias de cmdlets (dir, del, copy, type…) van
- * solo para cmd: en PowerShell sus opciones son otras y las sabe la propia sesión (TabExpansion2).
+ * The internal cmd commands that are cmdlet aliases in PowerShell (dir, del, copy, type…) go
+ * for cmd only: in PowerShell their options are different and the session itself knows them (TabExpansion2).
  *
- * Las descripciones van en español marcadas con `k()`: las traduce `SuggestMenu` al mostrarlas.
+ * Descriptions are in Spanish, marked with `k()`: `SuggestMenu` translates them when showing them.
  */
 import { k } from "../i18n";
 import type { Shell } from "./types";
@@ -33,18 +33,18 @@ export type ArgSource = GenName | Value[];
 export interface Opt {
   name: string;
   desc: string;
-  /** La opción espera un valor (lo que sigue sale de acá). */
+  /** The option expects a value (what follows comes from here). */
   arg?: ArgSource;
 }
 
 export interface CmdSpec {
   names: string[];
   desc: string;
-  /** Sin esto, en las dos. */
+  /** Without this, in both. */
   shells?: Shell[];
   subs?: CmdSpec[];
   opts?: Opt[];
-  /** Argumentos posicionales. */
+  /** Positional arguments. */
   args?: ArgSource;
 }
 
@@ -58,7 +58,7 @@ const sub = (names: string | string[], desc: string, rest: Partial<CmdSpec> = {}
 const CMD: Shell[] = ["cmd"];
 
 export const CATALOG: CmdSpec[] = [
-  // --- Archivos y carpetas ----------------------------------------------------------------------
+  // --- Files and folders ------------------------------------------------------------------------
   sub("cd", k("Cambiar de carpeta"), { args: "folders", opts: [o("/d", k("también cambia de unidad"))] }),
   sub(["pushd"], k("Ir a una carpeta recordando la actual (volver con popd)"), { args: "folders" }),
   sub(["popd"], k("Volver a la carpeta guardada con pushd")),
@@ -84,7 +84,7 @@ export const CATALOG: CmdSpec[] = [
   sub(["where"], k("Dónde está un programa del PATH"), { shells: CMD }),
   sub(["attrib"], k("Ver o cambiar atributos de archivos"), { args: "paths", opts: [o("+h", k("ocultar")), o("-h", k("mostrar")), o("+r", k("solo lectura")), o("-r", k("quitar solo lectura")), o("/s", k("en subcarpetas"))] }),
 
-  // --- Red --------------------------------------------------------------------------------------
+  // --- Network --------------------------------------------------------------------------------------
   sub(["ping"], k("Probar si responde un equipo o sitio"), {
     args: "hosts",
     opts: [o("-t", k("hasta Ctrl+C")), o("-n", k("cantidad de pings"), [v("4"), v("10"), v("100")]), o("-l", k("tamaño del paquete en bytes"), [v("32"), v("1472")]), o("-a", k("muestra el nombre del equipo")), o("-4", k("solo IPv4")), o("-6", k("solo IPv6")), o("-w", k("espera máxima en ms"), [v("1000"), v("5000")])],
@@ -109,7 +109,7 @@ export const CATALOG: CmdSpec[] = [
   sub(["ssh"], k("Conectarse a otro equipo"), { args: "hosts", opts: [o("-p", k("puerto"), [v("22"), v("2222")]), o("-i", k("clave privada"), "paths"), o("-L", k("túnel local (puerto:host:puerto)")), o("-v", k("mostrar el detalle de la conexión"))] }),
   sub(["scp"], k("Copiar archivos por SSH"), { args: "paths", opts: [o("-r", k("carpetas enteras")), o("-P", k("puerto"))] }),
 
-  // --- Sistema ----------------------------------------------------------------------------------
+  // --- System ----------------------------------------------------------------------------------
   sub(["tasklist"], k("Procesos abiertos"), { opts: [o("/v", k("con detalle")), o("/svc", k("con los servicios de cada uno")), o("/fi", k("filtro"), [v('"IMAGENAME eq chrome.exe"'), v('"STATUS eq NOT RESPONDING"')])] }),
   sub(["taskkill"], k("Cerrar un proceso"), { opts: [o("/IM", k("por nombre"), "processes"), o("/PID", k("por número de proceso")), o("/F", k("a la fuerza")), o("/T", k("con sus procesos hijos"))] }),
   sub(["shutdown"], k("Apagar o reiniciar"), {
@@ -139,7 +139,7 @@ export const CATALOG: CmdSpec[] = [
   sub(["cls"], k("Limpiar la pantalla"), { shells: CMD }),
   sub(["exit"], k("Cerrar la shell")),
 
-  // --- Desarrollo -------------------------------------------------------------------------------
+  // --- Development -------------------------------------------------------------------------------
   sub(["git"], k("Control de versiones"), {
     subs: [
       sub("status", k("qué cambió"), { opts: [o("-s", k("resumido"))] }),
@@ -240,5 +240,5 @@ export function findSpec(name: string, shell: Shell): CmdSpec | null {
   return CATALOG.find((s) => (!s.shells || s.shells.includes(shell)) && s.names.includes(n)) ?? null;
 }
 
-/** Comandos del catálogo para esta shell (para la primera palabra). */
+/** Catalog commands for this shell (for the first word). */
 export const catalogFor = (shell: Shell) => CATALOG.filter((s) => !s.shells || s.shells.includes(shell));

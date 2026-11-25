@@ -1,9 +1,9 @@
-// Revisa las traducciones de la interfaz (src/i18n): que cada texto marcado con t("…"), k("…") o
-// tIn(idioma, "…") tenga su traducción en inglés y portugués, que no sobren traducciones, que las
-// {variables} coincidan y que un mismo texto no tenga dos traducciones distintas en dos áreas.
+// Checks the interface translations (src/i18n): that every text marked with t("…"), k("…") or
+// tIn(language, "…") has its English and Portuguese translation, that there are no extra translations, that the
+// {variables} match and that the same text doesn't have two different translations in two areas.
 //
-// Uso:  node scripts/i18n-check.mjs                 → revisa todo
-//       node scripts/i18n-check.mjs src/panels/X.tsx → solo los textos de esos archivos (sin "sobran")
+// Usage: node scripts/i18n-check.mjs                 → checks everything
+//        node scripts/i18n-check.mjs src/panels/X.tsx → only the texts of those files (no "extras")
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -24,7 +24,7 @@ function sources(dir) {
 const LIT = String.raw`("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|\`(?:[^\`\\$]|\\.|\$(?!\{))*\`)`;
 const CALL = new RegExp(String.raw`(?<![\w$.])(?:t|k)\(\s*` + LIT + String.raw`|(?<![\w$.])tIn\(\s*[^,()]+,\s*` + LIT, "g");
 
-/** Textos marcados en un archivo: [{ text, line }]. */
+/** Texts marked in a file: [{ text, line }]. */
 export function extract(code) {
   const out = [];
   for (const m of code.matchAll(CALL)) {
@@ -42,7 +42,7 @@ export function extract(code) {
 
 export const placeholders = (s) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(",");
 
-/** Diccionarios por idioma: { en: { texto: { value, file } }, … } y los conflictos entre áreas. */
+/** Dictionaries per language: { en: { text: { value, file } }, … } and the conflicts between areas. */
 export function loadDicts() {
   const dicts = {};
   const conflicts = [];
@@ -68,11 +68,11 @@ export function loadDicts() {
   return { dicts, conflicts };
 }
 
-/** Problemas encontrados (lista vacía = todo bien). */
+/** Problems found (empty list = all good). */
 export function check(files) {
   const only = files?.length ? files.map((f) => resolve(f)) : null;
   const all = sources(SRC);
-  const used = new Map(); // texto → "archivo:línea"
+  const used = new Map(); // text → "file:line"
   for (const file of only ?? all) {
     for (const { text, line } of extract(readFileSync(file, "utf8"))) {
       if (!used.has(text)) used.set(text, `${relative(ROOT, file)}:${line}`);

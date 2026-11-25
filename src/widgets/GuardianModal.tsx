@@ -15,7 +15,7 @@ export interface Ask {
   session: string | null;
 }
 
-/** Pregunta del guardián: aparece en todas las ventanas; la primera respuesta decide. */
+/** Guardian question: appears in all windows; the first answer decides. */
 export function GuardianModal() {
   const [queue, setQueue] = createSignal<Ask[]>([]);
   const [busy, setBusy] = createSignal(false);

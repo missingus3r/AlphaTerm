@@ -1,11 +1,11 @@
-//! CPU y RAM del sistema, el top de procesos y lo que consume cada pestaña.
+//! System CPU and RAM, the top processes and what each tab consumes.
 
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 
-/// Un `System` propio (el del título refresca otras cosas y le arruinaría el cálculo de CPU).
+/// A dedicated `System` (the title one refreshes other things and would ruin the CPU calculation).
 #[derive(Default)]
 pub struct SysState {
     sys: Mutex<Option<System>>,
@@ -14,7 +14,7 @@ pub struct SysState {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Stats {
-    /// CPU total, 0–100.
+    /// Total CPU, 0–100.
     cpu: f32,
     mem_used: u64,
     mem_total: u64,
@@ -26,7 +26,7 @@ pub struct Stats {
 pub struct ProcRow {
     pub pid: u32,
     pub name: String,
-    /// CPU en % de la máquina entera (0–100).
+    /// CPU as % of the whole machine (0–100).
     pub cpu: f32,
     pub mem: u64,
 }
@@ -44,11 +44,11 @@ pub struct TreeUse {
 pub struct Top {
     top_cpu: Vec<ProcRow>,
     top_mem: Vec<ProcRow>,
-    /// Por PID de la shell de cada pestaña: la shell y todo lo que cuelga de ella.
+    /// By PID of each tab's shell: the shell and everything hanging from it.
     trees: HashMap<u32, TreeUse>,
 }
 
-/// Suma CPU y memoria de un proceso y todos sus descendientes.
+/// Sums CPU and memory of a process and all its descendants.
 pub fn tree_use(rows: &HashMap<u32, (Option<u32>, f32, u64)>, root: u32) -> TreeUse {
     let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
     for (pid, (parent, _, _)) in rows {
@@ -92,8 +92,8 @@ pub fn sys_stats(state: tauri::State<SysState>) -> Result<Stats, String> {
     })
 }
 
-/// Top de procesos y consumo por pestaña. La CPU de un proceso se calcula entre dos llamadas:
-/// la primera vez da 0 (el panel la pide cada segundo mientras está abierto).
+/// Top processes and per-tab usage. A process's CPU is computed between two calls:
+/// the first time it gives 0 (the panel requests it every second while it is open).
 #[tauri::command]
 pub fn sys_top(state: tauri::State<SysState>, shells: Vec<u32>) -> Result<Top, String> {
     state.with(|s| {

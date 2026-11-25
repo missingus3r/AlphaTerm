@@ -1,19 +1,19 @@
-//! Idioma de los textos del backend que llegan a la persona o a un agente: errores de los comandos,
-//! el guardián, el consumo, las respuestas de la API de control, el pedido del navegador…
+//! Language of the backend texts that reach a person or an agent: command errors,
+//! the Guardian, usage, control API responses, the browser request…
 //!
-//! El frontend lo fija con `set_locale` al arrancar y cada vez que cambia; al iniciar también se lee
-//! de settings.json, para los mensajes de antes de eso. Español por defecto. Las pestañas nuevas lo
-//! reciben en ALPHATERM_LANG (para los scripts que corren los agentes).
+//! The frontend sets it with `set_locale` at startup and every time it changes; at startup it's also read
+//! from settings.json, for messages before that. Spanish by default. New tabs
+//! receive it in ALPHATERM_LANG (for the scripts that agents run).
 //!
-//! - Texto fijo: `tr("Hola", "Hello", "Olá")` → `&'static str`.
-//! - Con formato (siempre devuelve `String`, un `format!` por idioma):
-//!   `tr!("No existe {path}", "{path} doesn't exist", "{path} não existe")` o con argumentos después
-//!   de `;`: `tr!("Quiere crear {}", "Wants to create {}", "Quer criar {}"; nombre)`.
-//! - Con un idioma dado (para tests: no cambiar el global, que otros tests esperan en español):
+//! - Fixed text: `tr("Hola", "Hello", "Olá")` → `&'static str`.
+//! - With formatting (always returns `String`, one `format!` per language):
+//!   `tr!("No existe {path}", "{path} doesn't exist", "{path} não existe")` or with arguments after
+//!   `;`: `tr!("Quiere crear {}", "Wants to create {}", "Quer criar {}"; nombre)`.
+//! - With a given language (for tests: don't change the global one, which other tests expect in Spanish):
 //!   `Lang::En.pick(es, en, pt)` y `tr_in!(Lang::En; "…", "…", "…"; args)`.
 //!
-//! No se traducen los logs ni lo que se compara o se parsea en otro lado (etiquetas de las ventanas
-//! de consumo, decisiones del registro del guardián, nombres de los perfiles de shell).
+//! Not translated: logs or anything compared or parsed elsewhere (usage window labels,
+//! Guardian log decisions, shell profile names).
 
 use serde_json::Value;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -27,7 +27,7 @@ pub enum Lang {
 }
 
 impl Lang {
-    /// "es" | "en" | "pt" (sin distinguir mayúsculas); otra cosa: None.
+    /// "es" | "en" | "pt" (case-insensitive); anything else: None.
     pub fn parse(s: &str) -> Option<Lang> {
         match s.trim().to_ascii_lowercase().as_str() {
             "es" => Some(Lang::Es),
@@ -41,7 +41,7 @@ impl Lang {
         self.pick("es", "en", "pt")
     }
 
-    /// Elige la versión de este idioma.
+    /// Picks this language's version.
     pub fn pick<T>(self, es: T, en: T, pt: T) -> T {
         match self {
             Lang::Es => es,
@@ -53,7 +53,7 @@ impl Lang {
 
 static LANG: AtomicU8 = AtomicU8::new(Lang::Es as u8);
 
-/// Idioma actual.
+/// Current language.
 pub fn lang() -> Lang {
     match LANG.load(Ordering::Relaxed) {
         1 => Lang::En,
@@ -62,33 +62,33 @@ pub fn lang() -> Lang {
     }
 }
 
-/// Cambia el idioma global. Devuelve si cambió.
+/// Changes the global language. Returns whether it changed.
 pub fn set_lang(l: Lang) -> bool {
     LANG.swap(l as u8, Ordering::SeqCst) != l as u8
 }
 
-/// Texto fijo en el idioma actual.
+/// Fixed text in the current language.
 pub fn tr(es: &'static str, en: &'static str, pt: &'static str) -> &'static str {
     lang().pick(es, en, pt)
 }
 
-/// Idioma guardado en la configuración (clave `language` de settings.json).
+/// Language saved in the settings (`language` key of settings.json).
 pub fn from_settings(v: &Value) -> Option<Lang> {
     v.get("language").and_then(Value::as_str).and_then(Lang::parse)
 }
 
-/// El frontend avisa el idioma de la interfaz ("es" | "en" | "pt"; otro valor no cambia nada).
+/// The frontend reports the interface language ("es" | "en" | "pt"; another value changes nothing).
 #[tauri::command]
 pub fn set_locale(lang: String) {
     if let Some(l) = Lang::parse(&lang) {
         if set_lang(l) {
-            // Lo que se leyó de los archivos de consumo se vuelve a armar con los textos nuevos.
+            // What was read from the usage files is rebuilt with the new texts.
             crate::usage::forget_cache();
         }
     }
 }
 
-/// `tr!` con el idioma dado (ver el módulo `i18n`).
+/// `tr!` with the given language (see the `i18n` module).
 #[macro_export]
 macro_rules! tr_in {
     ($lang:expr; $es:literal, $en:literal, $pt:literal $(,)?) => {
@@ -107,7 +107,7 @@ macro_rules! tr_in {
     };
 }
 
-/// Texto con formato en el idioma actual (ver el módulo `i18n`).
+/// Formatted text in the current language (see the `i18n` module).
 #[macro_export]
 macro_rules! tr {
     ($es:literal, $en:literal, $pt:literal $(,)?) => {

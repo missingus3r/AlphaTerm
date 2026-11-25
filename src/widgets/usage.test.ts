@@ -27,7 +27,7 @@ describe("consumo del agente activo", () => {
 });
 
 describe("texto de reinicio", () => {
-  // Jueves 20/11/2026 9:40 hora local.
+  // Thursday 20/11/2026 9:40 local time.
   const at = new Date(2026, 10, 20, 9, 40).getTime();
   const local = (mo: number, d: number, h: number, mi = 0, y = 2026) => new Date(y, mo, d, h, mi).getTime();
 
@@ -63,17 +63,17 @@ describe("previsión", () => {
   it("proyecta al ritmo de ahora", () => {
     const day = 86_400_000;
     const now = 10 * day;
-    // Pasaron 3,5 días de 7 con 40 %: al reinicio, 80 %.
+    // 3.5 days of 7 have passed with 40 %: at reset, 80 %.
     const f = forecast(40, now + 3.5 * day, 7 * day, now)!;
     expect(f.projected).toBeCloseTo(80);
     expect(f.exhaustAt).toBeNull();
     expect(f.ratePerDay).toBeCloseTo(40 / 3.5);
     expect(f.budgetPerDay).toBeCloseTo(60 / 3.5);
-    // Con 70 % a mitad de semana se agota antes: le quedan 30 a 20 %/día = 1,5 días.
+    // With 70 % halfway through the week it runs out earlier: 30 left at 20 %/day = 1.5 days.
     const g = forecast(70, now + 3.5 * day, 7 * day, now)!;
     expect(g.projected).toBeCloseTo(140);
     expect(g.exhaustAt).toBeCloseTo(now + 1.5 * day);
-    // Recién empezada la ventana no se estima.
+    // A window that just started isn't estimated.
     expect(forecast(5, now + 6.9 * day, 7 * day, now)).toBeNull();
   });
 });

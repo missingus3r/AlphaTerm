@@ -1,10 +1,10 @@
 /**
- * Engancha las predicciones a una terminal: sabe si la pestaña está en el prompt, lee la línea,
- * arma el menú, toma las teclas que le tocan, inserta la sugerencia elegida y, en PowerShell, le
- * pide completados a la propia sesión con el atajo escondido (ver `pwsh.ts`).
+ * Hooks command suggestions up to a terminal: it knows whether the tab is at the prompt, reads the line,
+ * builds the menu, takes the keys that belong to it, inserts the chosen suggestion and, in PowerShell, asks
+ * the session itself for completions with the hidden shortcut (see `pwsh.ts`).
  *
- * `TerminalView` le avisa: fin del prompt (133;B), inicio de comando (133;C), cada escritura que va
- * a la shell (`onWrite`, antes de mandarla) y cada vez que xterm terminó de procesar salida.
+ * `TerminalView` notifies it: end of prompt (133;B), start of command (133;C), every write going
+ * to the shell (`onWrite`, before sending it) and every time xterm finishes processing output.
  */
 import { createSignal, type Accessor } from "solid-js";
 import { analyze, collect, type Analysis, type Sources, type Suggestion } from "./engine";
@@ -26,20 +26,20 @@ export interface MenuView {
   items: Suggestion[];
   selected: number;
   navigating: boolean;
-  /** Fila del cursor dentro de la pantalla. */
+  /** Cursor row within the screen. */
   row: number;
-  /** Columna donde empieza la palabra que se completa. */
+  /** Column where the word being completed starts. */
   col: number;
 }
 
 export interface SuggestOptions {
   term: TermLike;
   profileId: string;
-  /** Escribe directo a la shell (sin pasar por `onWrite`). */
+  /** Writes straight to the shell (without going through `onWrite`). */
   write(s: string): void;
   cwd(): string | undefined;
   settings(): SuggestSettings;
-  /** cmd no avisa qué comando corre: se lo pasa la vista al Enter. */
+  /** cmd doesn't report which command is running: the view passes it on Enter. */
   patchCmdCommand(line: string): void;
   sources?: Sources;
   now?: () => number;
@@ -52,7 +52,7 @@ export interface SuggestCtl {
   onCommandStart(): void;
   onParsed(): void;
   onWrite(data: string): void;
-  /** true si la tecla la tomó el menú (no tiene que llegarle a xterm). */
+  /** true if the menu took the key (it must not reach xterm). */
   key(e: KeyboardEvent): boolean;
   onOsc7717(data: string): boolean;
   pick(i: number): void;
@@ -82,22 +82,22 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
   let start: { marker: { line: number; dispose(): void }; x: number } | null = null;
   let atPrompt = false;
   /**
-   * Línea que la shell debería mostrar después de lo que se le mandó (null: no se sabe). Hasta que la
-   * pantalla la muestre, una inserción espera: si no, los retrocesos se calcularían sobre la línea vieja.
-   * No sirve una marca de "llegó algo": xterm avisa de salidas ajenas antes del eco de la tecla.
+   * Line the shell should show after what was sent to it (null: unknown). Until the
+   * screen shows it, an insertion waits: otherwise the backspaces would be computed over the old line.
+   * A "something arrived" mark won't do: xterm reports foreign output before the key's echo.
    */
   let expected: { line: string; at: number } | null = null;
-  /** Tecla de efecto imprevisible (flechas, Tab de la shell…): se espera a que la línea cambie. */
+  /** Key with unpredictable effect (arrows, the shell's Tab…): wait for the line to change. */
   let waitChange: { from: string | null; at: number } | null = null;
-  /** Después de ↑/↓, Tab de la shell, Esc o de insertar: no se abre solo hasta que se tipee. */
+  /** After ↑/↓, the shell's Tab, Esc or an insertion: doesn't open by itself until something is typed. */
   let suppressAuto = false;
-  /** Pedido a mano (Ctrl+Espacio) o carpeta recién insertada: se muestra aunque no toque solo. */
+  /** Requested by hand (Ctrl+Space) or a folder just inserted: shown even if it wouldn't open on its own. */
   let wantOpen = false;
   let navigating = false;
   let swallowPress = false;
-  /** Línea con la que se armó el último menú: se recalcula cuando la de la pantalla cambia. */
+  /** Line the last menu was built with: recomputed when the screen's line changes. */
   let lastLine: string | null = null;
-  /** La última tecla deja a PSReadLine esperando otra (Tab, Ctrl+R…): no mandarle el atajo. */
+  /** The last key leaves PSReadLine waiting for another (Tab, Ctrl+R…): don't send it the shortcut. */
   let chainKey = false;
   let psReady = false;
   let demoted = false;
@@ -124,7 +124,7 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
     setMenu(null);
   };
 
-  /** Lo escrito desde el fin del prompt hasta el cursor, si el cursor está al final. */
+  /** What was written from the end of the prompt to the cursor, if the cursor is at the end. */
   function currentLine(): string | null {
     if (!start) return null;
     const b = o.term.buffer.active;
@@ -139,10 +139,10 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
     return line;
   }
 
-  /** Hay algo mandado a la shell que todavía no se ve en la pantalla. */
+  /** Something was sent to the shell that isn't visible on screen yet. */
   function echoPending(): boolean {
     const t = now();
-    // Si la shell muestra otra cosa que la esperada (o no reacciona), no se espera para siempre.
+    // If the shell shows something other than expected (or doesn't react), don't wait forever.
     if (expected && t - expected.at > ECHO_WAIT_MS) expected = null;
     if (waitChange && t - waitChange.at > ECHO_WAIT_MS) waitChange = null;
     const line = currentLine();
@@ -196,7 +196,7 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
   }
 
   function doAccept(item: Suggestion) {
-    // Ya se mandó un Enter (o empezó un comando): nada de teclas para el programa que corre.
+    // An Enter was already sent (or a command started): no keys for the running program.
     if (!atPrompt) return close();
     const line = currentLine();
     if (line === null) return close();
@@ -216,7 +216,7 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
   function accept(item: Suggestion | undefined) {
     if (!item) return;
     if (!echoPending()) return doAccept(item);
-    // Hay teclas que la shell todavía no mostró: se inserta cuando llegue el eco (o a los 300 ms).
+    // There are keys the shell hasn't shown yet: insert when the echo arrives (or after 300 ms).
     cancelPending();
     pending = {
       item,
@@ -267,7 +267,7 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
       chainKey = data === "\t" || data === "\x12" || data === "\x13" || data.startsWith("\x1b");
       const typed = data === "\x7f" || data === "\b" || !/[\x00-\x1f]/.test(data);
       if (typed && !waitChange) {
-        // Lo que la shell va a mostrar: lo esperado hasta ahora (o la pantalla) más esta tecla.
+        // What the shell is going to show: what was expected so far (or the screen) plus this key.
         const base = expected?.line ?? currentLine();
         if (base !== null) {
           const line = data === "\x7f" || data === "\b" ? base.slice(0, -1) : base + data;
@@ -295,8 +295,8 @@ export function createSuggest(o: SuggestOptions): SuggestCtl {
         return;
       }
       if (!atPrompt) return;
-      // No alcanza con "se tipeó algo": xterm puede avisar de una salida anterior antes del eco de la
-      // tecla, y si ahí se consumiera el aviso, el eco ya no recalcularía. Se compara la línea.
+      // "Something was typed" isn't enough: xterm can report an earlier output before the key's
+      // echo, and if the notice were consumed then, the echo would no longer recompute. The line is compared.
       if (wantOpen || currentLine() !== lastLine) void recompute();
     },
     key(e) {

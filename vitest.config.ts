@@ -1,5 +1,5 @@
 import { defineConfig, mergeConfig } from "vitest/config";
 import viteConfig from "./vite.config";
 
-// Los tests actuales son lógica pura: no hace falta un DOM simulado.
+// The current tests are pure logic: no simulated DOM is needed.
 export default mergeConfig(viteConfig, defineConfig({ test: { environment: "node" } }));

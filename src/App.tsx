@@ -9,7 +9,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { newWindow } from "./terminal/pty";
 import { setLang, t } from "./i18n";
 
-// La ventana de configuración se carga solo cuando se abre.
+// The settings window is loaded only when it's opened.
 const SettingsView = lazy(() => import("./settings/SettingsView"));
 
 const IS_SETTINGS = getCurrentWindow().label === "settings";
@@ -17,12 +17,12 @@ const IS_SETTINGS = getCurrentWindow().label === "settings";
 function Themed(props: { store: SettingsStore }) {
   const { theme } = useAppearance(props.store.settings, !IS_SETTINGS);
   const [info] = createResource(async () => {
-    // Si la vista se recargó, no dejar shells huérfanas de la carga anterior de esta ventana.
+    // If the view was reloaded, don't leave orphaned shells from this window's previous load.
     if (!IS_SETTINGS) await killOwned();
     return termInfo();
   });
-  // Estado guardado de esta ventana: la principal recupera la sesión anterior (y reabre las
-  // demás ventanas); las otras reciben el suyo al abrirse.
+  // Saved state of this window: the main one recovers the previous session (and reopens the
+  // other windows); the others receive theirs when they open.
   const [initial] = createResource(async () => {
     if (IS_SETTINGS) return null;
     try {
@@ -36,8 +36,8 @@ function Themed(props: { store: SettingsStore }) {
     }
   });
   const look = createMemo(() => termLook(props.store.settings(), theme()));
-  // El backend necesita saber si la API de control y el guardián están prendidos (y las recetas
-  // de Docker, para que un agente pueda iniciarlas por nombre).
+  // The backend needs to know whether the control API and the Guardian are on (and the Docker recipes,
+  // so an agent can launch them by name).
   createEffect(() => {
     const s = props.store.settings();
     void invoke("control_config", {
@@ -48,14 +48,14 @@ function Themed(props: { store: SettingsStore }) {
       presets: s.docker.presets,
     }).catch(() => {});
   });
-  // Consumo en vivo (como el System dashboard): qué consultar y cada cuánto. La primera vez el
-  // backend consulta enseguida.
+  // Live usage (like the System dashboard): what to query and how often. The first time the
+  // backend queries right away.
   createEffect(() => {
     const u = props.store.settings().usage;
     void invoke("usage_config", { claude: u.claude, codex: u.codex, agy: u.agy, everyMin: u.liveEveryMin }).catch(() => {});
   });
-  // Idioma: el de la configuración (también cuando lo cambia otra ventana). El backend lo usa para
-  // sus mensajes y se lo pasa a las pestañas nuevas (ALPHATERM_LANG) para los scripts de agentes.
+  // Language: the one from settings (also when another window changes it). The backend uses it for
+  // its messages and passes it to new tabs (ALPHATERM_LANG) for the agent scripts.
   createEffect(() => {
     const l = props.store.settings().language;
     setLang(l);

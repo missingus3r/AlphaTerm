@@ -1,8 +1,8 @@
-//! Último estado de las ventanas (pestañas, paneles, carpetas, colores, título) para restaurarlo
-//! al volver a abrir AlphaTerm. Se guarda en `%APPDATA%\AlphaTerm\session.json`.
+//! Last state of the windows (tabs, panes, folders, colors, title) to restore it
+//! when AlphaTerm is reopened. It is saved in `%APPDATA%\AlphaTerm\session.json`.
 //!
-//! Cerrar una ventana mientras quedan otras la saca de la sesión (se cerró a propósito); cerrar la
-//! última deja todo guardado para la próxima vez.
+//! Closing a window while others remain removes it from the session (it was closed on purpose);
+//! closing the last one leaves everything saved for next time.
 
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -12,9 +12,9 @@ use tauri::Webview;
 
 #[derive(Default)]
 pub struct SessionState {
-    /// Ventanas abiertas ahora: etiqueta → estado (en orden de apertura).
+    /// Windows open now: label → state (in opening order).
     current: Mutex<Vec<(String, Value)>>,
-    /// Estados esperando a que su ventana termine de abrir (al restaurar).
+    /// States waiting for their window to finish opening (when restoring).
     pending: Mutex<HashMap<String, Value>>,
 }
 
@@ -29,7 +29,7 @@ impl SessionState {
         let _ = crate::settings::save_to(&file(), &json!({ "version": 1, "windows": windows }));
     }
 
-    /// Se cerró una ventana. `last`: era la última ventana de terminal.
+    /// A window was closed. `last`: it was the last terminal window.
     pub fn window_closed(&self, label: &str, last: bool) {
         if last {
             return;
@@ -43,7 +43,7 @@ impl SessionState {
     }
 }
 
-/// Guarda el estado de esta ventana (el frontend lo manda con un pequeño retraso tras cada cambio).
+/// Saves this window's state (the frontend sends it with a short delay after each change).
 #[tauri::command]
 pub fn session_put(webview: Webview, state: tauri::State<SessionState>, value: Value) {
     let label = webview.label().to_string();
@@ -57,8 +57,8 @@ pub fn session_put(webview: Webview, state: tauri::State<SessionState>, value: V
     state.write();
 }
 
-/// Ventanas guardadas la última vez (la primera es la de la ventana principal).
-/// Solo devuelve algo la primera vez que se pide (al arrancar).
+/// Windows saved last time (the first one is the main window's).
+/// Only returns something the first time it's requested (at startup).
 #[tauri::command]
 pub fn session_restore(state: tauri::State<SessionState>) -> Vec<Value> {
     static TAKEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -70,7 +70,7 @@ pub fn session_restore(state: tauri::State<SessionState>) -> Vec<Value> {
     loaded.value.and_then(|v| v.get("windows").and_then(Value::as_array).cloned()).unwrap_or_default()
 }
 
-/// Estado guardado para esta ventana (si se abrió para restaurar una sesión).
+/// Saved state for this window (if it was opened to restore a session).
 #[tauri::command]
 pub fn session_claim(webview: Webview, state: tauri::State<SessionState>) -> Option<Value> {
     state.pending.lock().unwrap().remove(webview.label())
@@ -85,7 +85,7 @@ mod tests {
         let s = SessionState::default();
         s.current.lock().unwrap().push(("main".into(), json!({"a": 1})));
         s.current.lock().unwrap().push(("win-1".into(), json!({"b": 2})));
-        // No se escribe a disco en el test: solo se mira el estado en memoria.
+        // The test doesn't write to disk: it only looks at the in-memory state.
         s.current.lock().unwrap().retain(|(l, _)| l != "win-1");
         assert_eq!(s.current.lock().unwrap().len(), 1);
         s.set_pending("win-2", json!({"c": 3}));

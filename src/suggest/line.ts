@@ -1,6 +1,6 @@
 /**
- * La línea que se está escribiendo en el prompt: se lee de la pantalla (desde donde terminó el
- * prompt, marca OSC 133;B, hasta el cursor) y se separa en palabras respetando comillas.
+ * The line being typed at the prompt: read from the screen (from where the
+ * prompt ended, OSC 133;B mark, to the cursor) and split into words respecting quotes.
  */
 import type { Shell } from "./types";
 
@@ -16,7 +16,7 @@ export interface Pos {
   x: number;
 }
 
-/** Texto entre `start` (fin del prompt) y `cur` (cursor), o null si no es una sola línea lógica. */
+/** Text between `start` (end of prompt) and `cur` (cursor), or null if it isn't a single logical line. */
 export function readInput(buf: BufLike, start: Pos, cur: Pos, cols: number): string | null {
   if (cur.line < start.line || (cur.line === start.line && cur.x < start.x)) return null;
   let out = "";
@@ -32,28 +32,28 @@ export function readInput(buf: BufLike, start: Pos, cur: Pos, cols: number): str
 }
 
 export interface Word {
-  /** Tal como está escrita (con comillas). */
+  /** As written (with quotes). */
   raw: string;
-  /** Sin comillas. */
+  /** Without quotes. */
   value: string;
-  /** Índice en la línea donde empieza `raw`. */
+  /** Index in the line where `raw` starts. */
   start: number;
-  /** Comilla con la que empieza, si empieza con una. */
+  /** Quote it starts with, if it starts with one. */
   quote: '"' | "'" | null;
-  /** Si empezaba con comilla, si se cerró. */
+  /** If it started with a quote, whether it was closed. */
   closed: boolean;
 }
 
 export interface Parsed {
-  /** Palabras no vacías (incluye la actual si no está vacía). */
+  /** Non-empty words (includes the current one if it isn't empty). */
   words: Word[];
-  /** La palabra que toca el cursor (vacía si la línea termina en espacio). */
+  /** The word at the cursor (empty if the line ends in a space). */
   current: Word;
-  /** Índice de `current` en `words` (o `words.length` si está vacía). */
+  /** Index of `current` in `words` (or `words.length` if empty). */
   index: number;
 }
 
-/** En cmd solo `"` es comilla; en PowerShell también `'`. */
+/** In cmd only `"` is a quote; in PowerShell `'` too. */
 export function parseLine(line: string, shell: Shell): Parsed {
   const quotes = shell === "cmd" ? ['"'] : ['"', "'"];
   const words: Word[] = [];

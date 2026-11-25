@@ -1,7 +1,7 @@
-//! Pegar imágenes en la terminal: si el portapapeles trae una imagen y no texto (una captura con
-//! Win+Shift+S, por ejemplo), se guarda como PNG en `%TEMP%\AlphaTerm\pegadas` y se pega su ruta.
-//! Claude Code y Codex reconocen la ruta de una imagen pegada y la adjuntan; cualquier otro
-//! programa recibe la ruta. Las capturas quedan en la carpeta temporal (Windows la limpia).
+//! Pasting images into the terminal: if the clipboard has an image and not text (a screenshot with
+//! Win+Shift+S, for example), it is saved as a PNG in `%TEMP%\AlphaTerm\pegadas` and its path is pasted.
+//! Claude Code and Codex recognize the path of a pasted image and attach it; any other
+//! program receives the path. Screenshots stay in the temp folder (Windows cleans it up).
 
 use std::path::{Path, PathBuf};
 use tauri_plugin_clipboard_manager::ClipboardExt;
@@ -23,7 +23,7 @@ fn paste_dir() -> PathBuf {
     std::env::temp_dir().join("AlphaTerm").join("pegadas")
 }
 
-/// Guarda la imagen del portapapeles y devuelve la ruta (None si no hay imagen).
+/// Saves the clipboard image and returns the path (None if there is no image).
 #[tauri::command]
 pub fn clipboard_image_to_file(app: tauri::AppHandle) -> Result<Option<String>, String> {
     let Ok(img) = app.clipboard().read_image() else { return Ok(None) };
@@ -48,7 +48,7 @@ mod tests {
         let d = std::env::temp_dir().join(format!("alphaterm-clip-{}", std::process::id()));
         std::fs::create_dir_all(&d).unwrap();
         let p = d.join("x.png");
-        // 2×1: un píxel rojo y uno verde.
+        // 2×1: one red pixel and one green.
         write_png(&p, 2, 1, &[255, 0, 0, 255, 0, 255, 0, 255]).unwrap();
         let b = std::fs::read(&p).unwrap();
         assert_eq!(&b[..8], b"\x89PNG\r\n\x1a\n");

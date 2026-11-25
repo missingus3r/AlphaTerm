@@ -1,21 +1,21 @@
 #!/usr/bin/env node
-// AlphaTerm: servidor MCP (stdio) y CLI para la API de control. Sin dependencias.
+// AlphaTerm: MCP server (stdio) and CLI for the control API. No dependencies.
 //
-//   Como MCP:  node alphaterm-mcp.mjs            (Claude Code, Codex, etc. lo lanzan solos)
-//   Como CLI:  node alphaterm-mcp.mjs list
+//   As MCP:  node alphaterm-mcp.mjs            (Claude Code, Codex, etc. launch it on their own)
+//   As CLI:  node alphaterm-mcp.mjs list
 //              node alphaterm-mcp.mjs run <pane> "npm test"
-//              node alphaterm-mcp.mjs call <método> '{"json": "params"}'
+//            node alphaterm-mcp.mjs call <method> '{"json": "params"}'
 //
-// Usa ALPHATERM_CONTROL_URL / ALPHATERM_CONTROL_TOKEN (las tienen las pestañas de AlphaTerm) o,
-// si no están, %APPDATA%\AlphaTerm\control.json.
+// Uses ALPHATERM_CONTROL_URL / ALPHATERM_CONTROL_TOKEN (AlphaTerm's tabs have them) or,
+// if they are missing, %APPDATA%\AlphaTerm\control.json.
 //
-// Idioma de las descripciones y los mensajes (es, en, pt): ALPHATERM_LANG (también lo tienen las
-// pestañas) o, si no está, la clave `language` de settings.json, en la misma carpeta que
-// control.json; si no, español. Los errores que manda AlphaTerm ya vienen en su idioma.
+// Language of the descriptions and messages (es, en, pt): ALPHATERM_LANG (the tabs have it
+// too) or, if it is missing, the `language` key of settings.json, in the same folder as
+// control.json; otherwise, Spanish. The errors AlphaTerm sends already come in its language.
 import fs from "node:fs";
 import path from "node:path";
 
-/** Carpeta de AlphaTerm: la de control.json y settings.json. */
+/** AlphaTerm folder: the one with control.json and settings.json. */
 const DIR = path.join(process.env.APPDATA || "", "AlphaTerm");
 
 function detectLang() {
@@ -29,7 +29,7 @@ function detectLang() {
   }
 }
 const LANG = detectLang();
-/** El texto en el idioma elegido: tr(español, inglés, portugués). */
+/** The text in the chosen language: tr(Spanish, English, Portuguese). */
 const tr = (es, en, pt) => (LANG === "en" ? en : LANG === "pt" ? pt : es);
 
 function conn() {
@@ -57,7 +57,7 @@ async function call(method, params = {}) {
   return data;
 }
 
-// Parámetros: tipo y descripción (el mismo nombre significa lo mismo en todas las herramientas).
+// Parameters: type and description (the same name means the same in all the tools).
 const P = {
   pane: ["string", tr("Id del panel (lo da alphaterm_list).", "Pane id (from alphaterm_list).", "Id do painel (vem de alphaterm_list).")],
   cwd: ["string", tr("Carpeta de trabajo.", "Working folder.", "Pasta de trabalho.")],
@@ -389,7 +389,7 @@ async function mcp() {
         continue;
       }
       const { id, method, params } = msg;
-      if (id === undefined) continue; // notificaciones
+      if (id === undefined) continue; // notifications
       try {
         if (method === "initialize") {
           send({ jsonrpc: "2.0", id, result: { protocolVersion: params?.protocolVersion ?? "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "alphaterm", version: "1.0.0" } } });
@@ -401,12 +401,12 @@ async function mcp() {
           try {
             const r = await call(t.method, params.arguments ?? {});
             const content = [{ type: "text", text: JSON.stringify(r, null, 2) }];
-            // Las capturas van también como imagen, para que el agente las vea sin abrir el archivo.
+            // Screenshots also go as an image, so the agent sees them without opening the file.
             if (t.method === "browser_screenshot" && r?.path) {
               try {
                 content.push({ type: "image", data: fs.readFileSync(r.path).toString("base64"), mimeType: "image/png" });
               } catch {
-                /* queda la ruta */
+                /* the path remains */
               }
             }
             send({ jsonrpc: "2.0", id, result: { content } });

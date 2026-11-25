@@ -1,9 +1,9 @@
-//! Shell integration: cómo se lanza cada perfil para que emita OSC 133 / 633 / 7.
-//! - PowerShell (5.1 y 7): el script va por `-EncodedCommand`, que no lo frena la política de
-//!   ejecución (en algunas PCs de trabajo los .ps1 están bloqueados).
-//! - Git Bash: `--init-file` con un script que primero carga lo que cargaría un shell de login.
-//! - cmd: solo la variable PROMPT (marca de prompt y carpeta; sin código de salida ni comando).
-//! - WSL y perfiles custom: sin integración.
+//! Shell integration: how each profile is launched so that it emits OSC 133 / 633 / 7.
+//! - PowerShell (5.1 and 7): the script goes through `-EncodedCommand`, which the execution policy
+//!   doesn't block (on some work PCs .ps1 files are blocked).
+//! - Git Bash: `--init-file` with a script that first loads what a login shell would load.
+//! - cmd: only the PROMPT variable (prompt and folder marks; no exit code or command).
+//! - WSL and custom profiles: no integration.
 
 use base64::Engine;
 use std::path::PathBuf;
@@ -11,8 +11,8 @@ use std::path::PathBuf;
 const PS_SCRIPT: &str = include_str!("../../shell/alphaterm.ps1");
 const BASH_SCRIPT: &str = include_str!("../../shell/alphaterm.bash");
 
-/// PROMPT de cmd: `$e` es ESC y las OSC terminan con ST (`ESC \`).
-/// 133;D sin código (cmd no lo expone), 9;9 con la carpeta, 133;A/B alrededor del prompt.
+/// cmd's PROMPT: `$e` is ESC and the OSCs end with ST (`ESC \`).
+/// 133;D without a code (cmd doesn't expose it), 9;9 with the folder, 133;A/B around the prompt.
 pub const CMD_PROMPT: &str = r"$e]133;D$e\$e]9;9;$P$e\$e]133;A$e\$P$G$e]133;B$e\";
 
 pub struct Launch {
@@ -20,15 +20,15 @@ pub struct Launch {
     pub env: Vec<(String, String)>,
 }
 
-/// Script de PowerShell codificado como espera `-EncodedCommand` (UTF-16LE en base64).
+/// PowerShell script encoded the way `-EncodedCommand` expects (UTF-16LE in base64).
 pub fn powershell_encoded() -> String {
     let script = PS_SCRIPT.replace("\r\n", "\n");
     let utf16: Vec<u8> = script.encode_utf16().flat_map(|u| u.to_le_bytes()).collect();
     base64::engine::general_purpose::STANDARD.encode(utf16)
 }
 
-/// Escribe el script de bash con finales LF (git puede haberlo convertido a CRLF) y devuelve
-/// la ruta con barras normales, que bash entiende.
+/// Writes the bash script with LF line endings (git may have converted it to CRLF) and returns
+/// the path with forward slashes, which bash understands.
 fn bash_init_file() -> std::io::Result<String> {
     let dir = std::env::temp_dir().join("AlphaTerm");
     std::fs::create_dir_all(&dir)?;
@@ -40,7 +40,7 @@ fn bash_init_file() -> std::io::Result<String> {
     Ok(path.to_string_lossy().replace('\\', "/"))
 }
 
-/// Argumentos y variables para lanzar el perfil con integración. Si algo falla, se lanza sin ella.
+/// Arguments and variables to launch the profile with integration. If something fails, it launches without it.
 pub fn launch_for(profile_id: &str, base_args: &[String]) -> Launch {
     let plain = || Launch { args: base_args.to_vec(), env: vec![] };
     match profile_id {
@@ -69,7 +69,7 @@ mod tests {
         let back = String::from_utf16(&u16s).unwrap();
         assert!(back.contains("133;A"));
         assert!(!back.contains('\r'));
-        // Cabe holgado en la línea de comandos de Windows (32.767 caracteres).
+        // Fits comfortably in the Windows command line (32,767 characters).
         assert!(powershell_encoded().len() < 20_000);
     }
 

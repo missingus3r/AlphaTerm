@@ -1,10 +1,10 @@
-//! Resumen de pestaña con un modelo (opcional): un endpoint compatible con OpenAI (Ollama, vLLM,
-//! LM Studio…). Recibe las últimas líneas de la terminal y devuelve un título de pocas palabras.
+//! Tab summary with a model (optional): an OpenAI-compatible endpoint (Ollama, vLLM,
+//! LM Studio…). It receives the last lines of the terminal and returns a title of a few words.
 
 use serde_json::{json, Value};
 use std::time::Duration;
 
-/// Instrucciones para el modelo, en el idioma de la interfaz (el título sale en ese idioma).
+/// Instructions for the model, in the interface language (the title comes out in that language).
 fn system_prompt() -> &'static str {
     crate::i18n::tr(
         "Resumís lo que pasa en una terminal en un título de pestaña de 2 a 6 palabras, en español. \
@@ -16,7 +16,7 @@ Só o título: sem aspas, sem ponto final, sem explicar. Se for um agente de IA 
     )
 }
 
-/// Limpia lo que devuelve el modelo: primera línea, sin comillas ni etiquetas de "pensamiento".
+/// Cleans up what the model returns: first line, no quotes or "thinking" tags.
 pub fn clean_title(raw: &str) -> Option<String> {
     let mut s = raw.to_string();
     while let (Some(a), Some(b)) = (s.find("<think>"), s.find("</think>")) {
@@ -31,7 +31,7 @@ pub fn clean_title(raw: &str) -> Option<String> {
         .trim_start_matches("Título:")
         .trim_start_matches("Title:")
         .trim();
-    // Comillas, asteriscos y punto final pueden venir en cualquier orden: se sacan hasta que no quede nada.
+    // Quotes, asterisks and a trailing period can come in any order: they are removed until nothing is left.
     let mut t = t.to_string();
     loop {
         let n = t.trim().trim_matches(|c| c == '"' || c == '\'' || c == '`' || c == '*' || c == '«' || c == '»' || c == '.').trim().to_string();

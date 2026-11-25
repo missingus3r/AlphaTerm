@@ -3,5 +3,5 @@ dist/
 src-tauri/target/
 src-tauri/gen/schemas/
 *.log
-# Se genera al compilar (scripts/changelog.mjs)
+# Generated at build time (scripts/changelog.mjs)
 src/generated/

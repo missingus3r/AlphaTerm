@@ -4,7 +4,7 @@ import { COMMANDS } from "../layout/shortcuts";
 
 export type PanelId = "agents" | "servers" | "projects" | "git" | "history" | "docker" | "changes";
 
-/** Íconos de 18 px dibujados con trazos (heredan el color del texto). */
+/** 18 px icons drawn with strokes (they inherit the text color). */
 const svg = (d: JSX.Element) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
     {d}
@@ -96,8 +96,8 @@ export const PANELS: { id: PanelId; label: string; command: string; icon: () => 
 ];
 
 export function ActivityBar(props: { isOpen: (p: PanelId) => boolean; onToggle: (p: PanelId) => void; help: [string, string][] }) {
-  // El atajo se busca por el id del comando del panel: su etiqueta (en español o ya traducida, según
-  // cómo arme la ayuda `shortcutHelp`) es la que figura en `help`.
+  // The shortcut is looked up by the panel's command id: its label (in Spanish or already translated, depending on
+  // how `shortcutHelp` builds the help) is the one listed in `help`.
   const keyOf = (command: string) => {
     const label = COMMANDS.find((c) => c.id === command)?.label;
     return label ? props.help.find(([, l]) => l === label || l === t(label))?.[0] : undefined;

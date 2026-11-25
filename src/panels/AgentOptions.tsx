@@ -5,7 +5,7 @@ import { envToText, parseEnvText } from "./agentState";
 import { agentKind, blockedBy, buildCommand, optionsFor, type LaunchOpt, type LaunchValue, type ShellKind } from "./agentLaunch";
 import { t } from "../i18n";
 
-/** Lo que el backend lee de cada agente (`agent_models`). */
+/** What the backend reads from each agent (`agent_models`). */
 export interface ModelInfo {
   id: string;
   label: string;
@@ -13,14 +13,14 @@ export interface ModelInfo {
   defaultEffort: string | null;
 }
 
-// Una vez por sesión de la app: `agy models` tarda unos segundos.
+// Once per app session: `agy models` takes a few seconds.
 const cache = new Map<string, Promise<ModelInfo[]>>();
 const loadModels = (kind: string, command: string, fresh = false) => {
   const key = `${kind}\n${command}`;
   if (fresh) cache.delete(key);
   if (!cache.has(key)) {
     const p = invoke<ModelInfo[]>("agent_models", { kind, command });
-    p.catch(() => cache.delete(key)); // un error no queda guardado
+    p.catch(() => cache.delete(key)); // an error is not kept
     cache.set(key, p);
   }
   return cache.get(key)!;
@@ -31,7 +31,7 @@ let uid = 0;
 interface Props {
   agent: AgentDef;
   shell: ShellKind;
-  /** Cambia el agente en la configuración (se guarda solo). */
+  /** Changes the agent in the settings (saved automatically). */
   set: (f: (a: AgentDef) => void) => void;
   canLaunch: boolean;
   onLaunch: () => void;
@@ -40,8 +40,8 @@ interface Props {
 }
 
 /**
- * Opciones de arranque de un agente: modelo, esfuerzo, permisos, sesión y el resto de sus flags,
- * con la línea de comando que va a quedar. Lo elegido se guarda y se usa en cada "Lanzar".
+ * Launch options of an agent: model, effort, permissions, session and the rest of its flags,
+ * with the resulting command line. What is chosen is saved and used on every "Lanzar".
  */
 export function AgentOptions(props: Props) {
   const id = `ao${++uid}`;
@@ -68,7 +68,7 @@ export function AgentOptions(props: Props) {
   );
   const modelInfo = () => (models.state === "ready" ? models()?.find((m) => m.id === str("model")) : undefined);
 
-  /** Niveles del deslizador: los del modelo elegido si el agente los informa (Codex). */
+  /** Slider levels: those of the chosen model if the agent reports them (Codex). */
   const levelsOf = (o: Extract<LaunchOpt, { kind: "level" }>) => {
     const m = modelInfo();
     return m && m.efforts.length ? m.efforts : o.levels;

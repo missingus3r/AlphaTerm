@@ -1,12 +1,12 @@
-/** Versión de la compilación que corre (una sola consulta por ventana). */
+/** Version of the running build (a single query per window). */
 import { invoke } from "@tauri-apps/api/core";
 import { locale, t } from "../i18n";
 
 export interface AppInfo {
   version: string;
-  /** Commit corto; con "+" si había cambios sin commitear al compilar. */
+  /** Short commit; with "+" if there were uncommitted changes at build time. */
   commit: string;
-  /** Unix (segundos). */
+  /** Unix (seconds). */
   built: number;
   exe: string;
 }

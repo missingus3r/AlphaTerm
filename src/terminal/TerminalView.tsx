@@ -28,7 +28,7 @@ const windowLabel = getCurrentWindow().label;
 
 export type Renderer = "webgl" | "dom";
 
-/** Lo que la terminal le cuenta al contenedor (se aplica como parche). */
+/** What the terminal reports to the container (applied as a patch). */
 export interface TermPatch {
   sessionId?: number;
   pid?: number | null;
@@ -40,51 +40,51 @@ export interface TermPatch {
   exitCode?: number | null;
   agentTitle?: string | undefined;
   exited?: boolean;
-  /** Hubo salida en los últimos segundos (para saber si un agente trabaja o espera). */
+  /** There was output in the last few seconds (to tell whether an agent is working or waiting). */
   active?: boolean;
-  /** Sonó la campana (BEL) y nadie escribió desde entonces. */
+  /** The bell (BEL) rang and nobody has typed since. */
   bell?: boolean;
-  /** Cuántos comandos terminaron en este panel (para esperar a uno). */
+  /** How many commands finished in this pane (to wait for one). */
   ended?: number;
 }
 
 const QUIET_MS = 2500;
 
-/** Acciones que la vista sabe hacer sobre su terminal (las pide el contenedor). */
+/** Actions the view can perform on its terminal (requested by the container). */
 export interface TermHandle {
   jumpPrompt(delta: 1 | -1): void;
   copyLastOutput(): Promise<boolean>;
   focus(): void;
-  /** Escribe texto en la shell como si se tipeara (con Enter al final si `enter`). */
+  /** Writes text to the shell as if typed (with Enter at the end if `enter`). */
   send(text: string, enter: boolean): boolean;
-  /** Pega texto como un pegado de verdad (con bracketed paste si el programa lo pidió). */
+  /** Pastes text like a real paste (with bracketed paste if the program asked for it). */
   paste(text: string): boolean;
-  /** Últimas `n` líneas del buffer (lo que se ve y el historial), como texto. */
+  /** Last `n` lines of the buffer (what is visible and the history), as text. */
   text(n: number): string;
-  /** Salida del último comando terminado (con integración), o null. */
+  /** Output of the last finished command (with integration), or null. */
   lastOutput(): { command?: string; output: string; exitCode?: number | null } | null;
 }
 
 interface Props {
-  /** Id del panel (va en ALPHATERM_PANE para la API de control). */
+  /** Pane id (goes in ALPHATERM_PANE for the control API). */
   paneId: string;
   profileId: string;
   cwd?: string;
-  /** Comando a correr cuando la shell esté lista (agentes). */
+  /** Command to run when the shell is ready (agents). */
   startup?: Startup;
-  /** Variables extra para la shell (ej. el PATH completo para agentes). */
+  /** Extra variables for the shell (e.g. the full PATH for agents). */
   env?: Record<string, string>;
   windowsBuild: number;
   look: TermLook;
-  /** Predicciones de comandos (cmd y PowerShell). */
+  /** Command suggestions (cmd and PowerShell). */
   suggest: SuggestSettings;
-  /** Atajo de la app para esta tecla (o null si va a la shell). */
+  /** App shortcut for this key (or null if it goes to the shell). */
   match: (e: KeyboardEvent) => Action | null;
   visible: boolean;
   focused: boolean;
   onFocus: () => void;
   onPatch: (p: TermPatch) => void;
-  /** El shell terminó. Devuelve true si el contenedor cierra el panel. */
+  /** The shell ended. Returns true if the container closes the pane. */
   onExit: (code: number | null) => boolean;
   onAction: (a: Action) => void;
   ref?: (h: TermHandle) => void;
@@ -100,11 +100,11 @@ interface Block {
 
 export function TerminalView(props: Props) {
   let host!: HTMLDivElement;
-  // Botones para saltar al principio o al final cuando la salida es larga.
+  // Buttons to jump to the start or the end when the output is long.
   const [canTop, setCanTop] = createSignal(false);
   const [canBottom, setCanBottom] = createSignal(false);
   let scrollTo: ((where: "top" | "bottom") => void) | undefined;
-  // Menú de sugerencias: el controlador nace con la terminal (onMount).
+  // Suggestion menu: the controller is born with the terminal (onMount).
   const [suggestCtl, setSuggestCtl] = createSignal<SuggestCtl | null>(null);
   let measure: (() => Geom) | undefined;
   let focusTerm: (() => void) | undefined;
@@ -132,12 +132,12 @@ export function TerminalView(props: Props) {
     term.loadAddon(new Unicode11Addon());
     term.unicode.activeVersion = "11";
     term.open(host);
-    // Rutas en la salida: links que abren la carpeta o el archivo, con vista previa al pasar el mouse.
+    // Paths in the output: links that open the folder or the file, with a preview on mouse hover.
     let cwdNow = props.cwd;
     const pathLinks = registerPathLinks(term, () => cwdNow);
 
-    // Predicciones: todo lo que va a la shell pasa por `toShell` (así el controlador ve cada Enter).
-    /** Última línea tipeada en cmd (el título de cmd trae el mismo comando con un espacio de más). */
+    // Command suggestions: everything going to the shell passes through `toShell` (so the controller sees every Enter).
+    /** Last line typed in cmd (cmd's title carries the same command with an extra space). */
     let typedCmd: string | undefined;
     const suggest = createSuggest({
       term,
@@ -145,7 +145,7 @@ export function TerminalView(props: Props) {
       write: (s) => session?.write(s),
       cwd: () => cwdNow,
       settings: () => props.suggest,
-      // cmd no avisa qué comando corre: se toma la línea al Enter (el 133;D del próximo prompt lo cierra).
+      // cmd doesn't report which command is running: the line is taken on Enter (the next prompt's 133;D closes it).
       patchCmdCommand: (line) => {
         typedCmd = line;
         running = true;
@@ -153,7 +153,7 @@ export function TerminalView(props: Props) {
       },
     });
     setSuggestCtl(suggest);
-    // Solo en desarrollo: para probar por CDP (xterm con WebGL no deja el texto en el DOM).
+    // Development only: to test through CDP (xterm with WebGL doesn't leave the text in the DOM).
     if (import.meta.env.DEV) {
       const w = window as unknown as { __alphaterm?: Record<string, unknown> };
       (w.__alphaterm ??= {})[props.paneId] = { term, suggest };
@@ -175,8 +175,8 @@ export function TerminalView(props: Props) {
       if (!disposed) props.onPatch(p);
     };
 
-    // WebGL solo mientras el panel se ve: los navegadores limitan los contextos WebGL (~16),
-    // y una pestaña oculta no necesita pintar (xterm igual sigue cargando su buffer).
+    // WebGL only while the pane is visible: browsers limit WebGL contexts (~16),
+    // and a hidden tab doesn't need to paint (xterm still keeps loading its buffer).
     let gl: WebglAddon | null = null;
     const attachGl = () => {
       if (gl) return;
@@ -230,7 +230,7 @@ export function TerminalView(props: Props) {
         const m = parse133(data);
         if (!m) return false;
         if (m.type === "promptStart") {
-          // El primer prompt con OSC 133 ya prueba que la shell tiene integración.
+          // The first prompt with OSC 133 already proves the shell has integration.
           if (!integrated) {
             integrated = true;
             patch({ integrated: true });
@@ -289,7 +289,7 @@ export function TerminalView(props: Props) {
       }),
     );
 
-    // Título OSC: vale como resumen si lo puso un programa (no el prompt del shell).
+    // OSC title: counts as a summary if a program set it (not the shell prompt).
     term.onTitleChange((title) => {
       const cmdLine = cmdRunningCommand(title);
       if (cmdLine) {
@@ -324,9 +324,9 @@ export function TerminalView(props: Props) {
       return true;
     };
 
-    // --- Comando inicial (agentes) ------------------------------------------------------------
-    // Se escribe en la shell cuando aparece el primer prompt (integración) o, si la shell no
-    // tiene integración, a los 2,5 s. Así el agente corre dentro de la shell: al salir, queda ahí.
+    // --- Initial command (agents) ------------------------------------------------------------
+    // It is written to the shell when the first prompt appears (integration) or, if the shell has no
+    // integration, after 2.5 s. This way the agent runs inside the shell: on exit, it stays there.
     let startupPending = !!props.startup?.command;
     let startupTimer: ReturnType<typeof setTimeout> | undefined;
     const runStartup = () => {
@@ -334,11 +334,11 @@ export function TerminalView(props: Props) {
       startupPending = false;
       clearTimeout(startupTimer);
       const s = session;
-      const ENTER = String.fromCharCode(13); // lo que manda la tecla Enter
+      const ENTER = String.fromCharCode(13); // what the Enter key sends
       setTimeout(() => toShell(s, props.startup!.command + ENTER), 60);
     };
 
-    // --- Actividad y campana ------------------------------------------------------------------
+    // --- Activity and bell --------------------------------------------------------------------
     let lastData = 0;
     let active = false;
     let bell = false;
@@ -355,7 +355,7 @@ export function TerminalView(props: Props) {
       }
     });
 
-    // --- Sesión ----------------------------------------------------------------------------
+    // --- Session --------------------------------------------------------------------------
     let session: PtySession | null = null;
     let ack: AckBatcher | null = null;
     let exited = false;
@@ -371,7 +371,7 @@ export function TerminalView(props: Props) {
           env: { ...props.env, ...props.startup?.env, ALPHATERM_PANE: props.paneId, ALPHATERM_WINDOW: windowLabel, ALPHATERM_NONCE: suggest.nonce },
           cols: term.cols,
           rows: term.rows,
-          // El ack va cuando xterm terminó de procesar el trozo: eso es lo que frena al backend.
+          // The ack goes when xterm finishes processing the chunk: that is what throttles the backend.
           onData: (bytes) => {
             if (disposed) return;
             term.write(bytes, () => batch.add(bytes.byteLength));
@@ -403,7 +403,7 @@ export function TerminalView(props: Props) {
         return;
       }
       session = current_session;
-      // Si el panel se ajustó mientras la sesión arrancaba, ese resize se perdió: se manda ahora.
+      // If the pane was resized while the session was starting, that resize was lost: it is sent now.
       if (current_session.spawnedCols !== term.cols || current_session.spawnedRows !== term.rows) {
         void current_session.resize(term.cols, term.rows);
       }
@@ -422,7 +422,7 @@ export function TerminalView(props: Props) {
     });
     term.onResize(({ cols, rows }) => void session?.resize(cols, rows));
 
-    // Saltos: se muestran si hay más de 3 pantallas de salida y no se está ya en ese extremo.
+    // Jumps: shown if there are more than 3 screens of output and we aren't already at that end.
     let jumpRaf = 0;
     const updateJumps = () => {
       cancelAnimationFrame(jumpRaf);
@@ -448,7 +448,7 @@ export function TerminalView(props: Props) {
       if (sel) void writeText(sel);
       term.clearSelection();
     };
-    // Texto, o una imagen: se guarda como PNG y se pega su ruta (Claude Code y Codex la adjuntan).
+    // Text, or an image: saved as PNG and its path is pasted (Claude Code and Codex attach it).
     const paste = async () => {
       const text = await readText().catch(() => "");
       if (text) return term.paste(text);
@@ -456,7 +456,7 @@ export function TerminalView(props: Props) {
       if (img) term.paste(/\s/.test(img) ? `"${img}"` : img);
     };
     term.attachCustomKeyEventHandler((e) => {
-      // El menú de sugerencias va primero: solo toma teclas con el menú abierto (o Ctrl+Espacio).
+      // The suggestion menu goes first: it only takes keys with the menu open (or Ctrl+Space).
       if (suggest.key(e)) {
         e.preventDefault();
         return false;
@@ -522,8 +522,8 @@ export function TerminalView(props: Props) {
       if (props.visible && props.focused) term.focus();
     });
 
-    // --- Configuración en vivo ---------------------------------------------------------------
-    // El addon trae un lector de fuentes (~300 KB): se carga solo si se activan las ligaduras.
+    // --- Live settings -----------------------------------------------------------------------
+    // The addon brings a font reader (~300 KB): it is loaded only if ligatures are enabled.
     let ligatures: LigaturesAddon | null = null;
     let wantLigatures = false;
     const setLigatures = (on: boolean) => {
@@ -548,7 +548,7 @@ export function TerminalView(props: Props) {
         () => props.look,
         (look) => {
           const key = JSON.stringify(look);
-          if (key === lastLook) return; // cambió otra parte de la configuración
+          if (key === lastLook) return; // another part of the settings changed
           const before = JSON.parse(lastLook) as TermLook;
           lastLook = key;
           term.options.fontFamily = look.fontFamily;
@@ -562,13 +562,13 @@ export function TerminalView(props: Props) {
           term.options.theme = look.theme;
           if (before.transparent !== look.transparent) {
             term.options.allowTransparency = look.transparent;
-            // WebGL arma su textura según la transparencia: se vuelve a crear.
+            // WebGL builds its texture according to transparency: it is recreated.
             if (gl) {
               detachGl();
               attachGl();
             }
           }
-          // El addon de ligaduras lee la fuente al activarse: si cambió la fuente, se reinicia.
+          // The ligatures addon reads the font when activated: if the font changed, it is restarted.
           if (before.fontFamily !== look.fontFamily && ligatures) setLigatures(false);
           setLigatures(look.ligatures);
           requestAnimationFrame(() => {
@@ -606,7 +606,7 @@ export function TerminalView(props: Props) {
         return true;
       },
       text: (n) => {
-        // Hasta la línea del cursor: debajo solo hay filas vacías de la pantalla.
+        // Up to the cursor line: below it there are only empty screen rows.
         const buf = term.buffer.active;
         const end = buf.baseY + buf.cursorY + 1;
         return bufferText(end - Math.max(1, Math.min(n, 5000)), end).replace(/\n+$/, "\n");

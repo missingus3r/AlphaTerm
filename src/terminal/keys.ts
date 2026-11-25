@@ -10,9 +10,9 @@ export interface KeyLike {
 }
 
 /**
- * Atajos de copiar/pegar, como Windows Terminal:
- * - Ctrl+Shift+C copia; Ctrl+Shift+V y Ctrl+V pegan.
- * - Ctrl+C copia solo si hay selección; si no, pasa a la shell (interrumpir).
+ * Copy/paste shortcuts, like Windows Terminal:
+ * - Ctrl+Shift+C copies; Ctrl+Shift+V and Ctrl+V paste.
+ * - Ctrl+C copies only if there is a selection; otherwise it goes to the shell (interrupt).
  */
 export function decideKey(e: KeyLike, hasSelection: boolean): KeyAction {
   if (e.type !== "keydown" || !e.ctrlKey || e.altKey || e.metaKey) return "pass";

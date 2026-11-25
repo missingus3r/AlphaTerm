@@ -1,4 +1,4 @@
-//! Perfiles de shell: qué ejecutable se lanza y si está instalado en esta máquina.
+//! Shell profiles: which executable is launched and whether it is installed on this machine.
 
 use serde::Serialize;
 use std::env;
@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 pub struct Profile {
     pub id: String,
     pub name: String,
-    /// Ruta absoluta si se encontró; si no, el nombre buscado.
+    /// Absolute path if found; otherwise, the name that was searched.
     pub command: String,
     pub args: Vec<String>,
     pub available: bool,
@@ -18,7 +18,7 @@ fn sys_root() -> PathBuf {
     PathBuf::from(env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into()))
 }
 
-/// Busca un ejecutable en el PATH (con extensión explícita, para no confundir shims).
+/// Looks for an executable in the PATH (with explicit extension, so shims aren't confused).
 pub fn find_in_path(exe: &str) -> Option<PathBuf> {
     let path = env::var_os("PATH")?;
     env::split_paths(&path).map(|d| d.join(exe)).find(|p| p.is_file())
@@ -28,8 +28,8 @@ fn first_existing(cands: impl IntoIterator<Item = PathBuf>) -> Option<PathBuf> {
     cands.into_iter().find(|p| p.is_file())
 }
 
-/// Git Bash: `bin\bash.exe` del Git for Windows (el de `usr\bin` no prepara el entorno de login,
-/// y `System32\bash.exe` es el de WSL).
+/// Git Bash: `bin\bash.exe` of Git for Windows (the one in `usr\bin` doesn't set up the login environment,
+/// and `System32\bash.exe` is WSL's).
 fn git_bash() -> Option<PathBuf> {
     let mut cands = vec![];
     for var in ["ProgramFiles", "ProgramW6432", "ProgramFiles(x86)", "LOCALAPPDATA"] {
@@ -39,7 +39,7 @@ fn git_bash() -> Option<PathBuf> {
             cands.push(base.join(r"Programs\Git\bin\bash.exe"));
         }
     }
-    // git.exe en el PATH suele estar en <Git>\cmd\git.exe.
+    // git.exe on the PATH is usually at <Git>\cmd\git.exe.
     if let Some(git) = find_in_path("git.exe") {
         if let Some(root) = git.parent().and_then(Path::parent) {
             cands.push(root.join(r"bin\bash.exe"));
@@ -74,7 +74,7 @@ pub fn detect() -> Vec<Profile> {
             &["-NoLogo"],
         ),
         make("pwsh", "PowerShell 7", pwsh, "pwsh.exe", &["-NoLogo"]),
-        // El nombre queda en español: el frontend lo traduce y lo reconoce en el historial (matchesShell).
+        // The name stays in Spanish: the frontend translates it and recognizes it in the history (matchesShell).
         make("cmd", "Símbolo del sistema", cmd.or_else(|| first_existing([sys32.join("cmd.exe")])), "cmd.exe", &[]),
         make("gitbash", "Git Bash", git_bash(), "bash.exe", &["--login", "-i"]),
         make("wsl", "WSL", first_existing([sys32.join("wsl.exe")]), "wsl.exe", &[]),
@@ -92,7 +92,7 @@ mod tests {
         let ps = detect();
         let ids: Vec<_> = ps.iter().map(|p| p.id.as_str()).collect();
         assert_eq!(ids, ["powershell", "pwsh", "cmd", "gitbash", "wsl"]);
-        // En cualquier Windows hay PowerShell 5.1 y cmd.
+        // Every Windows has PowerShell 5.1 and cmd.
         assert!(ps.iter().find(|p| p.id == "powershell").unwrap().available);
         assert!(ps.iter().find(|p| p.id == "cmd").unwrap().available);
         for p in ps.iter().filter(|p| p.available) {

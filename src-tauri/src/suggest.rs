@@ -1,6 +1,6 @@
-//! Datos para las predicciones de comandos (ver `src/suggest/`): carpetas y archivos, la puerta de
-//! enlace (para `ping`), los ejecutables del PATH, los scripts de npm y los procesos abiertos.
-//! Todo es lectura local y rápida; lo que se repite mucho al tipear (carpetas, PATH) va con caché.
+//! Data for command suggestions (see `src/suggest/`): folders and files, the gateway
+//! (for `ping`), the executables on PATH, npm scripts and open processes.
+//! Everything is fast local reading; what repeats a lot while typing (folders, PATH) is cached.
 
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
@@ -18,8 +18,8 @@ pub struct DirEntry {
     pub dir: bool,
 }
 
-/// La carpeta a listar para lo escrito (`dir` es la parte hasta la última barra, o vacío).
-/// `None` para rutas de red: pueden tardar segundos en contestar.
+/// The folder to list for what was typed (`dir` is the part up to the last slash, or empty).
+/// `None` for network paths: they can take seconds to respond.
 pub fn resolve_dir(cwd: &Path, dir: &str, home: &Path) -> Option<PathBuf> {
     if dir.starts_with("\\\\") || dir.starts_with("//") {
         return None;
@@ -37,7 +37,7 @@ pub fn resolve_dir(cwd: &Path, dir: &str, home: &Path) -> Option<PathBuf> {
     if b.len() == 2 && b[1] == b':' && b[0].is_ascii_alphabetic() {
         return Some(PathBuf::from(format!("{dir}\\")));
     }
-    // `join` reemplaza todo si `dir` ya es absoluta.
+    // `join` replaces everything if `dir` is already absolute.
     Some(cwd.join(dir))
 }
 
@@ -58,8 +58,8 @@ fn is_hidden(name: &str, meta: Option<&std::fs::Metadata>) -> bool {
     false
 }
 
-/// Contenido de una carpeta, en orden alfabético sin distinguir mayúsculas (hasta 500 entradas).
-/// Ocultas y de sistema (o que empiezan con `.`) solo con `hidden`.
+/// Contents of a folder, in case-insensitive alphabetical order (up to 500 entries).
+/// Hidden and system entries (or those starting with `.`) only with `hidden`.
 pub fn list_dir(path: &Path, dirs_only: bool, hidden: bool) -> Vec<DirEntry> {
     let Ok(rd) = std::fs::read_dir(path) else { return vec![] };
     let mut out: Vec<DirEntry> = rd
@@ -69,7 +69,7 @@ pub fn list_dir(path: &Path, dirs_only: bool, hidden: bool) -> Vec<DirEntry> {
             if !hidden && is_hidden(&name, e.metadata().ok().as_ref()) {
                 return None;
             }
-            // `is_dir` de la ruta sigue enlaces y junctions (las carpetas de OneDrive, por ejemplo).
+            // `is_dir` on the path follows links and junctions (OneDrive folders, for example).
             let dir = e.path().is_dir();
             (dir || !dirs_only).then_some(DirEntry { name, dir })
         })
@@ -79,7 +79,7 @@ pub fn list_dir(path: &Path, dirs_only: bool, hidden: bool) -> Vec<DirEntry> {
     out
 }
 
-/// Scripts del `package.json` de la carpeta, en el orden del archivo.
+/// Scripts from the folder's `package.json`, in file order.
 pub fn npm_scripts(dir: &Path) -> Vec<(String, String)> {
     let Ok(text) = std::fs::read_to_string(dir.join("package.json")) else { return vec![] };
     let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else { return vec![] };
@@ -89,7 +89,7 @@ pub fn npm_scripts(dir: &Path) -> Vec<(String, String)> {
         .unwrap_or_default()
 }
 
-/// Nombres (sin extensión, sin repetir) de los ejecutables del PATH según PATHEXT, más los `.ps1`.
+/// Names (without extension, without repeats) of the PATH executables according to PATHEXT, plus `.ps1`.
 pub fn path_commands(path_env: &str, pathext: &str) -> Vec<String> {
     let mut exts: HashSet<String> = pathext.split(';').filter(|e| !e.is_empty()).map(|e| e.to_lowercase()).collect();
     exts.insert(".ps1".into());
@@ -113,7 +113,7 @@ pub fn path_commands(path_env: &str, pathext: &str) -> Vec<String> {
     out
 }
 
-/// Siguiente salto de la ruta hacia Internet (el router de la casa), o `None`.
+/// Next hop of the route to the Internet (the home router), or `None`.
 #[cfg(windows)]
 pub fn gateway() -> Option<String> {
     use windows_sys::Win32::NetworkManagement::IpHelper::{GetBestRoute, MIB_IPFORWARDROW};
@@ -131,7 +131,7 @@ pub fn gateway() -> Option<String> {
     None
 }
 
-/// Nombres de los procesos abiertos (para `taskkill /IM`), sin repetir.
+/// Names of the open processes (for `taskkill /IM`), without repeats.
 pub fn processes() -> Vec<String> {
     use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
     let Ok(mut sys) = System::new() else { return vec![] };
@@ -147,7 +147,7 @@ pub fn processes() -> Vec<String> {
     out
 }
 
-// --- Comandos ---------------------------------------------------------------------------------
+// --- Commands ---
 
 type DirKey = (PathBuf, bool, bool);
 static DIR_CACHE: Mutex<Option<HashMap<DirKey, (Instant, Vec<DirEntry>)>>> = Mutex::new(None);
@@ -277,7 +277,7 @@ mod tests {
         assert_eq!(resolve_dir(cwd, r"D:\datos\", home), Some(PathBuf::from(r"D:\datos\")));
         assert_eq!(resolve_dir(cwd, "D:", home), Some(PathBuf::from(r"D:\")));
         assert_eq!(resolve_dir(cwd, "C:/Users/", home), Some(PathBuf::from("C:/Users/")));
-        // Rutas de red: nunca (pueden tardar segundos en contestar).
+        // Network paths: never (they can take seconds to respond).
         assert_eq!(resolve_dir(cwd, r"\\servidor\share\", home), None);
         assert_eq!(resolve_dir(cwd, "//servidor/share/", home), None);
     }

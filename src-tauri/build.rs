@@ -1,14 +1,14 @@
 use std::path::{Path, PathBuf};
 
-/// Copia la ConPTY de Microsoft al lado del ejecutable (y de los binarios de test en `deps\`),
-/// porque portable-pty solo la usa si la encuentra ahí.
+/// Copies Microsoft's ConPTY next to the executable (and to the test binaries in `deps\`),
+/// because portable-pty only uses it if it finds it there.
 fn copy_conpty() {
-    // En tiempo de ejecución (no env!): así sigue andando si se mueve o renombra la carpeta.
+    // At run time (not env!): so it keeps working if the folder is moved or renamed.
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let src = Path::new(&manifest).join("conpty");
     println!("cargo:rerun-if-changed=conpty");
     let out = PathBuf::from(std::env::var("OUT_DIR").unwrap());
-    // OUT_DIR = target\<perfil>\build\<crate>\out
+    // OUT_DIR = target\<profile>\build\<crate>\out
     let Some(profile_dir) = out.ancestors().nth(3) else { return };
     for dir in [profile_dir.to_path_buf(), profile_dir.join("deps")] {
         let _ = std::fs::create_dir_all(&dir);
@@ -25,8 +25,8 @@ fn copy_conpty() {
     }
 }
 
-/// Commit y fecha de compilación, para mostrar la versión en el footer ("0.2.0 · 60d56fe+").
-/// El "+" marca que había cambios sin commitear al compilar.
+/// Commit and build date, to show the version in the footer ("0.2.0 · 60d56fe+").
+/// The "+" marks that there were uncommitted changes at build time.
 fn build_info() {
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let repo = Path::new(&manifest).parent().unwrap().to_path_buf();
@@ -45,9 +45,9 @@ fn build_info() {
 fn main() {
     copy_conpty();
     build_info();
-    // El manifiesto de Windows (controles comunes v6) lo incrusta el linker y no el recurso de
-    // tauri-build: así también lo tienen los binarios de test. Sin él no arrancan
-    // (STATUS_ENTRYPOINT_NOT_FOUND: TaskDialogIndirect solo existe en los controles v6).
+    // The Windows manifest (common controls v6) is embedded by the linker and not by the tauri-build
+    // resource: that way the test binaries have it too. Without it they don't start
+    // (STATUS_ENTRYPOINT_NOT_FOUND: TaskDialogIndirect only exists in controls v6).
     let manifest = Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("windows-app-manifest.xml");
     println!("cargo:rerun-if-changed=windows-app-manifest.xml");
     let mut attrs = tauri_build::Attributes::new();

@@ -1,8 +1,8 @@
 import { createEffect, createSignal, onCleanup, onMount } from "solid-js";
 
 /**
- * Texto que se desplaza si no entra. Se pausa con el mouse encima y respeta
- * prefers-reduced-motion (ahí queda con puntos suspensivos). El tooltip muestra el texto entero.
+ * Text that scrolls if it doesn't fit. It pauses with the mouse over it and respects
+ * prefers-reduced-motion (then it stays with an ellipsis). The tooltip shows the whole text.
  */
 export function Marquee(props: { text: string; class?: string; style?: Record<string, string> }) {
   let outer!: HTMLSpanElement;
@@ -32,7 +32,7 @@ export function Marquee(props: { text: string; class?: string; style?: Record<st
         class="marquee-inner"
         style={{
           "--shift": `${shift()}px`,
-          // ~35 px por segundo, con pausas en los extremos (ver keyframes).
+          // ~35 px per second, with pauses at the ends (see keyframes).
           "--dur": `${Math.max(4, shift() / 35 + 3)}s`,
         }}
       >

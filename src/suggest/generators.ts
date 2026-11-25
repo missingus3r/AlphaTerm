@@ -1,6 +1,6 @@
 /**
- * Fuentes reales de las predicciones (el motor recibe `Sources` para poder probarlo sin backend):
- * carpetas, historial, PATH y los generadores del catálogo (hosts, ramas, scripts de npm…).
+ * Real sources of the suggestions (the engine receives `Sources` so it can be tested without a backend):
+ * folders, history, PATH and the catalog generators (hosts, branches, npm scripts…).
  */
 import { invoke } from "@tauri-apps/api/core";
 import { k } from "../i18n";
@@ -10,7 +10,7 @@ import type { HistEntry, Sources } from "./engine";
 const HISTORY_TTL = 3000;
 const SLOW_MS = 1500;
 
-/** Lo que tarde más que `ms` (Docker apagado, git colgado) no frena el menú. */
+/** Whatever takes longer than `ms` (Docker off, git hung) doesn't hold up the menu. */
 const quick = <T>(p: Promise<T>, fallback: T, ms = SLOW_MS) =>
   Promise.race([p.catch(() => fallback), new Promise<T>((r) => setTimeout(() => r(fallback), ms))]);
 
@@ -93,8 +93,8 @@ async function gen(name: GenName, cwd: string): Promise<Value[]> {
   }
 }
 
-// Cada generador lanza procesos (git, docker) o recorre todos los procesos: se reusa el pedido en curso
-// y se guarda unos segundos, si no se lanzaría uno por tecla (y con Docker colgado se apilarían).
+// Each generator launches processes (git, docker) or walks all processes: the request in flight is reused
+// and kept for a few seconds, otherwise one would be launched per key (and with Docker hung they'd pile up).
 const GEN_TTL = 4000;
 const genCache = new Map<string, { at: number; values: Promise<Value[]> }>();
 function cachedGen(name: GenName, cwd: string): Promise<Value[]> {
@@ -106,7 +106,7 @@ function cachedGen(name: GenName, cwd: string): Promise<Value[]> {
   return values;
 }
 
-/** `cwd` se lee en cada pedido (la carpeta cambia con cada `cd`). */
+/** `cwd` is read on every request (the folder changes with each `cd`). */
 export function liveSources(cwd: () => string): Sources {
   return {
     listDir: (dir, dirsOnly, hidden) =>

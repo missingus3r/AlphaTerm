@@ -1,12 +1,12 @@
-// Capa de marcado del navegador de AlphaTerm (se inyecta en cada página que abre el panel).
-// - Modo edición: al pasar el mouse se resalta el elemento; al hacer clic se marca (número).
-//   Alt+clic marca el elemento padre. Esc sale del modo edición.
-// - Cada marca lleva lo que el agente necesita para encontrar el código: etiqueta, clases, texto,
-//   selector, HTML, estilos, posición y, si la app lo expone, el componente y su archivo.
-// - Le avisa a AlphaTerm por la función `__alphaterm` (la agrega AlphaTerm por DevTools).
+// AlphaTerm browser marking layer (injected into every page the panel opens).
+// - Edit mode: hovering highlights the element; clicking marks it (number).
+//   Alt+click marks the parent element. Esc leaves edit mode.
+// - Each mark carries what the agent needs to find the code: tag, classes, text,
+//   selector, HTML, styles, position and, if the app exposes it, the component and its file.
+// - It notifies AlphaTerm through the `__alphaterm` function (AlphaTerm adds it via DevTools).
 (() => {
   if (window.top !== window || window.__alphaOverlay) return;
-  // Idioma de los textos (lo antepone AlphaTerm al crear el navegador: es, en o pt).
+  // Language of the texts (AlphaTerm prepends it when creating the browser: es, en or pt).
   const LANG = ["es", "en", "pt"].includes(window.__ALPHATERM_LANG__) ? window.__ALPHATERM_LANG__ : "es";
   const tr = (es, en, pt) => (LANG === "en" ? en : LANG === "pt" ? pt : es);
   const ACCENT = "#8b5cf6";
@@ -15,7 +15,7 @@
     try {
       if (typeof window.__alphaterm === "function") window.__alphaterm(JSON.stringify(msg));
     } catch {
-      /* AlphaTerm no está escuchando */
+      /* AlphaTerm isn't listening */
     }
   };
 
@@ -51,7 +51,7 @@
     (document.documentElement || document).appendChild(host);
   }
 
-  // --- Datos de un elemento -------------------------------------------------------------------
+  // --- Element data ---
   const clip = (s, n) => (s.length > n ? s.slice(0, n) + "…" : s);
   const cssEsc = (s) => (window.CSS && CSS.escape ? CSS.escape(s) : s.replace(/[^\w-]/g, "\\$&"));
 
@@ -76,14 +76,14 @@
       try {
         if (document.querySelectorAll(sel).length === 1) return sel;
       } catch {
-        /* selector raro: seguir subiendo */
+        /* odd selector: keep going up */
       }
       cur = parent;
     }
     return parts.join(" > ");
   }
 
-  /** Archivo fuente desde una pila de React 19 (`_debugStack`): primer marco que no sea de React. */
+  /** Source file from a React 19 stack (`_debugStack`): first frame that isn't React's. */
   function fromStack(stack) {
     if (!stack) return null;
     for (const line of String(stack).split("\n")) {
@@ -95,14 +95,14 @@
       try {
         file = decodeURIComponent(new URL(url).pathname).replace(/^\/@fs\//, "").replace(/^\//, "");
       } catch {
-        /* queda la URL */
+        /* the URL remains */
       }
       return { file, line: Number(m[2]) };
     }
     return null;
   }
 
-  /** Componente de la app (React, Vue, Svelte, Angular) y, si se sabe, su archivo. */
+  /** App component (React, Vue, Svelte, Angular) and, if known, its file. */
   function componentOf(el) {
     try {
       const key = Object.keys(el).find((k) => k.startsWith("__reactFiber$") || k.startsWith("__reactInternalInstance$"));
@@ -161,7 +161,7 @@
         }
       }
     } catch {
-      /* sin datos del framework */
+      /* no framework data */
     }
     return null;
   }
@@ -207,7 +207,7 @@
     return s;
   };
 
-  // --- Dibujo ---------------------------------------------------------------------------------
+  // --- Drawing ---
   function place(box, r) {
     box.style.left = r.left + "px";
     box.style.top = r.top + "px";
@@ -246,12 +246,12 @@
     if (!chromeOn) return;
     marks.forEach((m, i) => {
       if (!m.el.isConnected) {
-        // Se re-renderizó (HMR): se busca de nuevo por selector.
+        // It re-rendered (HMR): look it up again by selector.
         try {
           const again = m.data.selector && document.querySelector(m.data.selector);
           if (again) m.el = again;
         } catch {
-          /* nada */
+          /* nothing */
         }
       }
       if (!m.el.isConnected) return;
@@ -291,7 +291,7 @@
     redraw();
   }
 
-  // --- Eventos (solo en modo edición) ---------------------------------------------------------
+  // --- Events (edit mode only) ---
   const ours = (e) => e.composedPath().includes(host);
   const targetOf = (e) => {
     const t = e.composedPath().find((n) => n instanceof Element && n !== host);
@@ -359,12 +359,12 @@
     return edit;
   }
 
-  // Seguir las marcas si la página cambia sola (animaciones, HMR).
+  // Follow the marks if the page changes on its own (animations, HMR).
   setInterval(() => {
     if (marks.length || edit) redraw();
   }, 400);
 
-  // --- Foto de la estructura para el agente ---------------------------------------------------
+  // --- Snapshot of the structure for the agent ---
   const INTERACTIVE = /^(a|button|input|select|textarea|summary|label|option)$/;
   function snapshot(max = 400) {
     const out = [];
@@ -414,7 +414,7 @@
     setEdit,
     isEdit: () => edit,
     marks: () => marks.map((m, i) => ({ n: i + 1, ...m.data })),
-    /** Vuelve a leer los datos de cada marca (después de un cambio en la página). */
+    /** Re-reads each mark's data (after a change in the page). */
     refresh() {
       marks.forEach((m) => m.el.isConnected && (m.data = describe(m.el)));
       send();
@@ -430,14 +430,14 @@
       send();
       redraw();
     },
-    /** Mostrar u ocultar lo que dibuja la capa (para capturas sin marcas). */
+    /** Show or hide what the layer draws (for screenshots without marks). */
     chrome(on) {
       chromeOn = !!on;
       drawHover();
       drawMarks();
       return chromeOn;
     },
-    /** Esconde solo el resaltado del mouse (las marcas numeradas siguen). */
+    /** Hides only the mouse highlight (the numbered marks stay). */
     hideHover() {
       hovered = null;
       drawHover();

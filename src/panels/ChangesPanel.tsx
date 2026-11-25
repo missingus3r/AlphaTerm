@@ -21,11 +21,11 @@ interface Editable {
 
 const SPLIT_PREF = "alphaterm.changes.split";
 
-/** Un archivo: encabezado (clic = abrir/cerrar), diff y editor. */
+/** A file: header (click = open/close), diff and editor. */
 function FileCard(props: { c: ChangeSummary; open: boolean; split: boolean; onToggle: () => void; onRemove: () => void }) {
   const name = () => props.c.path.split(/[\\/]/).pop() ?? props.c.path;
   const dir = () => props.c.path.slice(0, Math.max(0, props.c.path.length - name().length - 1));
-  // El diff se pide al abrirlo y otra vez cuando el archivo cambia (sube la versión).
+  // The diff is requested when it opens and again when the file changes (the version goes up).
   const [diff, { refetch }] = createResource(
     () => (props.open ? `${props.c.id}:${props.c.version}` : false),
     () => invoke<DiffOut>("changes_diff", { id: props.c.id }),
@@ -148,7 +148,7 @@ function FileCard(props: { c: ChangeSummary; open: boolean; split: boolean; onTo
                   e.preventDefault();
                   cancel();
                 } else if (e.key === "Tab" && !e.shiftKey) {
-                  // Tab inserta una tabulación (no salta al botón de al lado).
+                  // Tab inserts a tab character (it doesn't jump to the button next to it).
                   e.preventDefault();
                   const ta = e.currentTarget;
                   const [a, b] = [ta.selectionStart, ta.selectionEnd];
@@ -194,7 +194,7 @@ export default function ChangesPanel() {
     try {
       localStorage.setItem(SPLIT_PREF, v ? "1" : "0");
     } catch {
-      /* no importa */
+      /* doesn't matter */
     }
   };
   onMount(async () => {
@@ -202,8 +202,8 @@ export default function ChangesPanel() {
     onCleanup(un);
   });
   const shown = createMemo(() => (list() ?? []).filter((c) => matchesFilter(c, filter(), query())));
-  // Se itera por id: así una lista nueva (llega con cada cambio) no vuelve a crear las tarjetas y no
-  // se pierde lo que se está editando.
+  // Iterated by id: this way a new list (it arrives with every change) doesn't recreate the cards and what is being
+  // edited isn't lost.
   const byId = createMemo(() => new Map((list() ?? []).map((c) => [c.id, c])));
   const shownIds = createMemo(() => shown().map((c) => c.id));
   const tot = createMemo(() => totals(shown()));

@@ -1,6 +1,6 @@
 /**
- * Respuestas de esta ventana a la API de control (la llama el backend por el evento
- * `control-request`). Cada ventana contesta por sus paneles; el resto dice "no es mío".
+ * This window's answers to the control API (the backend calls it through the
+ * `control-request` event). Each window answers for its panes; the rest say "not mine".
  */
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import * as M from "./model";
@@ -27,9 +27,9 @@ export interface ControlCtx {
   titleOf: (t: M.Tab) => string;
   update: (f: (l: M.Layout) => M.Layout) => void;
   defaultProfile: () => string;
-  /** Variables para comandos lanzados por la API (PATH completo). */
+  /** Variables for commands launched through the API (full PATH). */
   env: () => Record<string, string>;
-  /** Abre (o reusa) el navegador de una pestaña; devuelve su id cuando está listo. */
+  /** Opens (or reuses) a tab's browser; returns its id when ready. */
   openBrowser: (o: { url?: string; tabId?: string; pane?: string; dir?: M.SplitDir; reuse?: boolean; focus?: boolean }) => Promise<string | undefined>;
 }
 
@@ -48,7 +48,7 @@ function tabOfPane(l: M.Layout, paneId: string) {
   return l.tabs.find((t) => M.findLeaf(t.root, paneId));
 }
 
-/** Espera a que el panel exista en el estado (recién creado) y tenga sesión. */
+/** Waits for the pane to exist in the state (just created) and have a session. */
 async function waitPane(ctx: ControlCtx, id: string, ms = 8000) {
   const end = Date.now() + ms;
   while (Date.now() < end) {
@@ -81,7 +81,7 @@ async function runIn(ctx: ControlCtx, paneId: string, command: string, wait: boo
   return { timeout: true, note: t("Sigue corriendo después de {ms} ms. Esto es lo que se ve:", { ms: timeoutMs }), text: h.text(80) };
 }
 
-/** ¿Esta ventana tiene que contestar? (pedidos sin panel: la ventana pedida o la principal). */
+/** Does this window have to answer? (requests without a pane: the requested window or the main one). */
 function mineForNew(req: Req, label: string) {
   const want = str(req.params.window);
   if (want) return want === label;
@@ -133,7 +133,7 @@ export async function handleControl(req: Req, ctx: ControlCtx): Promise<unknown>
   }
 
   if (req.method === "browser_open") {
-    // Al lado del panel pedido, o del que llama (el agente); si no, en la pestaña activa.
+    // Next to the requested pane, or the caller's (the agent); otherwise, in the active tab.
     const at = str(p.pane) ?? str(p.caller);
     const tb = at ? tabOfPane(l, at) : undefined;
     if (at && !tb) return notMine;
@@ -145,7 +145,7 @@ export async function handleControl(req: Req, ctx: ControlCtx): Promise<unknown>
     return { result: { window: ctx.label, tab: tb?.id ?? l.activeTab, browser: id, url } };
   }
 
-  // Lo demás es sobre un panel: contesta la ventana que lo tiene.
+  // The rest is about a pane: the window that has it answers.
   if (!paneId) return { error: t("Falta 'pane' (usá list para ver los ids)") };
   const tab = tabOfPane(l, paneId);
   if (!tab) return notMine;

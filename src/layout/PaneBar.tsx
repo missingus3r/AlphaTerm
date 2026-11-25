@@ -3,8 +3,8 @@ import type { SplitDir } from "./model";
 import { t } from "../i18n";
 
 /**
- * Barrita arriba de cada panel de terminal: nombre, dividir y cerrar. Se agarra para mover el
- * panel; con clic derecho abre el menú. Los botones no empiezan un arrastre.
+ * Small bar above each terminal pane: name, split and close. Grab it to move the
+ * pane; right-click opens the menu. The buttons don't start a drag.
  */
 export function PaneBar(props: {
   title: string;
@@ -21,7 +21,7 @@ export function PaneBar(props: {
       class="pane-bar"
       classList={{ highlight: props.highlight }}
       title={props.tooltip}
-      // Sin esto, el clic le saca el foco a la terminal.
+      // Without this, the click takes focus away from the terminal.
       onMouseDown={(e) => e.preventDefault()}
       onPointerDown={(e) => props.onGrab(e)}
       onContextMenu={(e) => {
@@ -43,7 +43,7 @@ export function PaneBar(props: {
   );
 }
 
-/** Menú del clic derecho en la barrita de un panel. Aplica la acción y después se cierra. */
+/** Right-click menu on a pane's bar. Applies the action and then closes. */
 export function PaneMenu(props: { x: number; y: number; onSplit: (dir: SplitDir) => void; onEqualize: () => void; onClose: () => void; onDismiss: () => void }) {
   onMount(() => {
     const out = (e: MouseEvent) => {

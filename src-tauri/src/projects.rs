@@ -1,10 +1,10 @@
-//! Proyectos: carpetas donde se trabajó con agentes (Claude Code, Codex) y el árbol de cada una.
+//! Projects: folders where work was done with agents (Claude Code, Codex) and each one's tree.
 //!
-//! - Claude: cada carpeta de `~/.claude/projects` tiene transcripts con el `cwd` real (el nombre de
-//!   la carpeta codifica la ruta, pero con guiones ambiguos: se lee el `cwd` de adentro).
-//! - Codex: la primera línea de cada sesión (`session_meta`) trae el `cwd`.
-//! - El árbol respeta `.gitignore` (crate `ignore`) y se carga de a una carpeta. Un vigilante
-//!   (`notify`) avisa cuando cambia una carpeta abierta.
+//! - Claude: each folder in `~/.claude/projects` has transcripts with the real `cwd` (the folder
+//!   name encodes the path, but with ambiguous hyphens: the `cwd` is read from inside).
+//! - Codex: the first line of each session (`session_meta`) carries the `cwd`.
+//! - The tree respects `.gitignore` (`ignore` crate) and loads one folder at a time. A watcher
+//!   (`notify`) reports when an open folder changes.
 
 use serde::Serialize;
 use serde_json::Value;
@@ -21,7 +21,7 @@ pub struct Found {
     pub path: String,
     /// "claude", "codex".
     pub sources: Vec<String>,
-    /// Última vez usado (unix ms).
+    /// Last time used (unix ms).
     pub last_used: u64,
     pub exists: bool,
     pub git: bool,
@@ -31,7 +31,7 @@ fn mtime_ms(p: &Path) -> u64 {
     std::fs::metadata(p).and_then(|m| m.modified()).ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
 
-/// Primer `cwd` que aparezca en las primeras líneas de un transcript de Claude.
+/// First `cwd` that appears in the first lines of a Claude transcript.
 pub fn cwd_in_lines(lines: impl Iterator<Item = String>) -> Option<String> {
     for line in lines.take(80) {
         if !line.contains("\"cwd\"") {
@@ -103,7 +103,7 @@ fn walk(dir: &Path, out: &mut Vec<PathBuf>, depth: usize) {
     }
 }
 
-/// Junta las fuentes: misma carpeta (sin importar mayúsculas ni barra final) = un proyecto.
+/// Merges the sources: same folder (ignoring case and trailing slash) = one project.
 pub fn merge(found: Vec<(String, u64, &'static str)>) -> Vec<Found> {
     let mut by: HashMap<String, Found> = HashMap::new();
     for (path, used, src) in found {
@@ -139,7 +139,7 @@ pub async fn projects_discover() -> Result<Vec<Found>, String> {
     .map_err(|e| e.to_string())
 }
 
-// --- Árbol -----------------------------------------------------------------------------------------
+// --- Tree ---
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -150,8 +150,8 @@ pub struct Entry {
     pub size: u64,
 }
 
-/// Contenido de una carpeta: primero las carpetas, después los archivos, respetando .gitignore
-/// (también los de carpetas superiores dentro del repo) y escondiendo `.git`.
+/// Contents of a folder: folders first, then files, respecting .gitignore
+/// (including those of parent folders inside the repo) and hiding `.git`.
 pub fn list_dir(dir: &Path) -> Result<Vec<Entry>, String> {
     if !dir.is_dir() {
         return Err(tr!("No existe la carpeta {}", "The folder {} doesn't exist", "A pasta {} não existe"; dir.display()));
@@ -191,9 +191,9 @@ pub async fn fs_list(dir: String) -> Result<Vec<Entry>, String> {
     tauri::async_runtime::spawn_blocking(move || list_dir(Path::new(&dir))).await.map_err(|e| e.to_string())?
 }
 
-// --- Vigilante ----------------------------------------------------------------------------------------
+// --- Watcher ---
 
-/// Un vigilante por ventana, sobre las carpetas que esa ventana tiene abiertas.
+/// One watcher per window, over the folders that window has open.
 #[derive(Default)]
 pub struct WatchState {
     watchers: Mutex<HashMap<String, (notify::RecommendedWatcher, Vec<PathBuf>)>>,
@@ -204,7 +204,7 @@ struct FsChanged {
     dirs: Vec<String>,
 }
 
-/// Reemplaza el conjunto de carpetas vigiladas de esta ventana (no recursivo: solo las abiertas).
+/// Replaces the set of watched folders for this window (non-recursive: only the open ones).
 #[tauri::command]
 pub fn fs_watch(app: AppHandle, webview: Webview, state: tauri::State<WatchState>, dirs: Vec<String>) -> Result<(), String> {
     use notify::{RecursiveMode, Watcher};
@@ -219,7 +219,7 @@ pub fn fs_watch(app: AppHandle, webview: Webview, state: tauri::State<WatchState
         let app2 = app.clone();
         let w = notify::recommended_watcher(move |res: notify::Result<notify::Event>| {
             let Ok(ev) = res else { return };
-            // Solo interesa la carpeta que cambió (el frontend la vuelve a listar).
+            // Only the folder that changed matters (the frontend lists it again).
             let mut dirs: Vec<String> = ev.paths.iter().filter_map(|p| p.parent().map(|d| d.display().to_string())).collect();
             dirs.sort();
             dirs.dedup();
@@ -246,7 +246,7 @@ pub fn unwatch_window(state: &WatchState, label: &str) {
     state.watchers.lock().unwrap().remove(label);
 }
 
-// --- Links de la terminal: existencia y vista previa -----------------------------------------------
+// --- Terminal links: existence and preview ---
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -255,7 +255,7 @@ pub struct Stat {
     pub size: u64,
 }
 
-/// Qué rutas existen (para no subrayar texto que solo parece una ruta).
+/// Which paths exist (so text that merely looks like a path doesn't get underlined).
 #[tauri::command]
 pub fn fs_stat(paths: Vec<String>) -> Vec<Option<Stat>> {
     paths
@@ -267,7 +267,7 @@ pub fn fs_stat(paths: Vec<String>) -> Vec<Option<Stat>> {
 
 const PREVIEW_IMAGE_MAX: u64 = 15 * 1024 * 1024;
 
-/// Primeros bytes de un archivo (texto: hasta `max`; imagen entera si pesa menos de 15 MB).
+/// First bytes of a file (text: up to `max`; whole image if it weighs less than 15 MB).
 #[tauri::command]
 pub fn fs_head(path: String, max: u64, whole_if_under: Option<bool>) -> Result<tauri::ipc::Response, String> {
     use std::io::Read;
@@ -288,9 +288,9 @@ pub fn fs_head(path: String, max: u64, whole_if_under: Option<bool>) -> Result<t
     Ok(tauri::ipc::Response::new(buf))
 }
 
-// --- Abrir afuera ------------------------------------------------------------------------------------
+// --- Open externally ---
 
-/// Abre una carpeta o archivo en el Explorador, en VS Code o con el programa asociado.
+/// Opens a folder or file in Explorer, in VS Code or with the associated program.
 #[tauri::command]
 pub fn fs_open(path: String, with: String) -> Result<(), String> {
     let p = PathBuf::from(&path);
@@ -309,7 +309,7 @@ pub fn fs_open(path: String, with: String) -> Result<(), String> {
         }
         "vscode" => {
             let code = crate::agents::resolve_in("code", &crate::agents::search_dirs()).ok_or(crate::i18n::tr("No se encontró VS Code (code) en el PATH", "VS Code (code) wasn't found in the PATH", "O VS Code (code) não foi encontrado no PATH"))?;
-            // code.cmd es un script: se corre con cmd /c para que funcione sin consola visible.
+            // code.cmd is a script: it runs with cmd /c so it works without a visible console.
             let mut c = std::process::Command::new("cmd.exe");
             c.arg("/c").arg(code).arg(&p);
             c

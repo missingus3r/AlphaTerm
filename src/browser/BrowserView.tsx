@@ -4,17 +4,17 @@ import { listen } from "@tauri-apps/api/event";
 import { coveredBy, markLabel, type Mark } from "./marks";
 import { lang, t } from "../i18n";
 
-/** Panel de terminal al que se le puede mandar el pedido. */
+/** Terminal pane that a request can be sent to. */
 export interface Target {
   id: string;
   label: string;
 }
 
-/** Lo que el navegador necesita saber del agente dueño para el "trabajando… listo". */
+/** What the browser needs to know about its owner agent for the "working… done" state. */
 export interface OwnerLive {
   active?: boolean;
   bell?: boolean;
-  /** Avisa por el hook Stop de Claude Code (si no, se adivina por el silencio de la terminal). */
+  /** Reports through Claude Code's Stop hook (otherwise it's guessed from the terminal going silent). */
   hook: boolean;
 }
 
@@ -29,20 +29,20 @@ interface Props {
   onFocus: () => void;
   onUrl: (url: string) => void;
   onOwner: (id: string | undefined) => void;
-  /** Escribe el pedido en la terminal del agente. */
+  /** Writes the request into the agent's terminal. */
   onSend: (pane: string, message: string) => boolean;
   onClose: () => void;
-  /** Dividir desde el navegador (abre una terminal en la carpeta de su dueño). */
+  /** Split from the browser (opens a terminal in its owner's folder). */
   onSplit?: (dir: "row" | "column") => void;
-  /** Agarrar el panel para moverlo. */
+  /** Grab the pane to move it. */
   onGrab?: (e: PointerEvent) => void;
-  /** Clic derecho en el agarre: el menú del panel. */
+  /** Right-click on the grip: the pane menu. */
   onMenu?: (e: MouseEvent) => void;
 }
 
 type Status = { kind: "idle" } | { kind: "busy"; text: string } | { kind: "working"; since: number } | { kind: "attention" } | { kind: "done" } | { kind: "error"; text: string };
 
-// Navegadores ya creados en el backend (la API de control espera a que estén).
+// Browsers already created in the backend (the control API waits for them to exist).
 const ready = new Map<string, Array<() => void>>();
 const created = new Set<string>();
 export function whenReady(id: string, ms = 15000): Promise<boolean> {
@@ -87,7 +87,7 @@ export function BrowserView(props: Props) {
 
   const owner = () => (props.owner && props.targets.some((x) => x.id === props.owner) ? props.owner : undefined);
 
-  // --- Posición: el WebView2 hijo va encima del rectángulo del área ---------------------------
+  // --- Position: the child WebView2 sits on top of the area's rectangle -----------------------
   let last = "";
   const sync = () => {
     if (!isCreated) return;
@@ -127,7 +127,7 @@ export function BrowserView(props: Props) {
       listen<{ id: string; url: string; loading: boolean }>("browser-nav", (e) => {
         if (e.payload.id !== props.id) return;
         setLoading(e.payload.loading);
-        // Documento nuevo: los errores de consola que cuentan son los de esta página.
+        // New document: the console errors that count are the ones from this page.
         if (e.payload.loading) setErrors([]);
         setUrl(e.payload.url);
         if (document.activeElement !== urlInput) setTyped(e.payload.url);
@@ -141,7 +141,7 @@ export function BrowserView(props: Props) {
         setHmr(!!e.payload.hmr);
         setMarks([]);
         if (e.payload.title) setTitle(e.payload.title);
-        // Página nueva: si estaba en modo edición, sigue.
+        // New page: if it was in edit mode, it stays in it.
         if (edit()) void ev(props.id, "window.__alphaOverlay && __alphaOverlay.setEdit(true)");
       }),
       listen<{ id: string; text: string }>("browser-error", (e) => e.payload.id === props.id && setErrors((x) => [...x.slice(-19), e.payload.text])),
@@ -160,7 +160,7 @@ export function BrowserView(props: Props) {
   });
   createEffect(on(() => props.visible, () => sync(), { defer: true }));
 
-  // --- Trabajando… listo ----------------------------------------------------------------------
+  // --- Working… done --------------------------------------------------------------------------
   let doneTimer: ReturnType<typeof setTimeout> | undefined;
   const finish = () => {
     sent = null;
@@ -168,7 +168,7 @@ export function BrowserView(props: Props) {
     void ev(props.id, "window.__alphaOverlay && __alphaOverlay.clear()");
     setMarks([]);
     setGlobal(false);
-    // Sin recarga en caliente detectada, se recarga a mano (con ella, ya se ve el cambio).
+    // No hot reload detected, so reload by hand (with it, the change is already visible).
     if (!hmr()) setTimeout(() => void invoke("browser_go", { id: props.id, action: "reload" }).catch(() => {}), 600);
     clearTimeout(doneTimer);
     doneTimer = setTimeout(() => status().kind === "done" && setStatus({ kind: "idle" }), 8000);
@@ -181,12 +181,12 @@ export function BrowserView(props: Props) {
     if (live.active) sent.sawActive = true;
     if (live.bell && !live.active) setStatus({ kind: "attention" });
     else if (s.kind === "attention" && live.active) setStatus({ kind: "working", since: Date.now() });
-    // Sin hook: listo cuando el agente trabajó y la terminal quedó en silencio.
+    // No hook: done when the agent has worked and the terminal went silent.
     if (!sent.hook && sent.sawActive && !live.active && !live.bell) finish();
   });
   onCleanup(() => clearTimeout(doneTimer));
 
-  // --- Acciones -------------------------------------------------------------------------------
+  // --- Actions --------------------------------------------------------------------------------
   const go = (u: string) => {
     if (!u.trim()) return;
     setFailed(null);

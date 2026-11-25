@@ -1,4 +1,4 @@
-//! Puertos TCP en escucha: quién los abrió, desde dónde y hace cuánto. Detener (árbol de procesos).
+//! Listening TCP ports: who opened them, from where and how long ago. Stop (process tree).
 
 use serde::Serialize;
 use std::collections::{BTreeSet, HashMap};
@@ -12,7 +12,7 @@ pub struct Listen {
     pub pid: u32,
 }
 
-/// Lee la tabla de sockets en escucha (IPv4 e IPv6) con el PID dueño.
+/// Reads the table of listening sockets (IPv4 and IPv6) with the owning PID.
 #[cfg(windows)]
 pub fn listening() -> Vec<Listen> {
     use windows_sys::Win32::NetworkManagement::IpHelper::{
@@ -31,7 +31,7 @@ pub fn listening() -> Vec<Listen> {
             if r == 0 {
                 return buf;
             }
-            size = len; // la tabla creció entre llamadas: reintentar
+            size = len; // the table grew between calls: retry
         }
         Vec::new()
     }
@@ -70,15 +70,15 @@ pub struct Server {
     pub pid: u32,
     pub name: String,
     pub ports: Vec<u16>,
-    /// Direcciones en las que escucha ("0.0.0.0", "127.0.0.1", "[::]"…).
+    /// Addresses it listens on ("0.0.0.0", "127.0.0.1", "[::]"…).
     pub addrs: Vec<String>,
     pub cmdline: String,
     pub cwd: Option<String>,
-    /// Segundos desde que arrancó.
+    /// Seconds since it started.
     pub uptime: u64,
-    /// PID de la shell de AlphaTerm de la que desciende (si nació en una pestaña).
+    /// PID of the AlphaTerm shell it descends from (if it was born in a tab).
     pub shell_pid: Option<u32>,
-    /// Proceso del sistema (no conviene tocarlo).
+    /// System process (better not to touch it).
     pub system: bool,
 }
 
@@ -87,7 +87,7 @@ const SYSTEM_NAMES: &[&str] = &[
     "winlogon.exe", "dashost.exe", "searchindexer.exe", "msmpeng.exe", "nissrv.exe", "jhi_service.exe",
 ];
 
-/// Agrupa por proceso y busca de qué shell desciende cada uno.
+/// Groups by process and looks for which shell each one descends from.
 pub fn group(listens: &[Listen], parents: &HashMap<u32, Option<u32>>, shells: &[u32]) -> Vec<(u32, Vec<u16>, Vec<String>, Option<u32>)> {
     let mut by_pid: HashMap<u32, (BTreeSet<u16>, BTreeSet<String>)> = HashMap::new();
     for l in listens {
@@ -147,7 +147,7 @@ pub async fn ports_list(state: tauri::State<'_, Arc<crate::pty::PtyState>>) -> R
     .map_err(|e| e.to_string())?
 }
 
-/// Detiene un proceso y todo lo que cuelga de él (taskkill /T /F).
+/// Stops a process and everything hanging from it (taskkill /T /F).
 #[tauri::command]
 pub async fn ports_kill(pid: u32) -> Result<String, String> {
     if pid <= 4 || pid == std::process::id() {
@@ -181,7 +181,7 @@ mod tests {
     fn agrupa_y_encuentra_la_shell() {
         let l = |port, pid, addr: &str| Listen { port, pid, addr: addr.into() };
         let listens = vec![l(5173, 30, "127.0.0.1"), l(5173, 30, "[::1]"), l(24678, 30, "127.0.0.1"), l(135, 900, "0.0.0.0")];
-        // 10 = shell de AlphaTerm → 20 (npm) → 30 (node)
+        // 10 = AlphaTerm shell → 20 (npm) → 30 (node)
         let parents: HashMap<u32, Option<u32>> = [(10, Some(1)), (20, Some(10)), (30, Some(20)), (900, Some(5))].into_iter().collect();
         let g = group(&listens, &parents, &[10]);
         assert_eq!(g[0], (900, vec![135], vec!["0.0.0.0".to_string()], None));
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn lee_la_tabla_real() {
-        // En Windows siempre hay algo escuchando (por ejemplo el 135 de RPC).
+        // On Windows something is always listening (for example RPC's 135).
         let l = listening();
         assert!(!l.is_empty());
         assert!(l.iter().all(|x| x.port > 0));

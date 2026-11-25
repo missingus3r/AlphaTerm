@@ -18,8 +18,8 @@ function Provider(props: { id: ProviderId; everyMs: number; active: boolean; ope
   const u = () => usageOf(props.id);
   const err = () => usageError(props.id);
   const busy = () => usageBusy(props.id);
-  // Lo barato (archivos y lo último de la consulta en vivo) se relee seguido; la consulta en vivo
-  // la hace el backend al abrir AlphaTerm y cada tantos minutos.
+  // The cheap stuff (files and the latest live-query result) is re-read often; the live query
+  // is run by the backend when AlphaTerm opens and every so many minutes.
   createEffect(() => {
     const ms = props.everyMs;
     untrack(() => void loadUsage(props.id));
@@ -67,7 +67,7 @@ function Provider(props: { id: ProviderId; everyMs: number; active: boolean; ope
   );
 }
 
-/** Ubicación del panel activo: cada tramo abre esa carpeta; botón para copiar la ruta. */
+/** Location of the active pane: each segment opens that folder; button to copy the path. */
 function Location(props: { cwd?: string; branch?: string }) {
   const parts = () => {
     const p = (props.cwd ?? "").replace(/[\\/]+$/, "");
@@ -105,7 +105,7 @@ function Location(props: { cwd?: string; branch?: string }) {
   );
 }
 
-/** Versión que corre (el tooltip trae commit, fecha de compilación y dónde está el ejecutable). */
+/** Running version (the tooltip carries the commit, build date and where the executable is). */
 function Version(props: { onClick: () => void }) {
   const [info] = createResource(appInfo);
   return (
@@ -120,7 +120,7 @@ function Version(props: { onClick: () => void }) {
   );
 }
 
-/** Botón "Novedades": changelog entre versiones con sus commits. */
+/** "Novedades" button: changelog between versions with their commits. */
 function Novedades() {
   const [info] = createResource(appInfo);
   const [show, setShow] = createSignal(false);
@@ -136,7 +136,7 @@ function Novedades() {
   );
 }
 
-/** Footer: ubicación del panel activo y consumo (el del agente abierto, primero y resaltado). */
+/** Footer: location of the active pane and usage (the open agent's first and highlighted). */
 export function UsageFooter(props: { usage: Settings["usage"]; onSettings: () => void; cwd?: string; branch?: string; activeProvider: ProviderId | null }) {
   const [open, setOpen] = createSignal<ProviderId | null>(null);
   let root!: HTMLElement;
@@ -147,7 +147,7 @@ export function UsageFooter(props: { usage: Settings["usage"]; onSettings: () =>
   });
   onMount(listenUsage);
   const enabled = () => (["claude", "codex", "agy"] as ProviderId[]).filter((p) => props.usage[p]);
-  // El del agente activo va primero (aunque esté apagado en la configuración: es el que se está usando).
+  // The active agent's goes first (even if it is off in the settings: it is the one in use).
   const order = () => {
     const a = props.activeProvider;
     const list = enabled().filter((p) => p !== a);

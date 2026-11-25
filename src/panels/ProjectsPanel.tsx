@@ -36,7 +36,7 @@ export default function ProjectsPanel(props: Props) {
     return projects().filter((p) => (showHidden() || !p.hidden) && (!q || p.path.toLowerCase().includes(q)));
   });
 
-  // Árbol: carpetas abiertas y su contenido (se carga al abrir).
+  // Tree: open folders and their contents (loaded on open).
   const [children, setChildren] = createStore<Record<string, Entry[] | "loading" | { error: string }>>({});
   const [openDirs, setOpenDirs] = createSignal<string[]>([]);
   const load = async (dir: string) => {
@@ -49,14 +49,14 @@ export default function ProjectsPanel(props: Props) {
   };
   const toggle = (dir: string) => {
     if (openDirs().includes(dir)) {
-      // Cerrar también lo que cuelga de ella.
+      // Also close whatever hangs from it.
       setOpenDirs(openDirs().filter((d) => d !== dir && !d.startsWith(dir + "\\")));
     } else {
       setOpenDirs([...openDirs(), dir]);
       void load(dir);
     }
   };
-  // Vigilante: el backend avisa qué carpetas cambiaron; se recargan las que estén abiertas.
+  // Watcher: the backend reports which folders changed; the open ones are reloaded.
   let watchTimer: ReturnType<typeof setTimeout> | undefined;
   const syncWatch = () => {
     clearTimeout(watchTimer);
@@ -99,7 +99,7 @@ export default function ProjectsPanel(props: Props) {
 
   const [agentMenu, setAgentMenu] = createSignal<string | null>(null);
   const openWith = (path: string, how: string) => void invoke("fs_open", { path, with: how }).catch((e) => alert(String(e)));
-  // Nombre visible de cada origen ("manual" y "reciente" son ids, no se muestran tal cual).
+  // Visible name of each source ("manual" and "reciente" are ids, they aren't shown as they are).
   const sourceTitle = (s: string) =>
     s === "manual" ? t("Agregado a mano") : s === "reciente" ? t("Carpeta usada hace poco") : t("Visto en {source}", { source: s === "claude" ? "Claude" : s === "codex" ? "Codex" : s });
 

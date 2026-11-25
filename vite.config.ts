@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
 
-// Tauri espera un puerto fijo y no debe tapar los errores de Rust.
+// Tauri expects a fixed port and must not hide Rust errors.
 export default defineConfig({
   plugins: [solid()],
   clearScreen: false,

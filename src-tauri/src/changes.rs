@@ -1,18 +1,18 @@
-//! Modificaciones de archivos hechas por agentes, también en archivos sin control de versiones.
+//! Changes to files made by agents, including files not under version control.
 //!
-//! Dos fuentes:
-//! - Hook de Claude Code lanzado desde AlphaTerm (PreToolUse/PostToolUse en Write, Edit, MultiEdit,
-//!   NotebookEdit): copia exacta del archivo justo antes de la herramienta y justo después.
-//! - Carpeta de un panel con un agente andando (Codex, agy, Claude con Bash…): al arrancar el agente
-//!   se copian los archivos de texto de la carpeta (sin lo que ignora git, carpetas ocultas,
-//!   node_modules, target… ni archivos grandes) y se vigila; cada cambio se compara con esa copia.
-//!   Lo que no entró en la copia se compara con el último commit (si está en git) o se muestra
-//!   entero ("sin copia previa").
+//! Two sources:
+//! - Claude Code hook launched from AlphaTerm (PreToolUse/PostToolUse on Write, Edit, MultiEdit,
+//!   NotebookEdit): exact copy of the file right before the tool runs and right after.
+//! - Folder of a pane with a running agent (Codex, agy, Claude with Bash…): when the agent starts,
+//!   the folder's text files are copied (minus what git ignores, hidden folders,
+//!   node_modules, target… and large files) and watched; each change is compared with that copy.
+//!   Anything not in the copy is compared with the last commit (if it's in git) or shown
+//!   in full ("no previous copy").
 //!
-//! Por archivo queda la versión de antes del primer cambio y la última: el diff es acumulado. Los
-//! PDF se comparan por su texto. Desde el panel se puede editar y guardar un archivo (se respeta su
-//! codificación y fin de línea, y no se pisa si cambió desde que se abrió). Todo se guarda en
-//! `%APPDATA%\AlphaTerm\changes.json` (7 días).
+//! Per file, the version before the first change and the latest one are kept: the diff is cumulative.
+//! PDFs are compared by their text. From the panel you can edit and save a file (its encoding and
+//! line ending are kept, and it isn't overwritten if it changed since it was opened). Everything is saved in
+//! `%APPDATA%\AlphaTerm\changes.json` (7 days).
 
 use crate::i18n::tr;
 use serde::{Deserialize, Serialize};
@@ -27,7 +27,7 @@ use tauri::{AppHandle, Emitter};
 
 const MAX_TEXT: u64 = 4 * 1024 * 1024;
 const MAX_PDF: u64 = 40 * 1024 * 1024;
-/// Copia de la carpeta al arrancar un agente: hasta acá (el resto se compara con git o queda sin copia).
+/// Copy of the folder when an agent starts: up to here (the rest is compared with git or has no copy).
 const SNAP_FILES: usize = 20_000;
 const SNAP_BYTES: usize = 64 * 1024 * 1024;
 const SNAP_FILE_MAX: u64 = 2 * 1024 * 1024;
@@ -35,7 +35,7 @@ const KEEP_DAYS: u64 = 7;
 const KEEP_ENTRIES: usize = 400;
 const KEEP_TEXT_BYTES: usize = 80 * 1024 * 1024;
 
-/// Carpetas que nunca se copian ni se vigilan (pesadas o generadas).
+/// Folders that are never copied or watched (heavy or generated).
 const SKIP_DIRS: &[&str] = &["node_modules", "target", "__pycache__", "venv", "site-packages", "bower_components"];
 const BINARY_EXT: &[&str] = &[
     "png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "tif", "tiff", "psd", "heic", "avif", "mp3", "wav", "flac", "ogg", "m4a", "mp4", "mkv", "mov",
@@ -48,7 +48,7 @@ fn now_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
 
-/// Clave de una ruta (Windows no distingue mayúsculas ni separadores).
+/// Key of a path (Windows is case-insensitive and treats both separators alike).
 pub fn norm(p: &Path) -> String {
     p.to_string_lossy().replace('/', "\\").trim_end_matches('\\').to_lowercase()
 }
@@ -61,7 +61,7 @@ fn binary_ext(p: &Path) -> bool {
     p.extension().map(|e| BINARY_EXT.contains(&e.to_string_lossy().to_lowercase().as_str())).unwrap_or(false)
 }
 
-// --- Contenido ----------------------------------------------------------------------------------
+// --- Content ------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(tag = "t", rename_all = "camelCase")]
@@ -69,9 +69,9 @@ pub enum Content {
     Text { text: String },
     Binary { size: u64 },
     TooBig { size: u64 },
-    /// No existe (todavía, o ya no).
+    /// Doesn't exist (yet, or anymore).
     Missing,
-    /// Existe pero no se pudo leer (bloqueado por otro programa).
+    /// Exists but couldn't be read (locked by another program).
     Unreadable,
 }
 
@@ -97,7 +97,7 @@ pub enum Enc {
     Latin1,
 }
 
-/// Bytes → texto, con la codificación que tenían (None si parece binario).
+/// Bytes → text, with the encoding they had (None if it looks binary).
 pub fn decode_text(b: &[u8]) -> Option<(String, Enc)> {
     if let Some(rest) = b.strip_prefix(&[0xEF, 0xBB, 0xBF]) {
         return String::from_utf8(rest.to_vec()).ok().map(|s| (s, Enc::Utf8Bom));
@@ -118,7 +118,7 @@ pub fn decode_text(b: &[u8]) -> Option<(String, Enc)> {
     if let Ok(s) = std::str::from_utf8(b) {
         return Some((s.to_string(), Enc::Utf8));
     }
-    // Texto en ANSI (Windows-1252/Latin-1): casi todo imprimible.
+    // Text in ANSI (Windows-1252/Latin-1): almost everything printable.
     let odd = b.iter().filter(|&&c| c < 0x09 || (0x0E..0x20).contains(&c) || c == 0x7F).count();
     (odd * 50 <= b.len()).then(|| (b.iter().map(|&c| c as char).collect(), Enc::Latin1))
 }
@@ -144,7 +144,7 @@ pub fn encode_text(text: &str, enc: Enc) -> Result<Vec<u8>, String> {
     })
 }
 
-/// Texto de un PDF (pdf-extract puede entrar en pánico con PDFs raros: se ataja).
+/// Text of a PDF (pdf-extract can panic on odd PDFs: that's caught).
 fn pdf_text(b: &[u8]) -> Option<String> {
     let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| pdf_extract::extract_text_from_mem(b))).ok()?.ok()?;
     let mut out = String::new();
@@ -175,7 +175,7 @@ pub fn decode(path: &Path, b: &[u8]) -> Content {
     }
 }
 
-/// Lee con reintentos (el programa que escribe puede tenerlo abierto un instante).
+/// Reads with retries (the program writing it may have it open for a moment).
 fn read_bytes(path: &Path) -> Result<Vec<u8>, std::io::Error> {
     let mut last = None;
     for i in 0..4 {
@@ -232,7 +232,7 @@ pub fn unified(a: &str, b: &str, name: &str) -> String {
     text_diff(a, b).unified_diff().context_radius(3).header(&format!("a/{name}"), &format!("b/{name}")).to_string()
 }
 
-// --- Registro --------------------------------------------------------------------------------------
+// --- Log -------------------------------------------------------------------------------------------
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -241,21 +241,21 @@ pub struct Entry {
     pub path: String,
     pub first_at: u64,
     pub last_at: u64,
-    /// Quién lo cambió ("Claude Code", "Codex"…, "Vos (a mano)").
+    /// Who changed it ("Claude Code", "Codex"…, "Vos (a mano)").
     pub agents: Vec<String>,
-    /// Herramientas (Edit, Write…) cuando se saben.
+    /// Tools (Edit, Write…) when known.
     pub tools: Vec<String>,
     pub events: u32,
-    /// De dónde salió la versión de antes: "hook", "carpeta", "git" o "ninguna".
+    /// Where the earlier version came from: "hook", "carpeta", "git" or "ninguna".
     pub base_from: String,
-    /// None: no se sabe cómo era antes.
+    /// None: it isn't known what it was like before.
     pub before: Option<Content>,
     pub after: Content,
     pub in_git: bool,
     pub adds: u32,
     pub dels: u32,
     pub version: u64,
-    /// El último cambio lo hizo el usuario desde el panel.
+    /// The last change was made by the user from the panel.
     pub manual: bool,
 }
 
@@ -283,7 +283,7 @@ impl Entry {
     }
 }
 
-/// Lo que ve la lista (sin los textos).
+/// What the list shows (without the texts).
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct Summary {
@@ -303,10 +303,10 @@ pub struct Summary {
     pub manual: bool,
     pub created: bool,
     pub deleted: bool,
-    /// "text", "binary", "tooBig" o "unreadable" (la versión actual).
+    /// "text", "binary", "tooBig" or "unreadable" (the current version).
     pub kind: String,
     pub size: Option<u64>,
-    /// Se puede editar desde el panel (texto, no PDF, existe).
+    /// Can be edited from the panel (text, not PDF, exists).
     pub editable: bool,
 }
 
@@ -344,14 +344,14 @@ impl From<&Entry> for Summary {
     }
 }
 
-// --- Copias de carpetas ------------------------------------------------------------------------------
+// --- Folder copies -----------------------------------------------------------------------------------
 
 #[derive(Default)]
 struct Snap {
     files: HashMap<String, Vec<u8>>,
-    /// Archivos que existían pero no se copiaron (grandes o binarios): no son "nuevos".
+    /// Files that existed but weren't copied (large or binary): they aren't "new".
     skipped: HashSet<String>,
-    /// Se copió todo lo que había (no se llegó al tope).
+    /// Everything that was there was copied (the cap wasn't reached).
     complete: bool,
     ready: bool,
     gitignore: Option<ignore::gitignore::Gitignore>,
@@ -359,7 +359,7 @@ struct Snap {
 
 struct DirWatch {
     root: PathBuf,
-    /// panel → (ventana, nombre del agente, generación)
+    /// pane → (window, agent name, generation)
     panes: HashMap<String, (String, String, u64)>,
     snap: Arc<Mutex<Snap>>,
     watcher: Option<notify::RecommendedWatcher>,
@@ -374,8 +374,8 @@ impl DirWatch {
     }
 }
 
-/// Carpetas demasiado amplias para vigilar: la raíz de un disco, la carpeta del usuario y las raíces
-/// de AppData y Temp (sí sus subcarpetas: un proyecto puede estar ahí), y las de Windows.
+/// Folders too broad to watch: a drive root, the user's folder, and the roots
+/// of AppData and Temp (their subfolders are fine: a project may live there), and Windows ones.
 pub fn too_broad(root: &Path) -> bool {
     let home = std::env::var_os("USERPROFILE").map(PathBuf::from).unwrap_or_default();
     let k = norm(root);
@@ -399,7 +399,7 @@ fn skip_dir_name(n: &str) -> bool {
     n.starts_with('.') || SKIP_DIRS.iter().any(|d| d.eq_ignore_ascii_case(n))
 }
 
-/// Archivos temporales de editores y de escrituras atómicas.
+/// Temporary files from editors and atomic writes.
 fn temp_name(n: &str) -> bool {
     let l = n.to_lowercase();
     l.ends_with('~')
@@ -409,7 +409,7 @@ fn temp_name(n: &str) -> bool {
         || [".swp", ".swx", ".crdownload", ".part", ".partial", ".bak"].iter().any(|s| l.ends_with(s))
 }
 
-/// ¿Este cambio de la carpeta se ignora? (carpetas ocultas o pesadas, temporales, .gitignore).
+/// Is this folder change ignored? (hidden or heavy folders, temporary files, .gitignore).
 fn ignored(root: &Path, path: &Path, snap: &Snap) -> bool {
     let Ok(rel) = path.strip_prefix(root) else { return true };
     let comps: Vec<String> = rel.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
@@ -469,12 +469,12 @@ fn take_snapshot(root: &Path) -> Snap {
     snap
 }
 
-// --- Estado ---------------------------------------------------------------------------------------
+// --- State ----------------------------------------------------------------------------------------
 
 pub struct Inner {
     entries: Mutex<Vec<Entry>>,
     next_id: AtomicU64,
-    /// Copias de antes de una herramienta del hook (clave: tool_use_id o sesión+ruta).
+    /// Copies from before a hook tool runs (key: tool_use_id or session+path).
     pending: Mutex<HashMap<String, (String, Content, Instant)>>,
     dirs: Mutex<HashMap<String, DirWatch>>,
     pub enabled: AtomicBool,
@@ -485,7 +485,7 @@ pub struct Inner {
     version: AtomicU64,
     git_cache: Mutex<HashMap<String, Option<PathBuf>>>,
     events: OnceLock<Sender<(String, PathBuf)>>,
-    /// Cada vez que se vigila un panel sube: así un "dejar de vigilar" atrasado no se lleva uno nuevo.
+    /// Goes up every time a pane is watched: so a late "stop watching" doesn't take a new one with it.
     generation: AtomicU64,
     file: PathBuf,
 }
@@ -516,7 +516,7 @@ impl ChangesState {
         ChangesState(inner)
     }
 
-    /// Arranca el guardado periódico y el que procesa los cambios de las carpetas.
+    /// Starts the periodic save and the one that processes folder changes.
     pub fn start(&self, app: AppHandle) {
         let inner = self.0.clone();
         let _ = inner.app.set(app);
@@ -524,7 +524,7 @@ impl ChangesState {
         let _ = inner.events.set(tx);
         let w = inner.clone();
         let _ = std::thread::Builder::new().name("cambios-carpetas".into()).spawn(move || {
-            // Se espera a que un archivo deje de cambiar medio segundo antes de leerlo.
+            // Wait for a file to stop changing for half a second before reading it.
             let mut waiting: HashMap<PathBuf, (String, Instant)> = HashMap::new();
             loop {
                 match rx.recv_timeout(Duration::from_millis(150)) {
@@ -590,7 +590,7 @@ impl Inner {
         }
     }
 
-    /// Raíz del repo git que contiene la carpeta (o None), con caché.
+    /// Root of the git repo that contains the folder (or None), cached.
     fn git_root(&self, dir: &Path) -> Option<PathBuf> {
         let k = norm(dir);
         if let Some(v) = self.git_cache.lock().unwrap().get(&k) {
@@ -604,7 +604,7 @@ impl Inner {
         r
     }
 
-    /// Versión del último commit (para archivos que no entraron en la copia de la carpeta).
+    /// Version from the last commit (for files that weren't in the folder copy).
     fn git_head(&self, path: &Path) -> Option<Content> {
         if is_pdf(path) {
             return None;
@@ -620,7 +620,7 @@ impl Inner {
         path.parent().is_some_and(|d| self.git_root(d).is_some())
     }
 
-    /// Cómo era un archivo antes del agente, según las copias de las carpetas vigiladas o git.
+    /// What a file was like before the agent, according to the watched folder copies or git.
     fn baseline(&self, path: &Path) -> (Option<Content>, &'static str) {
         let key = norm(path);
         let snaps: Vec<Arc<Mutex<Snap>>> = self.dirs.lock().unwrap().values().filter(|d| key.starts_with(&norm(&d.root))).map(|d| d.snap.clone()).collect();
@@ -642,7 +642,7 @@ impl Inner {
         }
     }
 
-    /// Anota un cambio. Devuelve si cambió algo.
+    /// Records a change. Returns whether anything changed.
     fn record(&self, path: &Path, after: Content, agent: &str, tool: Option<&str>, hook_before: Option<Content>) -> bool {
         if after == Content::Unreadable {
             return false;
@@ -679,7 +679,7 @@ impl Inner {
             Some(b) => (Some(b), "hook"),
             None => self.baseline(path),
         };
-        // Igual que antes, o se borró algo que no se conocía (una carpeta, un temporal).
+        // Same as before, or something unknown was deleted (a folder, a temp file).
         if before.as_ref() == Some(&after) || (before.is_none() && after == Content::Missing) {
             return false;
         }
@@ -725,7 +725,7 @@ fn on_fs_change(inner: &Arc<Inner>, dir_key: &str, path: &Path) -> bool {
     inner.record(path, after, &agent, None, None)
 }
 
-// --- Hook de Claude Code ------------------------------------------------------------------------------
+// --- Claude Code hook ---------------------------------------------------------------------------------
 
 const HOOK_TOOLS: &[&str] = &["Write", "Edit", "MultiEdit", "NotebookEdit"];
 
@@ -748,7 +748,7 @@ fn hook_target(v: &Value) -> Option<(String, PathBuf, String)> {
     Some((tool.to_string(), p, key))
 }
 
-/// PreToolUse: copia del archivo como está ahora.
+/// PreToolUse: copy of the file as it is now.
 pub fn hook_pre(inner: &Inner, v: &Value) {
     if !inner.enabled.load(SeqCst) || !inner.claude.load(SeqCst) {
         return;
@@ -760,7 +760,7 @@ pub fn hook_pre(inner: &Inner, v: &Value) {
     p.insert(key, (norm(&path), before, Instant::now()));
 }
 
-/// PostToolUse: se anota el cambio con la copia de antes.
+/// PostToolUse: the change is recorded with the earlier copy.
 pub fn hook_post(inner: &Inner, v: &Value) {
     if !inner.enabled.load(SeqCst) || !inner.claude.load(SeqCst) {
         return;
@@ -773,7 +773,7 @@ pub fn hook_post(inner: &Inner, v: &Value) {
     }
 }
 
-// --- Comandos --------------------------------------------------------------------------------------
+// --- Commands --------------------------------------------------------------------------------------
 
 #[tauri::command]
 pub fn changes_list(state: tauri::State<ChangesState>) -> Vec<Summary> {
@@ -785,7 +785,7 @@ pub fn changes_list(state: tauri::State<ChangesState>) -> Vec<Summary> {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiffOut {
-    /// Diff unificado (vacío si no hay texto que comparar).
+    /// Unified diff (empty if there's no text to compare).
     text: String,
     note: Option<String>,
 }
@@ -864,7 +864,7 @@ pub fn changes_config(state: tauri::State<ChangesState>, enabled: bool, claude: 
     }
 }
 
-/// Empieza a vigilar la carpeta de un panel donde arrancó un agente.
+/// Starts watching the folder of a pane where an agent started.
 #[tauri::command]
 pub fn changes_watch(webview: tauri::Webview, state: tauri::State<ChangesState>, pane: String, dir: String, agent: String) -> bool {
     watch(&state.0, webview.label(), &pane, Path::new(&dir), &agent)
@@ -894,7 +894,7 @@ pub fn watch(inner: &Arc<Inner>, owner: &str, pane: &str, root: &Path, agent: &s
         panes.insert(pane.to_string(), (owner.to_string(), agent.to_string(), generation));
         dirs.insert(key.clone(), DirWatch { root: root.to_path_buf(), panes, snap, watcher: None });
     }
-    // La copia y el vigía, en segundo plano (una carpeta grande tarda unos segundos).
+    // The copy and the watcher, in the background (a large folder takes a few seconds).
     let inner = inner.clone();
     let root = root.to_path_buf();
     let _ = std::thread::Builder::new().name("cambios-copia".into()).spawn(move || {
@@ -924,8 +924,8 @@ pub fn watch(inner: &Arc<Inner>, owner: &str, pane: &str, root: &Path, agent: &s
     true
 }
 
-/// El agente terminó (o se cerró el panel): se deja de vigilar si nadie más usa esa carpeta. Se
-/// espera unos segundos para no perder las últimas escrituras.
+/// The agent finished (or the pane was closed): watching stops if nobody else uses that folder. It
+/// waits a few seconds so as not to miss the last writes.
 #[tauri::command]
 pub fn changes_unwatch(state: tauri::State<ChangesState>, pane: String) {
     unwatch(&state.0, |p, _| p == pane);
@@ -936,7 +936,7 @@ pub fn unwatch_owner(state: &ChangesState, owner: &str) {
 }
 
 fn unwatch(inner: &Arc<Inner>, gone: impl Fn(&str, &str) -> bool) {
-    // Los paneles que se van, con su generación de ahora.
+    // The panes that go away, with their current generation.
     let leaving: Vec<(String, u64)> = inner
         .dirs
         .lock()
@@ -958,13 +958,13 @@ fn unwatch(inner: &Arc<Inner>, gone: impl Fn(&str, &str) -> bool) {
     });
 }
 
-// --- Edición a mano ---------------------------------------------------------------------------------
+// --- Manual editing ---------------------------------------------------------------------------------
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Editable {
     text: String,
-    /// Huella del archivo al abrirlo: al guardar se comprueba que nadie lo cambió en el medio.
+    /// Fingerprint of the file when opened: on save it's checked that nobody changed it in between.
     token: String,
     enc: Enc,
     crlf: bool,
@@ -998,7 +998,7 @@ pub fn changes_read(state: tauri::State<ChangesState>, id: u64) -> Result<Editab
     Ok(Editable { text: text.replace("\r\n", "\n"), token: fingerprint(&b), enc, crlf })
 }
 
-/// Guarda lo editado en el panel, con la codificación y el fin de línea que tenía el archivo.
+/// Saves what was edited in the panel, with the file's encoding and line ending.
 #[tauri::command]
 pub fn changes_save(state: tauri::State<ChangesState>, id: u64, text: String, token: String, enc: Enc, crlf: bool) -> Result<(), String> {
     let p = editable_path(&state, id)?;
@@ -1057,7 +1057,7 @@ mod tests {
         assert!(encode_text("€", Enc::Latin1).is_err());
     }
 
-    /// PDF mínimo válido con una línea de texto por elemento.
+    /// Minimal valid PDF with one line of text per item.
     fn mini_pdf(lines: &[&str]) -> Vec<u8> {
         let content = format!("BT /F1 14 Tf 72 720 Td 18 TL {} ET", lines.iter().map(|l| format!("({l}) Tj T*")).collect::<Vec<_>>().join(" "));
         let objs = [
@@ -1139,7 +1139,7 @@ mod tests {
         assert_eq!((e.adds, e.dels), (2, 1));
         assert_eq!(e.agents, vec!["Claude Code"]);
         assert_eq!(e.tools, vec!["Edit"]);
-        // Otra edición: el diff sigue siendo contra la primera versión.
+        // Another edit: the diff is still against the first version.
         let v2 = serde_json::json!({"tool_name": "Write", "tool_use_id": "t2", "tool_input": {"file_path": f.display().to_string()}});
         hook_pre(&st.0, &v2);
         std::fs::write(&f, "uno\ndos\n").unwrap();
@@ -1148,7 +1148,7 @@ mod tests {
         assert_eq!(st.0.entries.lock().unwrap().len(), 1);
         assert_eq!((e.adds, e.dels), (0, 0), "volvió a quedar como antes");
         assert_eq!(e.tools, vec!["Edit", "Write"]);
-        // Archivo nuevo.
+        // New file.
         let n = d.join("nuevo.md");
         let v3 = serde_json::json!({"tool_name": "Write", "tool_use_id": "t3", "tool_input": {"file_path": n.display().to_string()}});
         hook_pre(&st.0, &v3);
@@ -1203,7 +1203,7 @@ mod tests {
         assert_eq!(enc, Enc::Utf8);
         let token = fingerprint(&b);
         let edited = text.replace("\r\n", "\n").replace("hola", "chau");
-        // Guardado "a mano" (lo mismo que hace el comando, sin el State de Tauri).
+        // "Manual" save (same as the command does, without Tauri's State).
         let bytes = encode_text(&edited.replace('\n', "\r\n"), enc).unwrap();
         assert_eq!(fingerprint(&std::fs::read(&f).unwrap()), token);
         std::fs::write(&f, &bytes).unwrap();

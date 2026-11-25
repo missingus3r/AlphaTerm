@@ -1,2 +1,2 @@
-/** Familia de shell para las predicciones: cambia comillas, opciones del catálogo e historial. */
+/** Shell family for command suggestions: changes quotes, catalog options and history. */
 export type Shell = "cmd" | "ps";

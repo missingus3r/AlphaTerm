@@ -1,22 +1,22 @@
 /**
- * Modelo de pestañas y paneles. Funciones puras: reciben el estado y devuelven uno nuevo.
- * Cada pestaña tiene un árbol de paneles: hojas (una terminal) y divisiones en dos.
+ * Tab and pane model. Pure functions: they take the state and return a new one.
+ * Each tab has a tree of panes: leaves (a terminal) and two-way splits.
  */
 import { t } from "../i18n";
 
-export type SplitDir = "row" | "column"; // row: lado a lado; column: uno arriba del otro
+export type SplitDir = "row" | "column"; // row: side by side; column: one above the other
 
-/** Algo para correr apenas la shell esté lista (por ejemplo, un agente). */
+/** Something to run as soon as the shell is ready (for example, an agent). */
 export interface Startup {
   command: string;
   env?: Record<string, string>;
   agentId?: string;
 }
 
-/** Panel de navegador (en vez de una terminal). */
+/** Browser pane (instead of a terminal). */
 export interface BrowserSpec {
   url: string;
-  /** Panel de terminal al que van los pedidos (el agente del proyecto). */
+  /** Terminal pane that requests go to (the project's agent). */
   owner?: string;
 }
 
@@ -26,7 +26,7 @@ export interface Leaf {
   profileId: string;
   cwd?: string;
   startup?: Startup;
-  /** Si está, el panel es un navegador integrado. */
+  /** If present, the pane is a built-in browser. */
   browser?: BrowserSpec;
 }
 
@@ -34,7 +34,7 @@ export interface Split {
   kind: "split";
   id: string;
   dir: SplitDir;
-  ratio: number; // fracción que ocupa `a`
+  ratio: number; // fraction that `a` occupies
   a: PaneNode;
   b: PaneNode;
 }
@@ -46,13 +46,13 @@ export interface Tab {
   root: PaneNode;
   activePane: string;
   manualTitle?: string;
-  /** Color del título (hex). */
+  /** Title color (hex). */
   color?: string;
-  /** Carpeta de pestañas a la que pertenece. */
+  /** Tab group it belongs to. */
   groupId?: string;
 }
 
-/** Carpeta de pestañas: agrupa varias bajo un nombre y se puede plegar. */
+/** Tab group: groups several tabs under a name and can be collapsed. */
 export interface Group {
   id: string;
   name: string;
@@ -73,14 +73,14 @@ export function leaf(profileId: string, cwd?: string, startup?: Startup): Leaf {
   return { kind: "leaf", id: newId("p"), profileId, cwd, ...(startup ? { startup } : {}) };
 }
 
-/** Hoja de navegador (sin shell). */
+/** Browser leaf (no shell). */
 export function browserLeaf(url: string, owner?: string): Leaf {
   return { kind: "leaf", id: newId("b"), profileId: "", browser: { url, ...(owner ? { owner } : {}) } };
 }
 
 export const isBrowser = (l: Leaf | undefined) => !!l?.browser;
 
-/** Actualiza la URL (o el dueño) de un panel de navegador: lo que se guarda en la sesión. */
+/** Updates the URL (or owner) of a browser pane: what is saved in the session. */
 export function setBrowser(l: Layout, paneId: string, patch: Partial<BrowserSpec>): Layout {
   const fix = (n: PaneNode): PaneNode =>
     n.kind === "leaf" ? (n.id === paneId && n.browser ? { ...n, browser: { ...n.browser, ...patch } } : n) : { ...n, a: fix(n.a), b: fix(n.b) };
@@ -93,7 +93,7 @@ export function setBrowser(l: Layout, paneId: string, patch: Partial<BrowserSpec
   return changed ? { ...l, tabs } : l;
 }
 
-/** Primer panel de navegador de una pestaña. */
+/** First browser pane of a tab. */
 export function browserOf(t: Tab): Leaf | undefined {
   return leaves(t.root).find((x) => x.browser);
 }
@@ -122,13 +122,13 @@ function mapTab(l: Layout, tabId: string, f: (t: Tab) => Tab): Layout {
 export function addTab(l: Layout, tab: Tab): Layout {
   const i = l.tabs.findIndex((t) => t.id === l.activeTab);
   const tabs = [...l.tabs];
-  // Una pestaña nueva queda en la misma carpeta que la activa.
+  // A new tab ends up in the same folder as the active one.
   const group = l.tabs[i]?.groupId;
   tabs.splice(i < 0 ? tabs.length : i + 1, 0, group && !tab.groupId ? { ...tab, groupId: group } : tab);
   return { ...l, tabs, activeTab: tab.id };
 }
 
-/** Cierra una pestaña; queda activa la de la derecha (o la de la izquierda si era la última). */
+/** Closes a tab; the one to the right becomes active (or the one to the left if it was the last). */
 export function closeTab(l: Layout, tabId: string): Layout {
   const i = l.tabs.findIndex((t) => t.id === tabId);
   if (i < 0) return l;
@@ -138,13 +138,13 @@ export function closeTab(l: Layout, tabId: string): Layout {
   return pruneGroups({ ...l, tabs, activeTab: active });
 }
 
-// --- Colores y carpetas de pestañas ----------------------------------------------------------------
+// --- Tab colors and folders ------------------------------------------------------------------------
 
 export function setTabColor(l: Layout, tabId: string, color: string | undefined): Layout {
   return mapTab(l, tabId, (t) => ({ ...t, color }));
 }
 
-/** Saca las carpetas que quedaron vacías. */
+/** Removes the folders that were left empty. */
 export function pruneGroups(l: Layout): Layout {
   if (!l.groups?.length) return l;
   const used = new Set(l.tabs.map((t) => t.groupId).filter(Boolean));
@@ -152,7 +152,7 @@ export function pruneGroups(l: Layout): Layout {
   return groups.length === l.groups.length ? l : { ...l, groups };
 }
 
-/** Las pestañas de una carpeta quedan juntas (en el lugar de la primera). */
+/** The tabs of a folder stay together (in the first one's place). */
 function compact(l: Layout): Layout {
   const out: Tab[] = [];
   const placed = new Set<string>();
@@ -168,14 +168,14 @@ function compact(l: Layout): Layout {
   return { ...l, tabs: out };
 }
 
-/** Crea una carpeta con estas pestañas. */
+/** Creates a folder with these tabs. */
 export function createGroup(l: Layout, name: string, tabIds: string[], color?: string): Layout {
   const g: Group = { id: newId("g"), name: name.trim() || t("Carpeta"), color, collapsed: false };
   const tabs = l.tabs.map((t) => (tabIds.includes(t.id) ? { ...t, groupId: g.id } : t));
   return pruneGroups(compact({ ...l, tabs, groups: [...(l.groups ?? []), g] }));
 }
 
-/** Mueve una pestaña a una carpeta (o la saca con `null`). */
+/** Moves a tab into a folder (or takes it out with `null`). */
 export function moveToGroup(l: Layout, tabId: string, groupId: string | null): Layout {
   if (groupId && !l.groups?.some((g) => g.id === groupId)) return l;
   const tab = l.tabs.find((t) => t.id === tabId);
@@ -186,7 +186,7 @@ export function moveToGroup(l: Layout, tabId: string, groupId: string | null): L
     const last = tabs.map((t) => t.groupId).lastIndexOf(groupId);
     tabs.splice(last + 1, 0, moved);
   } else {
-    // Fuera de la carpeta: justo después de ella.
+    // Outside the folder: right after it.
     const last = tabs.map((t) => t.groupId).lastIndexOf(tab.groupId);
     tabs.splice(last < 0 ? l.tabs.findIndex((t) => t.id === tabId) : last + 1, 0, moved);
   }
@@ -198,7 +198,7 @@ export function updateGroup(l: Layout, groupId: string, patch: Partial<Omit<Grou
   return { ...l, groups: (l.groups ?? []).map((g) => (g.id === groupId ? { ...g, ...patch } : g)) };
 }
 
-/** Desarma la carpeta: las pestañas quedan sueltas, en el mismo lugar. */
+/** Dissolves the folder: the tabs are left loose, in the same place. */
 export function ungroup(l: Layout, groupId: string): Layout {
   return {
     ...l,
@@ -211,7 +211,7 @@ export function selectTab(l: Layout, tabId: string): Layout {
   return l.tabs.some((t) => t.id === tabId) ? { ...l, activeTab: tabId } : l;
 }
 
-/** Pestaña siguiente (+1) o anterior (-1), dando la vuelta. */
+/** Next (+1) or previous (-1) tab, wrapping around. */
 export function cycleTab(l: Layout, delta: number): Layout {
   const n = l.tabs.length;
   if (n === 0) return l;
@@ -244,7 +244,7 @@ function replaceNode(node: PaneNode, id: string, f: (n: PaneNode) => PaneNode): 
   return { ...node, a: replaceNode(node.a, id, f), b: replaceNode(node.b, id, f) };
 }
 
-/** Divide el panel `paneId`: el nuevo queda a la derecha (row) o abajo (column) y pasa a estar activo. */
+/** Splits pane `paneId`: the new one goes to the right (row) or below (column) and becomes active. */
 export function splitPane(l: Layout, tabId: string, paneId: string, dir: SplitDir, fresh: Leaf): Layout {
   return mapTab(l, tabId, (t) => {
     if (!findLeaf(t.root, paneId)) return t;
@@ -262,7 +262,7 @@ function removeLeaf(node: PaneNode, id: string): PaneNode | null {
   return { ...node, a, b };
 }
 
-/** Cierra un panel. Si era el último de la pestaña, cierra la pestaña. */
+/** Closes a pane. If it was the tab's last one, closes the tab. */
 export function closePane(l: Layout, tabId: string, paneId: string): Layout {
   const tab = l.tabs.find((t) => t.id === tabId);
   if (!tab) return l;
@@ -273,7 +273,7 @@ export function closePane(l: Layout, tabId: string, paneId: string): Layout {
   if (active === paneId) {
     const remaining = leaves(root).map((x) => x.id);
     const i = order.indexOf(paneId);
-    // El vecino anterior en orden de lectura; si no hay, el primero.
+    // The previous neighbor in reading order; if there is none, the first.
     active = order.slice(0, i).reverse().find((id) => remaining.includes(id)) ?? remaining[0];
   }
   return mapTab(l, tabId, (t) => ({ ...t, root, activePane: active }));
@@ -291,10 +291,10 @@ export function setRatio(l: Layout, tabId: string, splitId: string, ratio: numbe
   }));
 }
 
-/** Dónde se suelta un panel arrastrado sobre otro: un lado, o el centro para intercambiarlos. */
+/** Where a pane dragged onto another is dropped: one side, or the center to swap them. */
 export type DropZone = "left" | "right" | "top" | "bottom" | "center";
 
-/** Cambia dos paneles de lugar (las divisiones y sus proporciones quedan igual). */
+/** Swaps two panes (the splits and their proportions stay the same). */
 export function swapPanes(l: Layout, tabId: string, aId: string, bId: string): Layout {
   const tab = l.tabs.find((t) => t.id === tabId);
   if (!tab || aId === bId) return l;
@@ -307,8 +307,8 @@ export function swapPanes(l: Layout, tabId: string, aId: string, bId: string): L
 }
 
 /**
- * Mueve un panel al lado de otro (queda mitad y mitad) o, en el centro, los intercambia.
- * El panel movido es la misma hoja: su terminal no se vuelve a crear.
+ * Moves a pane next to another (it ends up half and half) or, in the center, swaps them.
+ * The moved pane is the same leaf: its terminal isn't recreated.
  */
 export function movePane(l: Layout, tabId: string, paneId: string, targetId: string, zone: DropZone): Layout {
   if (zone === "center") return swapPanes(l, tabId, paneId, targetId);
@@ -324,13 +324,13 @@ export function movePane(l: Layout, tabId: string, paneId: string, targetId: str
   return mapTab(l, tabId, (t) => ({ ...t, root, activePane: paneId }));
 }
 
-/** Cuántos paneles hay a lo largo de un eje (los de al lado suman; los apilados en el otro eje, no). */
+/** How many panes there are along an axis (side-by-side ones add up; those stacked on the other axis don't). */
 function span(n: PaneNode, dir: SplitDir): number {
   if (n.kind === "leaf") return 1;
   return n.dir === dir ? span(n.a, dir) + span(n.b, dir) : Math.max(span(n.a, dir), span(n.b, dir));
 }
 
-/** Iguala los tamaños: en cada eje, todos los paneles quedan del mismo ancho (o alto). */
+/** Equalizes sizes: on each axis, all panes end up the same width (or height). */
 export function equalize(l: Layout, tabId: string): Layout {
   const fix = (n: PaneNode): PaneNode => {
     if (n.kind === "leaf") return n;
@@ -348,7 +348,7 @@ export interface Rect {
   h: number;
 }
 
-/** Rectángulos relativos (0..1) de cada hoja, para moverse entre paneles con el teclado. */
+/** Relative rectangles (0..1) of each leaf, for moving between panes with the keyboard. */
 export function paneRects(node: PaneNode, r: Rect = { x: 0, y: 0, w: 1, h: 1 }): Map<string, Rect> {
   if (node.kind === "leaf") return new Map([[node.id, r]]);
   const out = new Map<string, Rect>();
@@ -367,13 +367,13 @@ export function paneRects(node: PaneNode, r: Rect = { x: 0, y: 0, w: 1, h: 1 }):
   return out;
 }
 
-/** El panel cuyo rectángulo contiene el punto (en las mismas unidades que los rectángulos). */
+/** The pane whose rectangle contains the point (in the same units as the rectangles). */
 export function paneAt(rects: Map<string, Rect>, fx: number, fy: number): string | undefined {
   for (const [id, r] of rects) if (fx >= r.x && fx < r.x + r.w && fy >= r.y && fy < r.y + r.h) return id;
   return undefined;
 }
 
-/** Zona de un panel bajo el puntero: el centro (para intercambiar) o el borde más cercano. */
+/** Zone of a pane under the pointer: the center (to swap) or the nearest edge. */
 export function dropZone(r: Rect, fx: number, fy: number): DropZone {
   const u = (fx - r.x) / r.w;
   const v = (fy - r.y) / r.h;
@@ -387,7 +387,7 @@ export function dropZone(r: Rect, fx: number, fy: number): DropZone {
   return edges.reduce((best, e) => (e[1] < best[1] ? e : best))[0];
 }
 
-/** Lo que se pinta al arrastrar: la mitad donde va a quedar el panel, o el panel entero (intercambio). */
+/** What is drawn while dragging: the half where the pane will end up, or the whole pane (swap). */
 export function zoneRect(r: Rect, zone: DropZone): Rect {
   switch (zone) {
     case "left":
@@ -405,7 +405,7 @@ export function zoneRect(r: Rect, zone: DropZone): Rect {
 
 export const SNAP_POINTS = [1 / 3, 1 / 2, 2 / 3];
 
-/** El divisor se frena en ⅓, ½ o ⅔ si se lo suelta a pocos píxeles (`extentPx`: largo de la división). */
+/** The divider snaps at ⅓, ½ or ⅔ if released within a few pixels (`extentPx`: length of the split). */
 export function snapRatio(ratio: number, extentPx: number, thresholdPx = 12): number {
   const near = SNAP_POINTS.reduce((best, s) => (Math.abs(s - ratio) < Math.abs(best - ratio) ? s : best));
   return Math.abs(near - ratio) * extentPx <= thresholdPx ? near : ratio;
@@ -413,7 +413,7 @@ export function snapRatio(ratio: number, extentPx: number, thresholdPx = 12): nu
 
 export type Direction = "left" | "right" | "up" | "down";
 
-/** Panel vecino en una dirección: el más cercano que se superpone en el otro eje. */
+/** Neighbor pane in a direction: the nearest one that overlaps on the other axis. */
 export function neighbor(node: PaneNode, fromId: string, dir: Direction): string | undefined {
   const rects = paneRects(node);
   const from = rects.get(fromId);
@@ -446,7 +446,7 @@ export interface SplitArea {
   rect: Rect;
 }
 
-/** Cada división con el rectángulo que ocupa: para dibujar los divisores arrastrables. */
+/** Each split with the rectangle it occupies: to draw the draggable dividers. */
 export function splitAreas(node: PaneNode, r: Rect = { x: 0, y: 0, w: 1, h: 1 }): SplitArea[] {
   if (node.kind === "leaf") return [];
   const [ra, rb]: [Rect, Rect] =

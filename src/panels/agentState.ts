@@ -1,11 +1,11 @@
 import { k } from "../i18n";
 
 /**
- * Estado de un agente lanzado en una pestaña, a partir de lo que sabe el panel:
- * - integración de la shell (comando en curso o no) o, sin integración, el proceso en primer plano;
- * - actividad de la salida: los agentes con interfaz de texto se repintan mientras trabajan
- *   (spinners, streaming), así que unos segundos de silencio con el agente vivo = esperando input;
- * - la campana (BEL), que varios agentes usan para pedir atención.
+ * State of an agent launched in a tab, based on what the pane knows:
+ * - shell integration (a command running or not) or, without integration, the foreground process;
+ * - output activity: agents with a text interface repaint while they work
+ *   (spinners, streaming), so a few seconds of silence with the agent alive = waiting for input;
+ * - the bell (BEL), which several agents use to ask for attention.
  */
 export type AgentState = "starting" | "working" | "waiting" | "attention" | "done" | "exited";
 
@@ -14,10 +14,10 @@ export interface AgentPaneInfo {
   integrated: boolean;
   running: boolean;
   fgProcess?: string;
-  /** Salida en los últimos segundos. */
+  /** Output in the last few seconds. */
   active?: boolean;
   bell?: boolean;
-  /** El comando del agente ya arrancó alguna vez en este panel. */
+  /** The agent's command has already started at some point in this pane. */
   agentStarted?: boolean;
   exitCode?: number | null;
 }
@@ -26,7 +26,7 @@ export function agentRunning(p: AgentPaneInfo): boolean {
   return p.integrated ? p.running : !!p.fgProcess;
 }
 
-/** Hay algo corriendo en el panel (un agente o un comando): cerrarlo lo corta. */
+/** Something is running in the pane (an agent or a command): closing it cuts it off. */
 export function paneBusy(p: AgentPaneInfo): boolean {
   return !p.exited && agentRunning(p);
 }
@@ -39,7 +39,7 @@ export function agentState(p: AgentPaneInfo): AgentState {
   return p.active ? "working" : "waiting";
 }
 
-/** Etiqueta de cada estado (en español: se muestra con `t`). */
+/** Label of each state (in Spanish: shown with `t`). */
 export const AGENT_STATE_LABEL: Record<AgentState, string> = {
   starting: k("Arrancando"),
   working: k("Trabajando"),
@@ -49,12 +49,12 @@ export const AGENT_STATE_LABEL: Record<AgentState, string> = {
   exited: k("Pestaña cerrada"),
 };
 
-/** Línea de comando con la que arranca un agente (lo que se escribe en la shell). */
+/** Command line an agent starts with (what is typed in the shell). */
 export function agentCommandLine(command: string): string {
   return command.trim().replace(/[\r\n]+/g, " ");
 }
 
-/** Texto "CLAVE=valor" por línea → objeto (las líneas inválidas se ignoran). */
+/** "KEY=value" text per line → object (invalid lines are ignored). */
 export function parseEnvText(text: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const raw of text.split(/\r?\n/)) {
@@ -73,7 +73,7 @@ export const envToText = (env: Record<string, string>) =>
     .map(([k, v]) => `${k}=${v}`)
     .join("\n");
 
-/** Agrega una carpeta al principio de las recientes (sin repetir, máximo 12). */
+/** Adds a folder at the start of the recent ones (no repeats, at most 12). */
 export function pushRecent(list: string[], dir: string): string[] {
   const norm = (d: string) => d.replace(/[\\/]+$/, "").toLowerCase();
   return [dir, ...list.filter((d) => norm(d) !== norm(dir))].slice(0, 12);

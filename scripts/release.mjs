@@ -1,21 +1,21 @@
 #!/usr/bin/env node
-// Versión nueva de AlphaTerm: sube el número, la marca en git, compila y la instala.
+// New AlphaTerm version: bumps the number, tags it in git, builds and installs it.
 //
-//   node scripts/release.mjs              → 0.3.0 → 0.3.1 (patch, por defecto)
+//   node scripts/release.mjs              → 0.3.0 → 0.3.1 (patch, the default)
 //   node scripts/release.mjs --minor      → 0.3.0 → 0.4.0
 //   node scripts/release.mjs --major      → 0.3.0 → 1.0.0
-//   node scripts/release.mjs --misma      → recompila la versión actual sin subirla
+//   node scripts/release.mjs --misma      → rebuilds the current version without bumping it
 //
-// Pasos: 0) antes de tocar nada, revisa que los commits desde el último tag tengan su traducción
-// de Novedades (src/i18n/changelog/en.json y pt.json; `node scripts/changelog.mjs --faltan`): si
-// falta alguna, frena sin cambiar nada; 1) sube `version` en package.json, src-tauri/tauri.conf.json,
-// src-tauri/Cargo.toml y Cargo.lock; 2) commit "Versión X" (solo esos archivos) y tag anotado vX;
-// 3) genera el changelog; 4) compila; 5) instala (scripts/install.mjs). Si falla la compilación o la
-// instalación, deshace el commit y el tag que creó (son locales y recién hechos) y deja los archivos
-// como estaban.
+// Steps: 0) before touching anything, checks that the commits since the last tag have their
+// What's new translation (src/i18n/changelog/en.json and pt.json; `node scripts/changelog.mjs --faltan`): if
+// any is missing, it stops without changing anything; 1) bumps `version` in package.json, src-tauri/tauri.conf.json,
+// src-tauri/Cargo.toml and Cargo.lock; 2) commit "Versión X" (only those files) and annotated tag vX;
+// 3) generates the changelog; 4) builds; 5) installs (scripts/install.mjs). If the build or the
+// install fails, it undoes the commit and tag it created (they are local and freshly made) and leaves the files
+// as they were.
 //
-// Si `src-tauri\target\release\alphaterm.exe` está abierto (una AlphaTerm vieja que corre desde ahí),
-// no se puede pisar: se compila en `src-tauri\target\prueba` y se instala desde ahí.
+// If `src-tauri\target\release\alphaterm.exe` is open (an old AlphaTerm running from there),
+// it can't be overwritten: it builds into `src-tauri\target\prueba` and installs from there.
 import { execFileSync, execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -26,7 +26,7 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const main = path.join(repo, "src-tauri", "target");
 const git = (...args) => execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
 
-/** ¿Hay un programa corriendo desde este .exe? (un .exe en uso no se puede abrir para escribir). */
+/** Is a program running from this .exe? (an .exe in use can't be opened for writing). */
 function inUse(file) {
   if (!fs.existsSync(file)) return false;
   try {
@@ -37,7 +37,7 @@ function inUse(file) {
   }
 }
 
-// --- 1) Versión nueva -----------------------------------------------------------------------------
+// --- 1) New version ---
 const flag = process.argv.slice(2).find((a) => a.startsWith("--")) ?? "--patch";
 const kind = { "--patch": "patch", "--minor": "minor", "--major": "major", "--misma": null }[flag];
 if (kind === undefined) {
@@ -63,13 +63,13 @@ function undo() {
   try {
     git("tag", "-d", `v${version}`);
   } catch {
-    /* ya no estaba */
+    /* it was no longer there */
   }
   try {
     if (git("log", "-1", "--format=%s") === `Versión ${version}`) git("reset", "--soft", "HEAD~1");
     git("restore", "--staged", ...Object.keys(FILES));
   } catch {
-    /* sigue con los archivos */
+    /* it still has the files */
   }
   for (const [f, text] of Object.entries(backup)) fs.writeFileSync(path.join(repo, f), text);
   console.log(`Quedó en ${current}.`);
@@ -81,14 +81,14 @@ if (kind) {
     console.error(`Ya existe el tag v${version}. Revisar la versión en src-tauri/tauri.conf.json.`);
     process.exit(1);
   } catch {
-    /* no existe: bien */
+    /* doesn't exist: fine */
   }
-  // Novedades en los tres idiomas: los commits que entran en esta versión tienen que estar traducidos.
+  // What's new in the three languages: the commits that go into this version must be translated.
   let since = null;
   try {
     since = git("describe", "--tags", "--abbrev=0", "--match", "v[0-9]*");
   } catch {
-    /* sin tags: se revisa todo el historial */
+    /* no tags: the whole history is checked */
   }
   try {
     execFileSync(process.execPath, [path.join(repo, "scripts", "changelog.mjs"), "--faltan", ...(since ? ["--desde", since] : [])], { cwd: repo, stdio: "inherit" });
@@ -117,15 +117,15 @@ if (kind) {
   console.log(`Se recompila la misma versión: ${version}.`);
 }
 
-// --- 2) Compilar e instalar -----------------------------------------------------------------------
+// --- 2) Build and install ---
 try {
   const target = inUse(path.join(main, "release", "alphaterm.exe")) ? path.join(main, "prueba") : main;
   if (target !== main) console.log(`target\\release\\alphaterm.exe está abierto: se compila en ${target}.`);
   console.log(`Compilando AlphaTerm ${version}…\n`);
   const env = { ...process.env, CARGO_TARGET_DIR: target };
-  // Rust instalado fuera del PATH (~/.cargo/bin).
+  // Rust installed outside the PATH (~/.cargo/bin).
   env.PATH = `${path.join(process.env.USERPROFILE ?? "", ".cargo", "bin")}${path.delimiter}${env.PATH ?? env.Path ?? ""}`;
-  // `npm run build` (el beforeBuildCommand de Tauri) genera el changelog con los tags al día.
+  // `npm run build` (Tauri's beforeBuildCommand) generates the changelog with the tags up to date.
   execSync("npx tauri build --no-bundle", { cwd: repo, env, stdio: "inherit" });
   execSync(`node "${path.join(repo, "scripts", "install.mjs")}" --desde "${path.join(target, "release")}"`, { cwd: repo, stdio: "inherit" });
 } catch (e) {

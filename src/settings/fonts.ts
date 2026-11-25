@@ -1,6 +1,6 @@
 /**
- * Fuentes: la lista de monoespaciadas instaladas y el acceso a sus archivos para el addon
- * de ligaduras.
+ * Fonts: the list of installed monospaced ones and access to their files for the ligatures
+ * addon.
  */
 import { invoke } from "@tauri-apps/api/core";
 
@@ -10,11 +10,11 @@ let families: Promise<string[]> | null = null;
 const installed = () => (families ??= invoke<string[]>("fonts_list").catch(() => []));
 
 /**
- * Una fuente es monoespaciada si "iiii" y "WWWW" miden lo mismo. Si no está instalada, el
- * navegador usa la de respaldo (serif, proporcional) y no pasa la prueba.
+ * A font is monospaced if "iiii" and "WWWW" measure the same. If it isn't installed, the
+ * browser uses the fallback (serif, proportional) and it fails the test.
  */
 export function isMonospace(family: string, ctx: CanvasRenderingContext2D): boolean {
-  // Las de símbolos (Wingdings…) pasan la prueba de ancho pero no sirven para texto.
+  // Symbol fonts (Wingdings…) pass the width test but aren't suitable for text.
   if (SYMBOL_FONTS.test(family)) return false;
   ctx.font = `20px "${family.replace(/"/g, "")}", serif`;
   const w = (s: string) => ctx.measureText(s).width;
@@ -33,8 +33,8 @@ export function monospaceFonts(): Promise<string[]> {
 }
 
 /**
- * El addon de ligaduras lee la fuente con la API de "fuentes locales" del navegador, que en el
- * WebView pediría un permiso. La reemplazamos por una que pide el archivo al backend.
+ * The ligatures addon reads the font with the browser's "local fonts" API, which in the
+ * WebView would ask for a permission. We replace it with one that requests the file from the backend.
  */
 export function installFontAccess() {
   const w = window as unknown as { queryLocalFonts?: unknown };

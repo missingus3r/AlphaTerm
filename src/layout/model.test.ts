@@ -187,13 +187,13 @@ describe("paneles de navegador", () => {
     expect(M.browserOf(l.tabs[0])?.id).toBe(b.id);
     l = M.setBrowser(l, b.id, { url: "http://localhost:3000/otra" });
     expect(M.findLeaf(l.tabs[0].root, b.id)?.browser).toEqual({ url: "http://localhost:3000/otra", owner: t.activePane });
-    // Sobre un panel que no es navegador no cambia nada (misma referencia).
+    // On a pane that isn't a browser nothing changes (same reference).
     expect(M.setBrowser(l, t.activePane, { url: "x" })).toBe(l);
   });
 });
 
 describe("mover paneles", () => {
-  /** Pestaña con dos paneles lado a lado: A | B. */
+  /** Tab with two panes side by side: A | B. */
   const two = () => {
     const t = M.newTab("powershell", "C:\\a");
     const A = t.activePane;
@@ -216,7 +216,7 @@ describe("mover paneles", () => {
   it("abajo con tres paneles", () => {
     const { l, tab, A, B } = two();
     const C = M.leaf("cmd");
-    let x = M.splitPane(l, tab, B.id, "column", C); // A | (B sobre C)
+    let x = M.splitPane(l, tab, B.id, "column", C); // A | (B over C)
     x = M.movePane(x, tab, A, C.id, "bottom");
     expect(ids(x)).toEqual([B.id, C.id, A]);
     const r = M.paneRects(x.tabs[0].root).get(A)!;
@@ -263,7 +263,7 @@ describe("mover paneles", () => {
     const row = M.equalize(M.splitPane(l, tab, B.id, "row", C), tab); // A | (B | C)
     for (const r of M.paneRects(row.tabs[0].root).values()) expect(r.w).toBeCloseTo(1 / 3);
 
-    let col = M.splitPane(l, tab, B.id, "column", C); // A | (B sobre C)
+    let col = M.splitPane(l, tab, B.id, "column", C); // A | (B over C)
     const root = col.tabs[0].root;
     col = M.setRatio(col, tab, root.id, 0.8);
     col = M.setRatio(col, tab, root.kind === "split" ? root.b.id : "", 0.2);

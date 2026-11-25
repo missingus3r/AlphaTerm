@@ -14,9 +14,9 @@ export interface HistEntry {
 }
 
 interface Props {
-  /** Escribe el comando en la terminal activa (con Enter si `run`). */
+  /** Writes the command in the active terminal (with Enter if `run`). */
   onUse: (command: string, run: boolean) => void;
-  /** Cambia cada vez que se agrega un comando (para refrescar). */
+  /** Changes every time a command is added (to refresh). */
   version: number;
 }
 
@@ -28,7 +28,7 @@ export default function HistoryPanel(props: Props) {
   );
   let input!: HTMLInputElement;
   onMount(() => setTimeout(() => input?.focus(), 50));
-  // El tiempo relativo ("hace 3 min") se refresca cada minuto.
+  // The relative time ("hace 3 min") refreshes every minute.
   const [, setTick] = createSignal(0);
   onMount(() => {
     const timer = setInterval(() => setTick((x) => x + 1), 60_000);

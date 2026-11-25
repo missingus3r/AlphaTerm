@@ -1,22 +1,22 @@
 /**
- * Rutas en la salida de la terminal (lo que muestran los agentes: "Escribí C:\x\a.ts",
- * "src/layout/TabBar.tsx:42", "./build/out.png"). Se vuelven links que abren la carpeta o el
- * archivo, y al pasar el mouse muestran una vista previa.
+ * Paths in the terminal output (what agents show: "Escribí C:\x\a.ts",
+ * "src/layout/TabBar.tsx:42", "./build/out.png"). They become links that open the folder or the
+ * file, and show a preview on mouse hover.
  */
 
 export interface PathMatch {
-  /** Columna (0-based) donde empieza y termina el texto del link. */
+  /** Column (0-based) where the link text starts and ends. */
   start: number;
   end: number;
-  /** Ruta tal como aparece (sin el :línea:columna). */
+  /** Path as it appears (without the :line:column). */
   raw: string;
   line?: number;
   col?: number;
 }
 
-// Absolutas (C:\..., C:/..., \\servidor\recurso\...) o relativas con al menos una barra
-// (./x, ../x, src/x.ts, .claude\settings.json). Sin espacios: una ruta con espacios solo se
-// reconoce entre comillas.
+// Absolute (C:\..., C:/..., \\server\share\...) or relative with at least one slash
+// (./x, ../x, src/x.ts, .claude\settings.json). No spaces: a path with spaces only
+// is only recognized inside quotes.
 const ABS = String.raw`(?:(?<![A-Za-z0-9])[A-Za-z]:[\\/]|\\\\[^\\\s]+\\)[^\s"'<>|*?\x00-\x1f]*`;
 const REL = String.raw`(?:\.{1,2}[\\/]|[\w.@-]+[\\/])[^\s"'<>|*?:\x00-\x1f]*(?::\d+){0,2}`;
 const QUOTED = String.raw`["'\x60]((?:[A-Za-z]:[\\/]|\.{1,2}[\\/])[^"'\x60\x00-\x1f]+)["'\x60]`;
@@ -32,7 +32,7 @@ export function findPaths(text: string): PathMatch[] {
     let raw = m[1] ?? m[2] ?? m[3];
     if (!raw) continue;
     let start = m.index! + (quoted ? 1 : m[0].indexOf(raw));
-    // URLs las maneja el addon de links web.
+    // URLs are handled by the web links addon.
     if (/^[a-z]{2,}:\/\//i.test(text.slice(Math.max(0, start - 8), start + raw.length))) continue;
     if (!quoted) raw = raw.replace(TRAIL, (t) => (/^:\d/.test(t) ? t : ""));
     let line: number | undefined;
@@ -45,7 +45,7 @@ export function findPaths(text: string): PathMatch[] {
       raw = raw.slice(0, lc.index);
     }
     raw = raw.replace(TRAIL, "");
-    if (raw.length < 3 || /^\d+[\\/]\d+/.test(raw)) continue; // fechas tipo 18/11/2026
+    if (raw.length < 3 || /^\d+[\\/]\d+/.test(raw)) continue; // dates like 18/11/2026
     if (!/[\\/]/.test(raw)) continue;
     out.push({ start, end: start + shown.replace(TRAIL, "").length, raw, line, col });
     start = 0;
@@ -53,14 +53,14 @@ export function findPaths(text: string): PathMatch[] {
   return out;
 }
 
-/** Ruta absoluta (con barras de Windows) a partir de una relativa y la carpeta del panel. */
+/** Absolute path (with Windows slashes) from a relative one and the pane's folder. */
 export function resolvePath(raw: string, cwd?: string): string | null {
   let p = raw.replace(/\//g, "\\");
   if (!/^([A-Za-z]:\\|\\\\)/.test(p)) {
     if (!cwd) return null;
     p = `${cwd.replace(/[\\/]+$/, "")}\\${p}`;
   }
-  // Normalizar . y ..
+  // Normalize . and ..
   const unc = p.startsWith("\\\\");
   const parts = p.split("\\").filter((x, i) => x !== "" || i === 0);
   const out: string[] = [];

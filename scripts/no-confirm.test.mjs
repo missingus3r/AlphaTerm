@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 /**
- * `window.confirm` no pregunta en AlphaTerm (el plugin de diálogos de Tauri lo vuelve asíncrono:
- * devuelve una promesa, que siempre cuenta como "sí"). Todo tiene que pasar por `askConfirm`
+ * `window.confirm` doesn't ask in AlphaTerm (Tauri's dialog plugin makes it asynchronous:
+ * it returns a promise, which always counts as "yes"). Everything has to go through `askConfirm`
  * (src/widgets/confirm.ts).
  */
 const SRC = join(dirname(fileURLToPath(import.meta.url)), "..", "src");

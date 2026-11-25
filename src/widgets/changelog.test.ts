@@ -30,7 +30,7 @@ describe("changelog en el idioma de la interfaz", () => {
     expect(commitText(full, "en")).toEqual({ subject: "Subject", body: "Body" });
     expect(commitText(full, "pt")).toEqual({ subject: "Assunto", body: "Cuerpo" });
     expect(commitText(c({}), "en")).toEqual({ subject: "Asunto", body: "Cuerpo" });
-    // Sin cuerpo en español no se muestra uno traducido (sería de otro commit con el mismo asunto).
+    // Without a Spanish body, no translated one is shown (it would be from another commit with the same subject).
     expect(commitText(c({ body: "", tr: { en: { subject: "S", body: "B" } } }), "en").body).toBe("");
   });
 

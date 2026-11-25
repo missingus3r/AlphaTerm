@@ -1,41 +1,41 @@
 import { dropZone, paneAt, type DropZone, type Rect } from "./model";
 
-/** Cuánto hay que mover el puntero para que un clic en la barrita pase a ser un arrastre. */
+/** How far the pointer has to move for a click on the bar to become a drag. */
 export const DRAG_THRESHOLD_PX = 5;
 
-/** Dónde escucha y marca el arrastre (la ventana y el body reales; en los tests, de mentira). */
+/** Where it listens and marks the drag (the real window and body; in tests, fake ones). */
 export interface DragEnv {
   win: Pick<EventTarget, "addEventListener" | "removeEventListener">;
   body: { classList: { add(...c: string[]): void; remove(...c: string[]): void } };
 }
 
 export interface PaneDragOpts {
-  /** El pointerdown en la barrita (o el agarre del navegador). */
+  /** The pointerdown on the bar (or the browser's grip). */
   e: Pick<PointerEvent, "button" | "clientX" | "clientY"> & Partial<Pick<PointerEvent, "pointerId" | "target">>;
-  /** La `.tab-view` de la pestaña: los rectángulos de los paneles son relativos a ella. */
+  /** The tab's `.tab-view`: the panes' rectangles are relative to it. */
   container: { getBoundingClientRect(): { left: number; top: number; width: number; height: number } };
   paneId: string;
   rects: () => Map<string, Rect>;
   onHover: (h: { target: string; zone: DropZone } | null) => void;
   onDrop: (target: string, zone: DropZone) => void;
-  /** Se soltó sin llegar a arrastrar. */
+  /** Dropped without dragging. */
   onClick: () => void;
 }
 
 /**
- * Arrastre de un panel por su barrita. Mientras dura, el body lleva `resizing` (los paneles no
- * reciben el puntero y el navegador integrado se esconde) y `pane-dragging` (cursor). Esc,
- * `pointercancel` o perder el foco de la ventana lo cancelan sin mover nada.
+ * Drag of a pane by its bar. While it lasts, the body carries `resizing` (panes don't
+ * receive the pointer and the built-in browser is hidden) and `pane-dragging` (cursor). Esc,
+ * `pointercancel` or losing the window's focus cancel it without moving anything.
  */
 export function startPaneDrag(o: PaneDragOpts, env: DragEnv = { win: window, body: document.body }): void {
   if (o.e.button !== 0) return;
   const x0 = o.e.clientX;
   const y0 = o.e.clientY;
-  // Que el soltar llegue aunque el puntero salga de la ventana.
+  // So the drop arrives even if the pointer leaves the window.
   try {
     if (o.e.pointerId !== undefined) (o.e.target as Element | null)?.setPointerCapture?.(o.e.pointerId);
   } catch {
-    /* sin captura igual anda dentro de la ventana */
+    /* without capture it still works inside the window */
   }
   let dragging = false;
   let hover: { target: string; zone: DropZone } | null = null;
@@ -65,7 +65,7 @@ export function startPaneDrag(o: PaneDragOpts, env: DragEnv = { win: window, bod
   const cancel = () => end(false);
   const key = (ev: Event) => {
     if ((ev as KeyboardEvent).key !== "Escape") return;
-    // La terminal sigue con el foco: el Esc no le tiene que llegar (a un agente lo interrumpe).
+    // The terminal keeps focus: the Esc must not reach it (it would interrupt an agent).
     ev.preventDefault();
     ev.stopPropagation();
     end(false);

@@ -150,3 +150,5 @@ la guía de código en `docs\es\Code_Guide.txt` (y su PDF); el registro de cada 
 ## Forma de trabajo
 - Cada fase cierra verificada y registrada en el Informe; lo no verificado se marca como tal.
 - Bruno prefiere respuestas en español, directas, en párrafos y con pushback honesto.
+- Comentarios del código y nombres de archivos en inglés (el repo es público). Los textos de la interfaz
+  se escriben en español: son la clave de `t()` (ver «Idiomas»).

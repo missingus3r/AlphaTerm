@@ -3,9 +3,9 @@ import { answerConfirm, pendingConfirm } from "./confirm";
 import { t } from "../i18n";
 
 /**
- * La pregunta de `askConfirm`. Arranca con el foco en «Cancelar». Mientras está abierta, las
- * teclas no llegan a la terminal ni a los atajos: Esc cancela, Enter aprieta el botón enfocado y
- * Tab pasa de un botón al otro.
+ * The `askConfirm` question. It starts with focus on «Cancelar». While it is open, keys
+ * don't reach the terminal or the shortcuts: Esc cancels, Enter presses the focused button and
+ * Tab moves from one button to the other.
  */
 export function ConfirmModal() {
   return (

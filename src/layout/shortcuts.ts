@@ -2,9 +2,9 @@ import { k, t } from "../i18n";
 import type { Direction } from "./model";
 
 /**
- * Atajos de la app (se interceptan antes de que la tecla llegue a la shell).
- * Se pueden cambiar en Configuración; lo que no se cambió usa el de fábrica.
- * No se usa Ctrl+Alt: en teclados en español es AltGr y se usa para escribir @, #, [, ], etc.
+ * App shortcuts (intercepted before the key reaches the shell).
+ * They can be changed in Settings; whatever wasn't changed uses the default.
+ * Ctrl+Alt isn't used: on Spanish keyboards it is AltGr, used to type @, #, [, ], etc.
  */
 export type Action =
   | { type: "newTab" }
@@ -34,7 +34,7 @@ export const COMMANDS: Command[] = [
   { id: "newTab", label: k("Pestaña nueva"), action: { type: "newTab" }, defaults: ["Ctrl+Shift+T"] },
   { id: "newWindow", label: k("Ventana nueva"), action: { type: "newWindow" }, defaults: ["Ctrl+Shift+N"] },
   { id: "closePane", label: k("Cerrar panel"), action: { type: "closePane" }, defaults: ["Ctrl+Shift+W"] },
-  // El "+" del teclado español da "*" con Shift; el del inglés da "=" sin Shift.
+  // The Spanish keyboard's "+" gives "*" with Shift; the English one gives "=" without Shift.
   { id: "splitRight", label: k("Dividir a la derecha"), action: { type: "split", dir: "row" }, defaults: ["Alt+Shift++", "Alt+Shift+*", "Alt+Shift+="] },
   { id: "splitDown", label: k("Dividir abajo"), action: { type: "split", dir: "column" }, defaults: ["Alt+Shift+-", "Alt+Shift+_"] },
   { id: "splitAuto", label: k("Dividir (automático)"), action: { type: "split", dir: "auto" }, defaults: ["Alt+Shift+D"] },
@@ -61,7 +61,7 @@ export const COMMANDS: Command[] = [
   { id: "panelChanges", label: k("Panel de modificaciones"), action: { type: "togglePanel", panel: "changes" }, defaults: ["Ctrl+Shift+M"] },
 ];
 
-/** Ctrl+1…8 van a esa pestaña y Ctrl+9 a la última. No se cambian. */
+/** Ctrl+1…8 go to that tab and Ctrl+9 to the last one. They can't be changed. */
 export const FIXED_HELP: [string, string] = ["Ctrl+1…8, Ctrl+9", k("Ir a la pestaña N / a la última")];
 
 export interface ShortcutKey {
@@ -76,7 +76,7 @@ export interface ShortcutKey {
 const KEY_NAMES: Record<string, string> = { ArrowLeft: "Left", ArrowRight: "Right", ArrowUp: "Up", ArrowDown: "Down", " ": "Space" };
 const MODIFIERS = new Set(["Control", "Shift", "Alt", "Meta", "AltGraph", "CapsLock", "OS"]);
 
-/** "Ctrl+Shift+T" a partir de un evento; null si es solo un modificador o es AltGr. */
+/** "Ctrl+Shift+T" from an event; null if it's only a modifier or it's AltGr. */
 export function comboOf(e: ShortcutKey): string | null {
   if (e.metaKey || MODIFIERS.has(e.key) || !e.key || e.key === "Dead" || e.key === "Unidentified") return null;
   if (e.ctrlKey && e.altKey) return null; // AltGr
@@ -84,7 +84,7 @@ export function comboOf(e: ShortcutKey): string | null {
   return [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", key].filter(Boolean).join("+");
 }
 
-/** Separa "Alt+Shift++" en modificadores y tecla (la tecla puede ser "+"). */
+/** Splits "Alt+Shift++" into modifiers and key (the key can be "+"). */
 export function parseCombo(combo: string): { ctrl: boolean; shift: boolean; alt: boolean; key: string } | null {
   let rest = combo.trim();
   const mods = { ctrl: false, shift: false, alt: false };
@@ -99,14 +99,14 @@ export function parseCombo(combo: string): { ctrl: boolean; shift: boolean; alt:
   return { ...mods, key };
 }
 
-/** Forma canónica (Ctrl, Alt, Shift, como escribe Windows; tecla en mayúscula), o null si no se entiende. */
+/** Canonical form (Ctrl, Alt, Shift, as Windows writes it; uppercase key), or null if it isn't understood. */
 export function canonical(combo: string): string | null {
   const p = parseCombo(combo);
   if (!p) return null;
   return [p.ctrl && "Ctrl", p.alt && "Alt", p.shift && "Shift", p.key].filter(Boolean).join("+");
 }
 
-/** Problema de una combinación para usarla de atajo, o null si sirve. */
+/** Problem with a combination for using it as a shortcut, or null if it's fine. */
 export function comboProblem(combo: string): string | null {
   const p = parseCombo(combo);
   if (!p) return t("No se entiende la combinación");
@@ -115,13 +115,13 @@ export function comboProblem(combo: string): string | null {
   if (!p.ctrl && !p.alt && !fKey) return t("Necesita Ctrl o Alt (si no, se come teclas que escribís)");
   if (p.ctrl && !p.shift && !p.alt && /^[A-Z]$/.test(p.key)) {
     if (p.key === "C" || p.key === "V") return t("Ctrl+C y Ctrl+V ya son copiar/pegar e interrumpir");
-    return null; // se permite, pero ver comboWarning
+    return null; // allowed, but see comboWarning
   }
   if (p.ctrl && !p.shift && /^[1-9]$/.test(p.key)) return t("Ctrl+1…9 ya cambian de pestaña");
   return null;
 }
 
-/** Aviso (no bloquea): Ctrl+letra sin Shift se lo saca a la shell (Ctrl+R busca en el historial, etc.). */
+/** Warning (doesn't block): Ctrl+letter without Shift takes it away from the shell (Ctrl+R searches history, etc.). */
 export function comboWarning(combo: string): string | null {
   const p = parseCombo(combo);
   if (p && p.ctrl && !p.shift && !p.alt && /^[A-Z]$/.test(p.key)) {
@@ -130,7 +130,7 @@ export function comboWarning(combo: string): string | null {
   return null;
 }
 
-/** Combinaciones efectivas de cada comando (las cambiadas reemplazan a las de fábrica). */
+/** Effective combinations of each command (changed ones replace the defaults). */
 export function effectiveBindings(overrides: Record<string, string[]>): Record<string, string[]> {
   const out: Record<string, string[]> = {};
   for (const c of COMMANDS) {
@@ -149,7 +149,7 @@ export function buildKeymap(overrides: Record<string, string[]> = {}): Keymap {
   return map;
 }
 
-/** Combinaciones usadas por más de un comando: combinación → ids. */
+/** Combinations used by more than one command: combination → ids. */
 export function conflicts(overrides: Record<string, string[]>): Map<string, string[]> {
   const eff = effectiveBindings(overrides);
   const seen = new Map<string, string[]>();
@@ -171,8 +171,8 @@ export function matchShortcut(e: ShortcutKey, keymap: Keymap = DEFAULT_KEYMAP): 
 }
 
 /**
- * Texto de ayuda (tooltip del botón "?"): [combinaciones, etiqueta]. Las etiquetas quedan en español
- * (marcadas con `k`): quien las muestra las traduce con `t`.
+ * Help text (tooltip of the "?" button): [combinations, label]. The labels stay in Spanish
+ * (marked with `k`): whoever shows them translates them with `t`.
  */
 export function shortcutHelp(overrides: Record<string, string[]> = {}): [string, string][] {
   const eff = effectiveBindings(overrides);

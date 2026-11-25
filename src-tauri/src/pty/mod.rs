@@ -1,8 +1,8 @@
-//! Sesiones ConPTY. Cada sesión usa tres hilos:
-//! - lector: lee la ConPTY de a 64 KB y manda los trozos por un canal acotado;
-//! - agrupador: junta los trozos (ver `batcher`) y los manda al frontend por un `Channel` binario;
-//! - vigía: espera a que termine el proceso, cierra la pseudoconsola (sin eso ConPTY no da EOF)
-//!   y deja el código de salida para que el agrupador lo informe después del último byte.
+//! ConPTY sessions. Each session uses three threads:
+//! - reader: reads the ConPTY 64 KB at a time and sends the chunks through a bounded channel;
+//! - batcher: merges the chunks (see `batcher`) and sends them to the frontend through a binary `Channel`;
+//! - watcher: waits for the process to end, closes the pseudo-console (without that ConPTY gives no EOF)
+//!   and leaves the exit code for the batcher to report after the last byte.
 
 pub mod batcher;
 pub mod env;
@@ -23,10 +23,10 @@ use std::time::Duration;
 use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::{State, Webview};
 
-/// Bytes en vuelo antes de frenar al proceso (y desde dónde se lo vuelve a soltar).
+/// Bytes in flight before throttling the process (and the level at which it's resumed).
 const HIGH_WATER: u64 = 2 * 1024 * 1024;
 const LOW_WATER: u64 = 512 * 1024;
-/// Trozos de hasta 64 KB en cola entre el lector y el agrupador.
+/// Chunks of up to 64 KB queued between the reader and the batcher.
 const QUEUE_CHUNKS: usize = 32;
 
 #[derive(Clone, Serialize)]
@@ -36,7 +36,7 @@ pub enum PtyEvent {
 }
 
 struct Session {
-    /// Ventana dueña de la sesión: al cerrarse esa ventana se matan sus sesiones.
+    /// Window that owns the session: when that window closes, its sessions are killed.
     owner: String,
     pid: Option<u32>,
     writer: Mutex<Box<dyn Write + Send>>,
@@ -58,7 +58,7 @@ impl PtyState {
         w.write_all(data).and_then(|_| w.flush()).map_err(|e| e.to_string())
     }
 
-    /// Mata las sesiones de una ventana (se recargó la vista o se cerró la ventana).
+    /// Kills a window's sessions (the view was reloaded or the window was closed).
     pub fn kill_owner(&self, owner: &str) {
         let mine: Vec<_> = self.sessions.lock().unwrap().values().filter(|s| s.owner == owner).cloned().collect();
         for s in mine {
@@ -66,7 +66,7 @@ impl PtyState {
         }
     }
 
-    /// PID de la shell de todas las sesiones (de todas las ventanas).
+    /// PID of the shell of every session (across all windows).
     pub fn all_shell_pids(&self) -> Vec<u32> {
         self.sessions.lock().unwrap().values().filter_map(|s| s.pid).collect()
     }
@@ -94,7 +94,7 @@ pub struct SpawnInfo {
 pub struct TermInfo {
     profiles: Vec<profiles::Profile>,
     default_profile: String,
-    /// Build de Windows, para la opción `windowsPty` de xterm.js.
+    /// Windows build, for xterm.js's `windowsPty` option.
     windows_build: u32,
 }
 
@@ -133,7 +133,7 @@ pub fn pty_spawn(
         cols,
         rows,
         &{
-            // Variables de la API de control (para que un agente de esta pestaña pueda usarla).
+            // Control API variables (so an agent in this tab can use it).
             use tauri::Manager;
             let mut e = env.unwrap_or_default();
             for (k, v) in webview.app_handle().state::<crate::control::ControlState>().env() {
@@ -148,8 +148,8 @@ pub fn pty_spawn(
     )
 }
 
-/// Lanza una sesión. `on_data` recibe los lotes (devolver `false` corta la sesión) y `on_exit`
-/// se llama una sola vez, después del último lote.
+/// Launches a session. `on_data` receives the batches (returning `false` ends the session) and `on_exit`
+/// is called exactly once, after the last batch.
 #[allow(clippy::too_many_arguments)]
 pub fn spawn(
     state: &Arc<PtyState>,
@@ -164,7 +164,7 @@ pub fn spawn(
     spawn_env(state, owner, profile_id, cwd, cols, rows, &HashMap::new(), on_data, on_exit)
 }
 
-/// Igual que `spawn`, con variables de entorno extra (por ejemplo, las de un agente).
+/// Same as `spawn`, with extra environment variables (for example, an agent's).
 #[allow(clippy::too_many_arguments)]
 pub fn spawn_env(
     state: &Arc<PtyState>,
@@ -188,7 +188,7 @@ pub fn spawn_env(
     let pair = native_pty_system().openpty(size(cols, rows)).map_err(|e| e.to_string())?;
     let launch = integration::launch_for(&profile.id, &profile.args);
     let mut cmd = CommandBuilder::new(&profile.command);
-    // Sin lo que se heredó del programa que abrió AlphaTerm (NO_COLOR, marcas y tokens de Claude Code…).
+    // Without what was inherited from the program that opened AlphaTerm (NO_COLOR, Claude Code flags and tokens…).
     static PERSISTENT: OnceLock<std::collections::HashSet<String>> = OnceLock::new();
     let persistent = PERSISTENT.get_or_init(env::persistent_names);
     for name in env::to_remove(std::env::vars_os().filter_map(|(k, _)| k.into_string().ok()), persistent) {
@@ -255,7 +255,7 @@ pub fn spawn_env(
         .spawn(move || {
             let code = child.wait().ok().map(|s| s.exit_code());
             let _ = code_w.set(code);
-            // Margen para que ConPTY termine de volcar la última salida antes de cerrarla.
+            // Margin so ConPTY finishes flushing the last output before closing it.
             thread::sleep(Duration::from_millis(60));
             sess_w.master.lock().unwrap().take();
         })
@@ -267,7 +267,7 @@ pub fn spawn_env(
         .spawn(move || {
             batcher::run(rx, BatchConfig::default(), &flow, &mut on_data);
             flow.close();
-            // El vigía casi siempre ya dejó el código; si el lector cortó antes, se espera un poco.
+            // The watcher almost always has already left the code; if the reader ended first, wait a bit.
             for _ in 0..40 {
                 if exit_code.get().is_some() {
                     break;
@@ -316,14 +316,14 @@ pub fn pty_kill(state: State<'_, Arc<PtyState>>, id: u32) {
     }
 }
 
-/// Mata las sesiones de la ventana que llama. El frontend lo hace al arrancar, para no dejar
-/// shells huérfanas si la vista se recargó.
+/// Kills the sessions of the calling window. The frontend does it at startup, so as not to leave
+/// orphan shells if the view was reloaded.
 #[tauri::command]
 pub fn pty_kill_owned(webview: Webview, state: State<'_, Arc<PtyState>>) {
     state.kill_owner(webview.label());
 }
 
-/// Proceso en primer plano de cada sesión pedida (para la heurística del título).
+/// Foreground process of each requested session (for the title heuristic).
 #[tauri::command]
 pub fn pty_foreground(
     state: State<'_, Arc<PtyState>>,
@@ -342,7 +342,7 @@ mod tests {
     use std::sync::mpsc::channel;
     use std::time::Instant;
 
-    /// Abre una ConPTY real con cmd, escribe un comando y espera la salida y el fin.
+    /// Opens a real ConPTY with cmd, writes a command and waits for the output and the end.
     #[test]
     fn conpty_real_eco_y_salida() {
         let state = Arc::new(PtyState::default());
@@ -360,8 +360,8 @@ mod tests {
         )
         .expect("spawn");
         assert!(info.pid.is_some());
-        // ConPTY arranca preguntando la posición del cursor (ESC[6n) y espera la respuesta;
-        // en la app la contesta xterm.js.
+        // ConPTY starts by asking for the cursor position (ESC[6n) and waits for the reply;
+        // in the app xterm.js answers it.
         state.write(info.id, b"[1;1R").unwrap();
         state.write(info.id, b"echo NOVA_%COMSPEC:~0,1%_OK\r").unwrap();
         state.write(info.id, b"exit 7\r").unwrap();
@@ -399,12 +399,12 @@ mod bench {
     use std::sync::mpsc::channel;
     use std::time::Instant;
 
-    /// Throughput de ConPTY + lector + agrupador, sin frontend (ack inmediato).
+    /// ConPTY + reader + batcher throughput, without the frontend (immediate ack).
     /// `cargo test --release bench_conpty -- --ignored --nocapture`
     #[test]
     #[ignore]
     fn bench_conpty() {
-        // NOVA_BENCH_CMD cambia el comando (por ejemplo `type archivo.txt`).
+        // NOVA_BENCH_CMD changes the command (for example `type archivo.txt`).
         let cmdline = std::env::var("NOVA_BENCH_CMD")
             .unwrap_or_else(|_| r#""C:\Program Files\Git\usr\bin\seq.exe" 1 300000"#.into());
         let state = Arc::new(PtyState::default());
@@ -460,13 +460,13 @@ mod bench_raw {
     use std::io::{Read, Write};
     use std::time::{Duration, Instant};
 
-    /// Lectura cruda de la ConPTY, sin agrupador ni canales: el techo de lo que entrega.
+    /// Raw ConPTY read, without batcher or channels: the ceiling of what it delivers.
     /// `NOVA_BENCH_CMD="type archivo" cargo test --release bench_raw -- --ignored --nocapture`
     #[test]
     #[ignore]
     fn bench_raw() {
-        // NOVA_BENCH_EXE + NOVA_BENCH_ARGS (separados por |) lanza el programa directo; si no,
-        // NOVA_BENCH_CMD va por `cmd /c`.
+        // NOVA_BENCH_EXE + NOVA_BENCH_ARGS (separated by |) launches the program directly; otherwise,
+        // NOVA_BENCH_CMD goes through `cmd /c`.
         let pair = native_pty_system()
             .openpty(PtySize { rows: 50, cols: 200, pixel_width: 0, pixel_height: 0 })
             .unwrap();
@@ -516,7 +516,7 @@ mod integration_tests {
     use std::sync::mpsc::{channel, Receiver};
     use std::time::Instant;
 
-    /// Junta salida hasta que aparezca `needle` (o se venza el plazo).
+    /// Collects output until `needle` appears (or the deadline expires).
     fn wait_for(rx: &Receiver<Vec<u8>>, acc: &mut String, needle: &str, secs: u64) -> bool {
         let end = Instant::now() + Duration::from_secs(secs);
         while !acc.contains(needle) {
@@ -552,7 +552,7 @@ mod integration_tests {
         check_shell("powershell", "cmd /c exit 4", 4);
     }
 
-    /// Espera una OSC completa que empiece con `prefix` y devuelve lo que hay entre el prefijo y el BEL.
+    /// Waits for a complete OSC that starts with `prefix` and returns what's between the prefix and the BEL.
     fn wait_osc(rx: &Receiver<Vec<u8>>, acc: &mut String, from: usize, prefix: &str, secs: u64) -> Option<String> {
         let end = Instant::now() + Duration::from_secs(secs);
         loop {
@@ -577,8 +577,8 @@ mod integration_tests {
         serde_json::from_slice(&bytes).expect("json")
     }
 
-    /// Riesgo 1 del diseño de predicciones: el atajo escondido (F12,e) llega a PSReadLine a través
-    /// de la ConPTY, corre TabExpansion2 y la respuesta vuelve como OSC 7717 sin tocar el buffer.
+    /// Risk 1 of the command suggestions design: the hidden shortcut (F12,e) reaches PSReadLine through
+    /// the ConPTY, runs TabExpansion2 and the reply comes back as an OSC 7717 without touching the buffer.
     #[test]
     fn powershell_completa_con_f12() {
         let dir = std::env::temp_dir().join("alphaterm-f12");
@@ -603,7 +603,7 @@ mod integration_tests {
         let texts: Vec<&str> = v["r"].as_array().unwrap().iter().filter_map(|r| r["t"].as_str()).collect();
         assert!(texts.contains(&"Get-ChildItem"), "{texts:?}");
 
-        // Se borra lo escrito (11 retrocesos) y se piden las carpetas para `cd `.
+        // What was typed is erased (11 backspaces) and the folders are requested for `cd `.
         let from = out.len();
         state.write(info.id, &[b"\x7f".repeat(11), b"cd \x1b[24~e".to_vec()].concat()).unwrap();
         let p = wait_osc(&rx, &mut out, from, "\x1b]7717;c;abc123;", 30).unwrap_or_else(|| panic!("sin completados de cd: {out:?}"));
@@ -613,7 +613,7 @@ mod integration_tests {
             v["r"].as_array().unwrap().iter().filter(|r| r["k"] == "ProviderContainer").filter_map(|r| r["t"].as_str()).collect();
         assert!(dirs.iter().any(|d| d.contains("CarpetaUno")), "{v}");
 
-        // El nonce no queda en el entorno de la sesión (ni de lo que se lance desde ella).
+        // The nonce doesn't stay in the session's environment (nor in anything launched from it).
         state.write(info.id, &[b"\x7f".repeat(3), b"Write-Output \"N=[$env:ALPHATERM_NONCE]\"\r".to_vec()].concat()).unwrap();
         assert!(wait_for(&rx, &mut out, "N=[]", 30), "el nonce sigue en el entorno: {out:?}");
         state.write(info.id, b"exit\r").unwrap();

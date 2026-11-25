@@ -23,7 +23,7 @@ interface Container {
   created: string;
 }
 
-/** Plantillas para arrancar rápido (se copian a "Mis contenedores" y se pueden editar). */
+/** Templates to get started quickly (copied to "Mis contenedores" and can be edited). */
 export const TEMPLATES: DockerPreset[] = [
   { name: "postgres", image: "postgres:16", ports: ["5432:5432"], env: { POSTGRES_PASSWORD: "postgres" }, volumes: ["alphaterm-pg:/var/lib/postgresql/data"], command: "" },
   { name: "redis", image: "redis:7", ports: ["6379:6379"], env: {}, volumes: [], command: "" },
@@ -32,7 +32,7 @@ export const TEMPLATES: DockerPreset[] = [
   { name: "nginx", image: "nginx:alpine", ports: ["8080:80"], env: {}, volumes: [], command: "" },
 ];
 
-/** Puertos publicados ("0.0.0.0:5432->5432/tcp, :::5432->5432/tcp") → [5432]. */
+/** Published ports ("0.0.0.0:5432->5432/tcp, :::5432->5432/tcp") → [5432]. */
 export function hostPorts(ports: string): number[] {
   return [...new Set([...ports.matchAll(/:(\d+)->/g)].map((m) => Number(m[1])))];
 }
@@ -40,7 +40,7 @@ export function hostPorts(ports: string): number[] {
 interface Props {
   presets: DockerPreset[];
   update: (f: (d: Settings) => void) => void;
-  /** Abre una pestaña con un comando (logs -f, exec). */
+  /** Opens a tab with a command (logs -f, exec). */
   onTerminal: (command: string, title: string) => void;
 }
 
@@ -55,7 +55,7 @@ export default function DockerPanel(props: Props) {
   const [editing, setEditing] = createSignal<string | null>(null);
   const [showTemplates, setShowTemplates] = createSignal(false);
 
-  // Con el panel abierto se actualiza cada 4 s.
+  // While the panel is open it refreshes every 4 s.
   createEffect(() => {
     if (!engine()?.running) return;
     const timer = setInterval(() => !document.hidden && !busy() && void refetch(), 4000);
@@ -161,7 +161,7 @@ export default function DockerPanel(props: Props) {
           <button
             class="chip add"
             onClick={() => {
-              // Valores de ejemplo para editar: quedan guardados en el idioma de cuando se creó.
+              // Example values to edit: they are saved in the language in use when they were created.
               const base = t("mi-contenedor");
               let name = base;
               for (let i = 2; props.presets.some((p) => p.name === name); i++) name = `${base}-${i}`;

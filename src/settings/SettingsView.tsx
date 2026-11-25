@@ -35,7 +35,7 @@ const COLOR_LABELS: Record<ColorKey, string> = {
   brightMagenta: k("Magenta claro"), brightCyan: k("Cian claro"), brightWhite: k("Blanco brillante"),
 };
 
-// --- Piezas de formulario -------------------------------------------------------------------
+// --- Form pieces ----------------------------------------------------------------------------
 
 function Row(props: { label: string; hint?: string; children: JSX.Element }) {
   return (
@@ -111,14 +111,14 @@ function Swatches(props: { theme: Theme }) {
   );
 }
 
-// --- Ventana -----------------------------------------------------------------------------------
+// --- Window ------------------------------------------------------------------------------------
 
 export default function SettingsView(props: { info: TermInfo; store: SettingsStore; onClose?: () => void }) {
   const s = () => props.store.settings();
   const set = (f: (d: Settings) => void) => props.store.update(f);
   const osDark = createOsDark();
   if (!props.onClose) createEffect(() => (document.title = t("Configuración — AlphaTerm")));
-  // Dentro de la ventana de terminal: Esc cierra (salvo que una tecla la esté usando un campo).
+  // Inside the terminal window: Esc closes (unless a field is using the key).
   if (props.onClose) {
     const esc = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented) return;
@@ -142,7 +142,7 @@ export default function SettingsView(props: { info: TermInfo; store: SettingsSto
     try {
       localStorage.setItem(SECTION_PREF, id);
     } catch {
-      /* no importa */
+      /* doesn't matter */
     }
   };
 
@@ -223,7 +223,7 @@ interface SectionProps {
   set: (f: (d: Settings) => void) => void;
 }
 
-// --- Idioma ----------------------------------------------------------------------------------------
+// --- Language --------------------------------------------------------------------------------------
 
 function LanguageSection(props: SectionProps) {
   return (
@@ -239,7 +239,7 @@ function LanguageSection(props: SectionProps) {
   );
 }
 
-// --- Tema y colores ------------------------------------------------------------------------------
+// --- Theme and colors ----------------------------------------------------------------------------
 
 function ThemeSection(props: SectionProps & { osDark: boolean }) {
   const lightActive = () => props.s.appearance.mode === "light" || (props.s.appearance.mode === "auto" && !props.osDark);
@@ -248,7 +248,7 @@ function ThemeSection(props: SectionProps & { osDark: boolean }) {
   const themes = createMemo(() => allThemes(props.s.customThemes));
   const selectedId = () => (target() === "light" ? props.s.appearance.themeLight : props.s.appearance.theme);
   const selected = () => findTheme(selectedId(), props.s.customThemes, target() === "light" ? "nova-light" : "nova-dark");
-  // El texto se arma al mostrarlo (así sigue el idioma si se cambia con el aviso a la vista).
+  // The text is built when shown (so it follows the language if it's changed while the notice is visible).
   const [message, setMessage] = createSignal<{ ok: boolean; text: () => string } | null>(null);
   let fileInput!: HTMLInputElement;
 
@@ -421,9 +421,9 @@ function ThemeSection(props: SectionProps & { osDark: boolean }) {
   );
 }
 
-// --- Fuente y cursor -------------------------------------------------------------------------------
+// --- Font and cursor -------------------------------------------------------------------------------
 
-// Función (no constante) para que el mensaje de commit de muestra siga el idioma.
+// A function (not a constant) so the sample commit message follows the language.
 const sample = () => ["PS C:\\AlphaTerm> git log --oneline -3", `c91ef04 F2: ${t("pestañas, splits y shell integration")}`, "=> != === <= >= -> |> :: www 0O1lI ñ á"];
 
 function FontSection(props: SectionProps & { theme: Theme }) {
@@ -511,7 +511,7 @@ function FontSection(props: SectionProps & { theme: Theme }) {
   );
 }
 
-// --- Fondo ----------------------------------------------------------------------------------------
+// --- Background -----------------------------------------------------------------------------------
 
 function BackgroundSection(props: SectionProps) {
   const b = () => props.s.background;
@@ -531,7 +531,7 @@ function BackgroundSection(props: SectionProps) {
           onChange={(v) =>
             set((x) => {
               x.effect = v;
-              // Con el fondo opaco el efecto no se vería.
+              // With an opaque background the effect wouldn't be visible.
               if (v !== "none" && x.opacity >= 1) x.opacity = 0.75;
             })
           }
@@ -588,7 +588,7 @@ function BackgroundSection(props: SectionProps) {
   );
 }
 
-// --- Terminal e interfaz -----------------------------------------------------------------------------
+// --- Terminal and interface --------------------------------------------------------------------------
 
 function TerminalSection(props: SectionProps & { info: TermInfo }) {
   const auto = () => {
@@ -664,9 +664,9 @@ function TerminalSection(props: SectionProps & { info: TermInfo }) {
   );
 }
 
-// --- Agentes, API de control y guardián -----------------------------------------------------------------
+// --- Agents, control API and Guardian -------------------------------------------------------------------
 
-// El backend manda la decisión en castellano (se compara con "bloqueado"): se traduce al mostrarla.
+// The backend sends the decision in Spanish (compared against "bloqueado"): it's translated when shown.
 const DECISIONS = new Set<string>([
   k("permitido"),
   k("permitido (guardián apagado)"),
@@ -797,7 +797,7 @@ function AgentsSection(props: SectionProps) {
   );
 }
 
-// --- Consumo y widgets -------------------------------------------------------------------------------
+// --- Usage and widgets -------------------------------------------------------------------------------
 
 interface StatuslineStatus {
   current: string | null;
@@ -809,7 +809,7 @@ function UsageSection(props: SectionProps) {
   const u = () => props.s.usage;
   const set = (f: (x: Settings["usage"]) => void) => props.set((d) => f(d.usage));
   const [status, { refetch }] = createResource(() => invoke<StatuslineStatus>("usage_statusline_status"));
-  // El texto se arma al mostrarlo (así sigue el idioma si se cambia con el aviso a la vista).
+  // The text is built when shown (so it follows the language if it's changed while the notice is visible).
   const [msg, setMsg] = createSignal<{ ok: boolean; text: () => string } | null>(null);
   const install = async () => {
     const cur = status()?.current;
@@ -898,13 +898,13 @@ function UsageSection(props: SectionProps) {
   );
 }
 
-// --- Atajos ------------------------------------------------------------------------------------------
+// --- Shortcuts ---------------------------------------------------------------------------------------
 
 function ShortcutSection(props: SectionProps) {
   const eff = createMemo(() => effectiveBindings(props.s.shortcuts));
   const clash = createMemo(() => conflicts(props.s.shortcuts));
   const [recording, setRecording] = createSignal<string | null>(null);
-  // El texto se arma al mostrarlo (así sigue el idioma si se cambia con el aviso a la vista).
+  // The text is built when shown (so it follows the language if it's changed while the notice is visible).
   const [note, setNote] = createSignal<{ id: string; text: () => string; bad: boolean } | null>(null);
   const label = (id: string) => {
     const c = COMMANDS.find((x) => x.id === id);
@@ -918,7 +918,7 @@ function ShortcutSection(props: SectionProps) {
       else d.shortcuts[id] = list;
     });
 
-  // Mientras se graba, la próxima combinación se la queda este campo.
+  // While recording, the next combination is captured by this field.
   const onKey = (e: KeyboardEvent) => {
     const id = recording();
     if (!id) return;
@@ -933,7 +933,7 @@ function ShortcutSection(props: SectionProps) {
       return;
     }
     const combo = comboOf(e);
-    if (!combo) return; // solo un modificador: seguir esperando
+    if (!combo) return; // only a modifier: keep waiting
     if (comboProblem(combo)) {
       setNote({ id, text: () => `${combo}: ${comboProblem(combo)}`, bad: true });
       return;
@@ -1022,7 +1022,7 @@ function ShortcutSection(props: SectionProps) {
   );
 }
 
-// --- Acerca y límites ---------------------------------------------------------------------------------
+// --- About and limits ---------------------------------------------------------------------------------
 
 function AboutSection(props: { path: string }) {
   const [info] = createResource(appInfo);

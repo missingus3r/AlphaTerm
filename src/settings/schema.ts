@@ -1,7 +1,7 @@
 /**
- * Esquema de `%APPDATA%\AlphaTerm\settings.json`.
- * `normalize` acepta cualquier cosa (un archivo editado a mano, de una versión vieja o roto)
- * y devuelve una configuración completa y válida, sin perder claves que no conoce.
+ * Schema of `%APPDATA%\AlphaTerm\settings.json`.
+ * `normalize` accepts anything (a hand-edited file, from an old version or broken)
+ * and returns a complete, valid configuration, without losing keys it doesn't know.
  */
 import { isLang, type Lang } from "../i18n";
 import type { ThemeColors } from "./themes";
@@ -20,14 +20,14 @@ export interface CustomTheme {
 export interface AgentDef {
   id: string;
   name: string;
-  /** Línea de comando que se escribe en la shell (ej. "claude --model opus"). */
+  /** Command line typed into the shell (e.g. "claude --model opus"). */
   command: string;
-  /** Variables de entorno extra para la pestaña del agente. */
+  /** Extra environment variables for the agent's tab. */
   env: Record<string, string>;
-  /** Oculto del panel (sin borrarlo). */
+  /** Hidden from the panel (without deleting it). */
   hidden: boolean;
   builtin: boolean;
-  /** Opciones de arranque elegidas en el panel (modelo, esfuerzo, permisos…): ver `panels/agentLaunch.ts`. */
+  /** Launch options chosen in the panel (model, effort, permissions…): see `panels/agentLaunch.ts`. */
   launch?: Record<string, string | boolean>;
 }
 
@@ -38,21 +38,21 @@ export const BUILTIN_AGENTS: AgentDef[] = [
   { id: "opencode", name: "OpenCode", command: "opencode", env: {}, hidden: false, builtin: true, launch: {} },
 ];
 
-/** Cómo volver a iniciar un servidor. */
+/** How to start a server again. */
 export interface Recipe {
   id: string;
   name: string;
   command: string;
   cwd: string;
   env: Record<string, string>;
-  /** Puertos en los que se lo vio escuchar. */
+  /** Ports it was seen listening on. */
   ports: number[];
-  /** Guardada sola (vista nacer en una pestaña) o escrita a mano. */
+  /** Saved automatically (seen starting in a tab) or written by hand. */
   auto: boolean;
   lastSeen?: number;
 }
 
-/** Contenedor de Docker configurado para iniciar con un clic. */
+/** Docker container configured to start with one click. */
 export interface DockerPreset {
   name: string;
   image: string;
@@ -64,20 +64,20 @@ export interface DockerPreset {
 
 export interface SuggestSettings {
   enabled: boolean;
-  /** `auto`: el menú aparece al escribir; `manual`: solo con Ctrl+Espacio. */
+  /** `auto`: the menu appears while typing; `manual`: only with Ctrl+Space. */
   mode: "auto" | "manual";
-  /** Pedirle completados a la sesión de PowerShell (cmdlets, parámetros…). */
+  /** Ask the PowerShell session for completions (cmdlets, parameters…). */
   pwsh: boolean;
 }
 
 export interface Settings {
   version: 1;
-  /** Idioma de la interfaz. Sin la clave (configuración de antes de 0.7.0): español. */
+  /** Interface language. Without the key (settings from before 0.7.0): Spanish. */
   language: Lang;
   appearance: {
-    /** Tema cuando el modo es oscuro (o fijo). */
+    /** Theme when the mode is dark (or fixed). */
     theme: string;
-    /** Tema cuando el modo es claro. */
+    /** Theme when the mode is light. */
     themeLight: string;
     mode: ThemeMode;
     fontFamily: string;
@@ -91,61 +91,61 @@ export interface Settings {
   };
   background: {
     effect: Effect;
-    /** Opacidad del color de fondo (1 = opaco). Con efecto, deja ver el Mica/Acrylic. */
+    /** Background color opacity (1 = opaque). With an effect, it lets the Mica/Acrylic show through. */
     opacity: number;
-    /** Ruta de la copia en %APPDATA%\AlphaTerm\fondos, o "" sin imagen. */
+    /** Path of the copy in %APPDATA%\AlphaTerm\fondos, or "" with no image. */
     image: string;
     imageOpacity: number;
     imageFit: ImageFit;
   };
   customThemes: CustomTheme[];
-  /** `collapsed`: la barra vertical queda angosta (solo el estado de cada pestaña).
-   *  `width`: ancho en px de la barra vertical desplegada (se arrastra su borde derecho). */
+  /** `collapsed`: the vertical bar becomes narrow (only each tab's status).
+   *  `width`: width in px of the expanded vertical bar (its right edge is dragged). */
   tabBar: { position: "top" | "left"; collapsed: boolean; width: number };
   terminal: {
-    /** "" = el que detecta el backend (PowerShell 5.1 en esta PC). */
+    /** "" = the one the backend detects (PowerShell 5.1 on this PC). */
     defaultProfile: string;
     scrollback: number;
-    /** Predicciones de comandos en cmd y PowerShell (`src/suggest/`). */
+    /** Command suggestions in cmd and PowerShell (`src/suggest/`). */
     suggest: SuggestSettings;
   };
   behavior: {
-    /** Cada cuánto se mira qué programa corre en cada pestaña (para el título). */
+    /** How often to check which program runs in each tab (for the title). */
     foregroundPollMs: number;
   };
-  /** Atajos cambiados (id de acción → combinaciones). Lo que no está usa el de fábrica. */
+  /** Changed shortcuts (action id → combinations). Whatever isn't there uses the default. */
   shortcuts: Record<string, string[]>;
-  /** Catálogo de agentes: los de fábrica (editables) y los propios. */
+  /** Agent catalog: the built-in ones (editable) and the custom ones. */
   agents: AgentDef[];
-  /** Carpetas usadas hace poco para lanzar agentes (la más reciente primero). */
+  /** Folders recently used to launch agents (most recent first). */
   recentDirs: string[];
-  /** Footer de consumo por suscripción. */
+  /** Subscription usage footer. */
   usage: {
     claude: boolean;
     codex: boolean;
     agy: boolean;
-    /** Claude y Codex también se leen de archivos locales (barato): cada cuánto. */
+    /** Claude and Codex are also read from local files (cheap): how often. */
     filesEverySec: number;
-    /** Consulta en vivo (como el System dashboard: claude /usage, codex /status, agy /quota) al
-     * abrir AlphaTerm y cada tantos minutos. */
+    /** Live query (like the System dashboard: claude /usage, codex /status, agy /quota) on
+     * opening AlphaTerm and every so many minutes. */
     liveEveryMin: number;
   };
-  /** Panel de modificaciones: lo que cambian los agentes en los archivos (con o sin git). */
+  /** Changes panel: what agents change in files (with or without git). */
   changes: { enabled: boolean; claude: boolean; folders: boolean };
-  /** Widget de CPU y RAM. */
+  /** CPU and RAM widget. */
   sysmon: { enabled: boolean; everyMs: number };
-  /** Recetas para iniciar servidores. */
+  /** Recipes to start servers. */
   recipes: Recipe[];
-  /** Proyectos agregados a mano y ocultos de la lista. */
+  /** Projects added by hand and hidden from the list. */
   projects: { manual: string[]; hidden: string[] };
-  /** Al abrir, volver a como estaban las ventanas. */
+  /** On open, restore the windows as they were. */
   session: { restore: boolean; relaunchAgents: boolean };
-  /** API de control para que los agentes manejen AlphaTerm. */
+  /** Control API so agents can drive AlphaTerm. */
   control: { enabled: boolean };
-  /** Guardián: pregunta antes de que un agente borre o modifique archivos. */
+  /** Guardian: asks before an agent deletes or modifies files. */
   guardian: { enabled: boolean; modify: boolean; claude: boolean; codex: boolean };
   docker: { presets: DockerPreset[] };
-  /** Resumen de pestañas con un modelo (endpoint compatible con OpenAI). */
+  /** Tab summary with a model (OpenAI-compatible endpoint). */
   llm: { enabled: boolean; endpoint: string; model: string; apiKey: string; everySec: number };
 }
 
@@ -262,8 +262,8 @@ function normalizeEnv(v: unknown): Record<string, string> {
   return out;
 }
 
-/** Los de fábrica siempre están (con lo que se les haya cambiado); los propios se agregan al final. */
-/** Opciones de arranque: solo textos y booleanos, con claves cortas. */
+/** The built-in ones are always there (with whatever was changed on them); custom ones are appended at the end. */
+/** Launch options: only strings and booleans, with short keys. */
 function normalizeLaunch(v: unknown): Record<string, string | boolean> {
   const out: Record<string, string | boolean> = {};
   for (const [k, x] of Object.entries(obj(v))) {
@@ -341,7 +341,7 @@ export function normalize(raw: unknown, baseColors: ThemeColors): Settings {
   const b = obj(r.background);
   const D = DEFAULTS;
   return {
-    ...r, // claves de otras fases o versiones: se conservan tal cual
+    ...r, // keys from other phases or versions: kept as is
     version: 1,
     language: isLang(r.language) ? r.language : D.language,
     appearance: {
@@ -434,5 +434,5 @@ export function normalize(raw: unknown, baseColors: ThemeColors): Settings {
   };
 }
 
-/** Copia profunda (las settings son JSON puro). */
+/** Deep copy (the settings are plain JSON). */
 export const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;

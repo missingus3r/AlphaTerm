@@ -16,7 +16,7 @@ describe("título de pestaña", () => {
     expect(heuristicTitle({ ...base, cwd: "C:\\Users\\Br1\\frontend" })).toBe("frontend");
     expect(heuristicTitle({ ...base, cwd: "C:\\a\\frontend", running: true, lastCommand: "npm run dev" })).toBe("npm run dev · frontend");
     expect(heuristicTitle(base)).toBe("PowerShell");
-    // Sin integración (cmd), el proceso en primer plano dice si hay algo corriendo.
+    // Without integration (cmd), the foreground process says whether something is running.
     expect(heuristicTitle({ ...base, integrated: false, cwd: "C:\\a\\api", fgProcess: "node" })).toBe("node · api");
     expect(heuristicTitle({ ...base, integrated: true, cwd: "C:\\a\\api", fgProcess: "node" })).toBe("api");
   });
@@ -34,7 +34,7 @@ describe("título de pestaña", () => {
   it("título de cmd con el comando en curso", () => {
     expect(cmdRunningCommand("C:\\WINDOWS\\system32\\cmd.exe - ping -n 8 127.0.0.1")).toBe("ping -n 8 127.0.0.1");
     expect(cmdRunningCommand("C:\\WINDOWS\\system32\\cmd.exe")).toBeNull();
-    // cmd mete un espacio de más en el título: si es el mismo comando que se tipeó, vale el tipeado.
+    // cmd adds an extra space to the title: if it's the same command that was typed, the typed one counts.
     expect(preferTyped("ping 8.8.8.8 -n 3", "ping  8.8.8.8 -n 3")).toBe("ping 8.8.8.8 -n 3");
     expect(preferTyped("ping 8.8.8.8", "node server.js")).toBe("node server.js");
     expect(preferTyped(undefined, "ping  x")).toBe("ping  x");

@@ -1,7 +1,7 @@
 /**
- * Servidores: lo que devuelve el backend y las "recetas" para volver a iniciarlos.
- * Una receta se guarda sola cuando un servidor nace en una pestaña de AlphaTerm (se conoce el
- * comando por la integración de la shell y la carpeta); también se pueden escribir a mano.
+ * Servers: what the backend returns and the "recipes" to start them again.
+ * A recipe is saved on its own when a server starts in an AlphaTerm tab (the
+ * command is known through shell integration, and the folder); they can also be written by hand.
  */
 import type { Recipe } from "../settings/schema";
 import { t } from "../i18n";
@@ -18,7 +18,7 @@ export interface Server {
   system: boolean;
 }
 
-/** Lo que el panel sabe de la pestaña donde corre (por PID de la shell). */
+/** What the panel knows about the tab where it runs (by shell PID). */
 export interface PaneRef {
   tabId: string;
   paneId: string;
@@ -34,14 +34,14 @@ const normDir = (d?: string | null) => (d ?? "").replace(/[\\/]+$/, "").toLowerC
 export const sameRecipe = (a: Pick<Recipe, "command" | "cwd">, b: Pick<Recipe, "command" | "cwd">) =>
   norm(a.command) === norm(b.command) && normDir(a.cwd) === normDir(b.cwd);
 
-/** Receta candidata para un servidor que nació en una pestaña con integración. */
+/** Candidate recipe for a server that started in a tab with integration. */
 export function candidate(s: Server, pane: PaneRef | undefined): Omit<Recipe, "id"> | null {
   if (!pane || !pane.running || !pane.lastCommand || !pane.cwd) return null;
   const name = pane.lastCommand.length > 40 ? `${pane.lastCommand.slice(0, 39)}…` : pane.lastCommand;
   return { name, command: pane.lastCommand, cwd: pane.cwd, env: {}, ports: s.ports, auto: true, lastSeen: Date.now() };
 }
 
-/** Agrega o actualiza (puertos, última vez visto). Las automáticas se limitan a las 20 más recientes. */
+/** Adds or updates (ports, last seen). Automatic ones are limited to the 20 most recent. */
 export function mergeRecipe(list: Recipe[], c: Omit<Recipe, "id">, newId: () => string): Recipe[] {
   const i = list.findIndex((r) => sameRecipe(r, c));
   if (i >= 0) {
@@ -58,12 +58,12 @@ export function mergeRecipe(list: Recipe[], c: Omit<Recipe, "id">, newId: () => 
   return out.filter((r) => !drop.has(r.id));
 }
 
-/** Receta que corresponde a un servidor corriendo (misma carpeta y algún puerto en común). */
+/** Recipe that matches a running server (same folder and some port in common). */
 export function recipeFor(s: Server, list: Recipe[]): Recipe | undefined {
   return list.find((r) => normDir(r.cwd) === normDir(s.cwd) && r.ports.some((p) => s.ports.includes(p)));
 }
 
-/** Receta "corriendo": hay un servidor en alguno de sus puertos. */
+/** "Running" recipe: there is a server on one of its ports. */
 export const isRunning = (r: Recipe, servers: Server[]) => servers.some((s) => r.ports.some((p) => s.ports.includes(p)));
 
 export function fmtUptime(sec: number): string {
@@ -75,7 +75,7 @@ export function fmtUptime(sec: number): string {
   return t("{n} días", { n: Math.floor(h / 24) });
 }
 
-/** URL para abrir en el navegador (los que escuchan solo en IPv6 usan [::1]). */
+/** URL to open in the browser (those that listen only on IPv6 use [::1]). */
 export function urlFor(s: Server, port: number): string {
   const v6only = s.addrs.length > 0 && s.addrs.every((a) => a.startsWith("["));
   return `http://${v6only ? "[::1]" : "localhost"}:${port}`;

@@ -1,4 +1,4 @@
-/** Lógica pura del panel de modificaciones (sin Tauri, para testearla). */
+/** Pure logic of the Changes panel (no Tauri, so it can be tested). */
 import { k } from "../i18n";
 
 export interface ChangeSummary {
@@ -9,7 +9,7 @@ export interface ChangeSummary {
   agents: string[];
   tools: string[];
   events: number;
-  /** De dónde salió la versión de antes: "hook", "carpeta", "git" o "ninguna". */
+  /** Where the previous version came from: "hook", "carpeta", "git" or "ninguna". */
   baseFrom: string;
   inGit: boolean;
   pdf: boolean;
@@ -37,7 +37,7 @@ export function totals(list: ChangeSummary[]) {
   return { files: list.length, adds: list.reduce((a, c) => a + c.adds, 0), dels: list.reduce((a, c) => a + c.dels, 0) };
 }
 
-/** Etiquetas de un archivo, en orden de importancia (`label` y `title` se traducen con `t` al mostrarlos). */
+/** Labels of a file, in order of importance (`label` and `title` are translated with `t` when shown). */
 export function changeTags(c: ChangeSummary): { label: string; cls: string; title: string }[] {
   const tags: { label: string; cls: string; title: string }[] = [];
   if (c.created) tags.push({ label: k("nuevo"), cls: "ok", title: k("El archivo no existía antes del agente") });

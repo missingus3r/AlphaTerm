@@ -32,7 +32,7 @@ describe("paneles en mosaico", () => {
     expect(d.cols[0].panels[0].size).toBeCloseTo(1.4);
     expect(d.cols[0].panels[1].size).toBeCloseTo(0.6);
     d = D.resizeSplit(d, c, 0, 0.99);
-    expect(d.cols[0].panels[1].size).toBeCloseTo(0.3); // mínimo 15 % del alto
+    expect(d.cols[0].panels[1].size).toBeCloseTo(0.3); // minimum 15 % of the height
   });
 
   it("mover junto a otro panel o a una columna nueva", () => {

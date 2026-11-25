@@ -1,6 +1,6 @@
-//! Git con la CLI (respeta el Credential Manager, el proxy y la configuración del usuario).
-//! Todo se corre sin consola visible, sin prompts en la terminal (GIT_TERMINAL_PROMPT=0) y con
-//! rutas sin escapar (core.quotepath=false, para que las ñ se vean bien).
+//! Git via the CLI (respects the Credential Manager, the proxy and the user's configuration).
+//! Everything runs without a visible console, without terminal prompts (GIT_TERMINAL_PROMPT=0) and
+//! with unescaped paths (core.quotepath=false, so that ñ displays correctly).
 
 use crate::i18n::tr;
 use serde::Serialize;
@@ -33,7 +33,7 @@ fn git_cmd(dir: &Path, args: &[&str]) -> Command {
     c
 }
 
-/// Corre git con un límite de tiempo (los comandos de red pueden colgarse).
+/// Runs git with a time limit (network commands can hang).
 pub fn run(dir: &Path, args: &[&str], limit: Duration) -> Result<Out, String> {
     let mut child = git_cmd(dir, args).spawn().map_err(|e| tr!("No se pudo ejecutar git: {e}", "Couldn't run git: {e}", "Não foi possível executar o git: {e}"))?;
     let mut so = child.stdout.take().unwrap();
@@ -79,17 +79,17 @@ fn ok(dir: &Path, args: &[&str], limit: Duration) -> Result<String, String> {
     }
 }
 
-// --- Status --------------------------------------------------------------------------------------
+// --- Status ---
 
 #[derive(Serialize, Debug, Clone, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct FileChange {
     pub path: String,
-    /// Ruta anterior (renombres y copias).
+    /// Previous path (renames and copies).
     pub orig: Option<String>,
-    /// Estado en el índice (staged): ".", "M", "A", "D", "R", "C", "U".
+    /// Index (staged) status: ".", "M", "A", "D", "R", "C", "U".
     pub index: String,
-    /// Estado en el árbol de trabajo: ".", "M", "D", "?" (sin seguimiento), "U".
+    /// Working tree status: ".", "M", "D", "?" (untracked), "U".
     pub work: String,
     pub conflict: bool,
 }
@@ -105,7 +105,7 @@ pub struct Status {
     pub files: Vec<FileChange>,
 }
 
-/// Parsea `git status --porcelain=v2 --branch -z`.
+/// Parses `git status --porcelain=v2 --branch -z`.
 pub fn parse_status(raw: &str) -> Status {
     let mut st = Status::default();
     let mut recs = raw.split('\0').filter(|r| !r.is_empty());
@@ -140,7 +140,7 @@ pub fn parse_status(raw: &str) -> Status {
                 }
             }
             "2" => {
-                // 2 XY sub mH mI mW hH hI Xscore path  (y en el registro siguiente, la ruta original)
+                // 2 XY sub mH mI mW hH hI Xscore path  (and in the next record, the original path)
                 let f: Vec<&str> = r.splitn(10, ' ').collect();
                 if f.len() == 10 {
                     let xy = f[1];
@@ -162,7 +162,7 @@ pub fn parse_status(raw: &str) -> Status {
     st
 }
 
-/// Raíz del repo que contiene `dir` (o error si no es un repo).
+/// Root of the repo that contains `dir` (or an error if it isn't a repo).
 #[tauri::command]
 pub async fn git_root(dir: String) -> Result<Option<String>, String> {
     blocking(move || {
@@ -177,7 +177,7 @@ pub async fn git_status(root: String) -> Result<Status, String> {
     blocking(move || ok(Path::new(&root), &["status", "--porcelain=v2", "--branch", "-z", "--untracked-files=all"], FAST).map(|s| parse_status(&s))).await
 }
 
-/// Cantidad de archivos cambiados (para el contador de la pestaña). Barato: sin rama.
+/// Number of changed files (for the tab counter). Cheap: no branch.
 #[tauri::command]
 pub async fn git_count(dir: String) -> Result<Option<usize>, String> {
     blocking(move || {
@@ -187,13 +187,13 @@ pub async fn git_count(dir: String) -> Result<Option<usize>, String> {
     .await
 }
 
-/// Diff de un archivo. `staged`: contra HEAD lo que está en el índice. Sin seguimiento: todo agregado.
+/// Diff of a file. `staged`: what is in the index against HEAD. Untracked: everything added.
 #[tauri::command]
 pub async fn git_diff(root: String, path: String, staged: bool, untracked: bool) -> Result<String, String> {
     blocking(move || {
         let r = Path::new(&root);
         if untracked {
-            // --no-index devuelve 1 cuando hay diferencias: no es un error.
+            // --no-index returns 1 when there are differences: it's not an error.
             let o = run(r, &["diff", "--no-index", "--no-color", "--", "/dev/null", &path], FAST)?;
             return Ok(o.stdout);
         }
@@ -212,7 +212,7 @@ pub async fn git_stage(root: String, paths: Vec<String>, stage: bool) -> Result<
     blocking(move || {
         let mut args: Vec<&str> = if stage { vec!["add", "--"] } else { vec!["restore", "--staged", "--"] };
         args.extend(paths.iter().map(String::as_str));
-        // En un repo sin commits, "restore --staged" no existe: se usa "rm --cached".
+        // In a repo without commits, "restore --staged" doesn't exist: "rm --cached" is used.
         match ok(Path::new(&root), &args, FAST) {
             Err(e) if !stage && e.contains("HEAD") => {
                 let mut a = vec!["rm", "--cached", "-r", "--quiet", "--"];
@@ -240,12 +240,12 @@ pub async fn git_commit(root: String, message: String) -> Result<String, String>
     .await
 }
 
-// --- Historial -----------------------------------------------------------------------------------
+// --- History ---
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct LogRow {
-    /// Dibujo del grafo de esta línea ("* ", "| * ", "|/ "…).
+    /// Drawing of this line's graph ("* ", "| * ", "|/ "…).
     pub graph: String,
     pub hash: Option<String>,
     pub short: Option<String>,
@@ -275,7 +275,7 @@ pub async fn git_log(root: String, limit: u32) -> Result<Vec<LogRow>, String> {
     blocking(move || {
         let n = limit.clamp(1, 2000).to_string();
         let o = run(Path::new(&root), &["log", "--graph", "--all", "--date-order", "--format=%x1f%H%x1f%h%x1f%an%x1f%ar%x1f%s%x1f%D", "-n", &n], FAST)?;
-        // Un repo sin commits no tiene historial: no es un error para el panel.
+        // A repo without commits has no history: that's not an error for the panel.
         if !o.ok && (o.stderr.contains("does not have any commits") || o.stderr.contains("no tiene ningún commit")) {
             return Ok(vec![]);
         }
@@ -295,7 +295,7 @@ pub async fn git_show(root: String, hash: String) -> Result<String, String> {
     blocking(move || ok(Path::new(&root), &["show", "--no-color", "--stat", "--patch", "--format=fuller", &hash], FAST)).await
 }
 
-// --- Ramas ---------------------------------------------------------------------------------------
+// --- Branches ---
 
 #[derive(Serialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -329,7 +329,7 @@ pub async fn git_branches(root: String) -> Result<Vec<Branch>, String> {
     .await
 }
 
-/// Nombre de rama válido (lo mínimo para no pasarle opciones a git por accidente).
+/// Valid branch name (the bare minimum so options aren't passed to git by accident).
 pub fn valid_branch(name: &str) -> bool {
     !name.is_empty()
         && !name.starts_with('-')
@@ -348,7 +348,7 @@ pub async fn git_switch(root: String, branch: String, create: bool) -> Result<St
         let args: Vec<&str> = if create { vec!["switch", "-c", &branch] } else { vec!["switch", &branch] };
         let o = run(Path::new(&root), &args, FAST)?;
         if o.ok {
-            Ok(o.stderr) // git switch informa por stderr
+            Ok(o.stderr) // git switch reports on stderr
         } else {
             Err(o.stderr)
         }
@@ -356,7 +356,7 @@ pub async fn git_switch(root: String, branch: String, create: bool) -> Result<St
     .await
 }
 
-// --- Remoto ----------------------------------------------------------------------------------------
+// --- Remote ---
 
 #[tauri::command]
 pub async fn git_remote(root: String, op: String) -> Result<String, String> {
@@ -395,7 +395,7 @@ pub async fn git_clone(url: String, parent: String) -> Result<String, String> {
         if !o.ok {
             return Err(o.stderr);
         }
-        // "Cloning into 'carpeta'..." → ruta del clon.
+        // "Cloning into 'carpeta'..." → path of the clone.
         let name = o.stderr.split('\'').nth(1).map(str::to_string).unwrap_or_else(|| {
             url.trim().trim_end_matches('/').trim_end_matches(".git").rsplit(['/', ':']).next().unwrap_or("repo").to_string()
         });
@@ -489,7 +489,7 @@ u UU N... 100644 100644 100644 100644 f1 f2 f3 conflicto.rs\0\
         let diff = tauri::async_runtime::block_on(git_diff(root.clone(), "a.txt".into(), false, true)).unwrap();
         assert!(diff.contains("+hola"));
         tauri::async_runtime::block_on(git_stage(root.clone(), vec!["a.txt".into()], true)).unwrap();
-        // Sacar del índice en un repo sin commits (usa rm --cached) y volver a agregar.
+        // Remove from the index in a repo without commits (uses rm --cached) and add again.
         tauri::async_runtime::block_on(git_stage(root.clone(), vec!["a.txt".into()], false)).unwrap();
         tauri::async_runtime::block_on(git_stage(root.clone(), vec!["a.txt".into()], true)).unwrap();
         let first = tauri::async_runtime::block_on(git_commit(root.clone(), "primer commit\n\ncon cuerpo".into())).unwrap();

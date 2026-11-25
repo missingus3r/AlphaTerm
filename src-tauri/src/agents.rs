@@ -1,11 +1,11 @@
-//! Agentes: dónde está instalado cada uno.
+//! Agents: where each one is installed.
 //!
-//! Se busca el primer token del comando en el PATH del proceso, en el PATH del registro (por si
-//! se instaló algo después de abrir AlphaTerm) y en las carpetas donde se suelen instalar.
-//! No se ejecuta nada: solo se mira si el archivo existe.
+//! The first token of the command is looked up in the process PATH, in the registry PATH (in case
+//! something was installed after opening AlphaTerm) and in the folders where they are usually installed.
+//! Nothing is executed: it only checks whether the file exists.
 //!
-//! Aparte, `agent_models` lista los modelos que ofrece cada agente leyéndolos de él mismo
-//! (Codex los deja en su caché; agy y OpenCode los listan con `models`).
+//! Besides that, `agent_models` lists the models each agent offers by reading them from the agent
+//! itself (Codex leaves them in its cache; agy and OpenCode list them with `models`).
 
 use serde::Serialize;
 use std::collections::HashSet;
@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 
 const EXTS: &[&str] = &["exe", "cmd", "bat", "com", "ps1"];
 
-/// Primer token de una línea de comando (respeta comillas dobles).
+/// First token of a command line (respects double quotes).
 pub fn first_token(cmd: &str) -> String {
     let t = cmd.trim_start();
     if let Some(rest) = t.strip_prefix('"') {
@@ -22,7 +22,7 @@ pub fn first_token(cmd: &str) -> String {
     t.split_whitespace().next().unwrap_or("").to_string()
 }
 
-/// Expande %VARIABLES% como hace Windows (las que no existen quedan tal cual).
+/// Expands %VARIABLES% the way Windows does (those that don't exist are left as they are).
 pub fn expand_vars(s: &str, get: impl Fn(&str) -> Option<String>) -> String {
     let mut out = String::new();
     let mut rest = s;
@@ -91,7 +91,7 @@ fn extra_dirs() -> Vec<PathBuf> {
     v
 }
 
-/// Carpetas donde buscar, sin repetir y en orden: PATH del proceso, del registro y extras.
+/// Folders to search, without repeats and in order: process PATH, registry PATH and extras.
 pub fn search_dirs() -> Vec<PathBuf> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
@@ -111,7 +111,7 @@ pub fn search_dirs() -> Vec<PathBuf> {
     out
 }
 
-/// Busca un programa en las carpetas dadas.
+/// Looks for a program in the given folders.
 pub fn resolve_in(name: &str, dirs: &[PathBuf]) -> Option<PathBuf> {
     if name.is_empty() {
         return None;
@@ -142,11 +142,11 @@ pub fn resolve_in(name: &str, dirs: &[PathBuf]) -> Option<PathBuf> {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Detected {
-    /// Ruta encontrada, o `None` si no está instalado.
+    /// Path found, or `None` if it isn't installed.
     path: Option<String>,
 }
 
-/// Dónde está cada comando (mismo orden que la lista recibida).
+/// Where each command is (same order as the list received).
 #[tauri::command]
 pub fn agents_detect(commands: Vec<String>) -> Vec<Detected> {
     let dirs = search_dirs();
@@ -156,27 +156,27 @@ pub fn agents_detect(commands: Vec<String>) -> Vec<Detected> {
         .collect()
 }
 
-/// PATH completo (proceso + registro + carpetas de agentes), para las pestañas de agentes:
-/// así encuentran programas instalados después de abrir AlphaTerm.
+/// Full PATH (process + registry + agent folders), for the agent tabs:
+/// so they find programs installed after opening AlphaTerm.
 #[tauri::command]
 pub fn agents_path_env() -> String {
     std::env::join_paths(search_dirs()).map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
 }
 
-// --- Modelos de cada agente ------------------------------------------------------------------
+// --- Models of each agent ---
 
 #[derive(Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelInfo {
     pub id: String,
-    /// Nombre para mostrar ("" si el agente no da uno).
+    /// Display name ("" if the agent doesn't give one).
     pub label: String,
-    /// Niveles de esfuerzo que acepta (vacío = no se sabe).
+    /// Effort levels it accepts (empty = unknown).
     pub efforts: Vec<String>,
     pub default_effort: Option<String>,
 }
 
-/// `models_cache.json` de Codex: solo los modelos visibles en su selector, en su orden.
+/// Codex's `models_cache.json`: only the models visible in its picker, in its order.
 pub fn parse_codex_cache(json: &str) -> Vec<ModelInfo> {
     let v: serde_json::Value = match serde_json::from_str(json) {
         Ok(v) => v,
@@ -207,7 +207,7 @@ pub fn parse_codex_cache(json: &str) -> Vec<ModelInfo> {
     list.into_iter().map(|(_, m)| m).collect()
 }
 
-/// Salida de `agy models`: "id<TAB>Nombre" por línea (la primera es "Fetching…").
+/// Output of `agy models`: "id<TAB>Name" per line (the first is "Fetching…").
 pub fn parse_agy_models(out: &str) -> Vec<ModelInfo> {
     out.lines()
         .filter_map(|l| {
@@ -218,7 +218,7 @@ pub fn parse_agy_models(out: &str) -> Vec<ModelInfo> {
         .collect()
 }
 
-/// Salida de `opencode models`: "proveedor/modelo" por línea.
+/// Output of `opencode models`: "provider/model" per line.
 pub fn parse_opencode_models(out: &str) -> Vec<ModelInfo> {
     out.lines()
         .map(str::trim)
@@ -227,7 +227,7 @@ pub fn parse_opencode_models(out: &str) -> Vec<ModelInfo> {
         .collect()
 }
 
-/// Corre un programa sin ventana y devuelve su salida estándar (con tiempo límite).
+/// Runs a program without a window and returns its standard output (with a time limit).
 fn run_hidden(exe: &Path, args: &[&str], limit: std::time::Duration) -> Result<String, String> {
     use std::process::{Command, Stdio};
     let mut c = Command::new(exe);
@@ -289,7 +289,7 @@ fn models_for(kind: &str, command: &str) -> Result<Vec<ModelInfo>, String> {
     }
 }
 
-/// Modelos que ofrece un agente (`kind`: codex, agy u opencode; los demás, lista vacía).
+/// Models an agent offers (`kind`: codex, agy or opencode; for the others, an empty list).
 #[tauri::command]
 pub async fn agent_models(kind: String, command: String) -> Result<Vec<ModelInfo>, String> {
     tauri::async_runtime::spawn_blocking(move || models_for(&kind, &command)).await.map_err(|e| e.to_string())?

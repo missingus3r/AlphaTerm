@@ -1,6 +1,6 @@
 /**
- * Temas: los de fábrica, la importación (Windows Terminal, iTerm2 o el formato propio)
- * y la paleta de la interfaz, que sale del tema de la terminal.
+ * Themes: the built-in ones, import (Windows Terminal, iTerm2 or the native format)
+ * and the interface palette, derived from the terminal theme.
  */
 import { k, t } from "../i18n";
 import { COLOR_KEYS, HEX, type ColorKey, type CustomTheme } from "./schema";
@@ -97,7 +97,7 @@ export function allThemes(custom: CustomTheme[]): Theme[] {
   return [...BUILTIN_THEMES, ...custom.map((x) => ({ ...x, builtin: false }))];
 }
 
-/** Nombre para mostrar: los de fábrica propios (Alpha oscuro/claro) se traducen; los demás quedan como son. */
+/** Display name: AlphaTerm's own built-ins (Alpha oscuro/claro) are translated; the others stay as they are. */
 export const themeLabel = (theme: Theme): string => (theme.builtin ? t(theme.name) : theme.name);
 
 export function findTheme(id: string, custom: CustomTheme[], fallback = "nova-dark"): Theme {
@@ -105,7 +105,7 @@ export function findTheme(id: string, custom: CustomTheme[], fallback = "nova-da
   return all.find((x) => x.id === id) ?? all.find((x) => x.id === fallback) ?? BUILTIN_THEMES[0];
 }
 
-// --- Colores ----------------------------------------------------------------------------------
+// --- Colors -----------------------------------------------------------------------------------
 
 export interface RGBA {
   r: number;
@@ -135,7 +135,7 @@ export function rgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${+alpha.toFixed(3)})`;
 }
 
-/** Luminancia relativa (WCAG), de 0 (negro) a 1 (blanco). */
+/** Relative luminance (WCAG), from 0 (black) to 1 (white). */
 export function luminance(hex: string): number {
   const { r, g, b } = parseHex(hex);
   const lin = (c: number) => {
@@ -148,8 +148,8 @@ export function luminance(hex: string): number {
 export const isDark = (c: ThemeColors) => luminance(c.background) < 0.35;
 
 /**
- * Variables CSS de la interfaz a partir del tema de la terminal (como hace Warp: la barra
- * de pestañas combina con la terminal). `opacity` < 1 deja ver el efecto o el escritorio.
+ * Interface CSS variables from the terminal theme (as Warp does: the tab
+ * bar matches the terminal). `opacity` < 1 lets the effect or the desktop show through.
  */
 export function uiPalette(c: ThemeColors, opacity = 1): Record<string, string> {
   const dark = isDark(c);
@@ -172,16 +172,16 @@ export function uiPalette(c: ThemeColors, opacity = 1): Record<string, string> {
   };
 }
 
-// --- Importar -------------------------------------------------------------------------------
+// --- Import ---------------------------------------------------------------------------------
 
 export interface ImportedTheme {
   name: string;
   colors: ThemeColors;
-  /** Colores que no venían en el archivo (se completaron con el tema base). */
+  /** Colors that weren't in the file (filled in from the base theme). */
   missing: ColorKey[];
 }
 
-/** Nombres de Windows Terminal (y de otros) → los nuestros. */
+/** Names from Windows Terminal (and others) → ours. */
 const ALIASES: Record<string, ColorKey> = {
   purple: "magenta",
   brightPurple: "brightMagenta",
@@ -206,7 +206,7 @@ function complete(colors: Partial<ThemeColors>, name: string): ImportedTheme {
   const missing = COLOR_KEYS.filter((k) => !colors[k]);
   const bg = colors.background ?? BASE_COLORS.background;
   const filled = { ...BASE_COLORS, cursorAccent: bg, cursor: colors.foreground ?? BASE_COLORS.cursor, ...colors } as ThemeColors;
-  // Lo que se completa solo (sin ser un color de la paleta ANSI) no es un aviso útil.
+  // What is filled in automatically (without being an ANSI palette color) isn't a useful warning.
   return { name, colors: filled, missing: missing.filter((k) => !["cursor", "cursorAccent", "selectionBackground"].includes(k)) };
 }
 
@@ -237,10 +237,10 @@ function fromItermPlist(xml: string, name: string): ImportedTheme | null {
 }
 
 /**
- * Lee un archivo de tema. Acepta:
- * - un esquema de Windows Terminal (o su settings.json entero, con "schemes": [...]);
- * - el formato propio ({ name, colors: {...} }) o un tema de xterm.js;
- * - un .itermcolors de iTerm2.
+ * Reads a theme file. Accepts:
+ * - a Windows Terminal scheme (or its whole settings.json, with "schemes": [...]);
+ * - the native format ({ name, colors: {...} }) or an xterm.js theme;
+ * - an iTerm2 .itermcolors file.
  */
 export function importThemes(text: string, fileName = t("Tema importado")): ImportedTheme[] {
   const baseName = fileName.replace(/\.[^.]+$/, "");
@@ -252,7 +252,7 @@ export function importThemes(text: string, fileName = t("Tema importado")): Impo
   }
   let data: unknown;
   try {
-    // Windows Terminal permite comentarios en su settings.json.
+    // Windows Terminal allows comments in its settings.json.
     data = JSON.parse(trimmed.replace(/^\s*\/\/.*$/gm, ""));
   } catch (e) {
     throw new Error(t("No es un JSON válido: {error}", { error: (e as Error).message }));
@@ -274,7 +274,7 @@ export function importThemes(text: string, fileName = t("Tema importado")): Impo
   return out;
 }
 
-/** Id libre para un tema propio a partir de su nombre. */
+/** Free id for a custom theme from its name. */
 export function themeId(name: string, taken: Set<string>): string {
   const base =
     "mi-" +

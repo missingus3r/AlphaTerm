@@ -14,22 +14,22 @@ interface Loaded {
 
 export interface SettingsStore {
   settings: Accessor<Settings>;
-  /** Ruta de settings.json (para mostrarla). */
+  /** Path of settings.json (to display it). */
   path: string;
   warning: Accessor<string | null>;
-  /** Cambia la configuración (se aplica ya en esta ventana y se guarda, y le llega a las demás). */
+  /** Changes the settings (applied right away in this window, saved, and sent to the others). */
   update: (f: (draft: Settings) => void) => void;
-  /** Vuelve todo a los valores de fábrica. */
+  /** Resets everything to the default values. */
   reset: () => void;
 }
 
 const SAVE_DELAY_MS = 150;
-// Preferencia de F2 (antes de que existiera settings.json).
+// F2 preference (from before settings.json existed).
 const OLD_VERTICAL_PREF = "alphaterm.tabbar.vertical";
 
 let pending: Promise<SettingsStore> | null = null;
 
-/** Una sola vez por ventana. */
+/** Once per window. */
 export function loadSettings(): Promise<SettingsStore> {
   pending ??= create();
   return pending;
@@ -38,13 +38,13 @@ export function loadSettings(): Promise<SettingsStore> {
 async function create(): Promise<SettingsStore> {
   const me = getCurrentWindow().label;
   const loaded = await invoke<Loaded>("settings_load");
-  // Instalación nueva (sin settings.json): el idioma del sistema. Una configuración de antes de que
-  // hubiera idiomas no trae la clave y queda en español (lo pone `normalize`).
+  // New install (no settings.json): the system language. A configuration from before
+  // languages existed has no such key and stays in Spanish (set by `normalize`).
   const fresh = loaded.value == null && !loaded.warning;
   const [settings, setSettings] = createSignal<Settings>(normalize(fresh ? { language: detectLang() } : loaded.value, BASE_COLORS));
   setLang(settings().language);
-  // Al arrancar con el archivo roto se usan los valores de fábrica; si se rompe después, sigue
-  // valiendo lo último que andaba. En los dos casos, guardar desde acá lo reemplaza (con copia .bak).
+  // When starting with a broken file the defaults are used; if it breaks later, the last
+  // working one stays in effect. In both cases, saving from here replaces it (with a .bak copy).
   const [warning, setWarning] = createSignal<string | null>(
     loaded.warning &&
       t("{warning} Mientras tanto se usan los valores de fábrica; si cambiás algo acá, se guarda un archivo nuevo y el roto queda como settings.json.bak.", {
@@ -69,21 +69,21 @@ async function create(): Promise<SettingsStore> {
     save();
   };
 
-  // Instalación nueva. Migración: la barra vertical de F2 vivía en localStorage.
+  // New install. Migration: F2's vertical bar used to live in localStorage.
   if (fresh) {
     let vertical = false;
     try {
       vertical = localStorage.getItem(OLD_VERTICAL_PREF) === "1";
       localStorage.removeItem(OLD_VERTICAL_PREF);
     } catch {
-      /* sin almacenamiento */
+      /* no storage */
     }
     if (vertical && me !== "settings") update((d) => void (d.tabBar.position = "left"));
-    else if (me !== "settings") save(); // que el idioma detectado quede guardado
+    else if (me !== "settings") save(); // so the detected language gets saved
   }
 
   await listen<{ source: string; value: unknown }>("settings-changed", (e) => {
-    if (e.payload.source === me) return; // lo guardó esta misma ventana
+    if (e.payload.source === me) return; // this same window saved it
     setSettings(normalize(e.payload.value, BASE_COLORS));
     setWarning(null);
   });
@@ -100,11 +100,11 @@ async function create(): Promise<SettingsStore> {
   };
 }
 
-// La configuración se abre dentro de la misma ventana (encima de las pestañas), no en otra.
+// Settings open inside the same window (on top of the tabs), not in another one.
 const [settingsOpen, setSettingsOpen] = createSignal(false);
 export { settingsOpen };
 export const openSettings = () => {
-  // Que las teclas no sigan yendo a la terminal que tenía el foco.
+  // So keys don't keep going to the terminal that had focus.
   (document.activeElement as HTMLElement | null)?.blur?.();
   setSettingsOpen(true);
 };

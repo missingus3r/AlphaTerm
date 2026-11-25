@@ -1,6 +1,6 @@
 /**
- * Aplica la configuración en vivo: colores de la interfaz, efecto de la ventana (Mica/Acrylic),
- * tema claro/oscuro de la barra de título, imagen de fondo y el aspecto de las terminales.
+ * Applies the settings live: interface colors, window effect (Mica/Acrylic),
+ * light/dark title bar theme, background image and the look of the terminals.
  */
 import { createEffect, createMemo, createSignal, on, onCleanup, type Accessor } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
@@ -9,7 +9,7 @@ import type { ITheme } from "@xterm/xterm";
 import { DEFAULT_FONT, type CursorStyle, type Settings } from "./schema";
 import { findTheme, isDark, uiPalette, type Theme } from "./themes";
 
-/** Lo que una terminal necesita saber de la configuración. */
+/** What a terminal needs to know about the settings. */
 export interface TermLook {
   fontFamily: string;
   fontSize: number;
@@ -24,7 +24,7 @@ export interface TermLook {
   theme: ITheme;
 }
 
-/** ¿Windows está en modo oscuro? (para el modo "según Windows"). */
+/** Is Windows in dark mode? (for the "follow Windows" mode). */
 export function createOsDark(): Accessor<boolean> {
   const mq = window.matchMedia("(prefers-color-scheme: dark)");
   const [dark, setDark] = createSignal(mq.matches);
@@ -40,7 +40,7 @@ export function activeTheme(s: Settings, osDark: boolean): Theme {
   return light ? findTheme(a.themeLight, s.customThemes, "nova-light") : findTheme(a.theme, s.customThemes);
 }
 
-/** La terminal tiene que ser transparente si algo se tiene que ver detrás. */
+/** The terminal has to be transparent if something has to show behind it. */
 export const isTransparent = (s: Settings) =>
   s.background.effect !== "none" || s.background.opacity < 1 || s.background.image !== "";
 
@@ -64,12 +64,12 @@ export function termLook(s: Settings, theme: Theme): TermLook {
     cursorBlink: a.cursorBlink,
     scrollback: s.terminal.scrollback,
     transparent,
-    // El fondo lo pinta la ventana (con su opacidad); la terminal deja pasar.
+    // The window paints the background (with its opacity); the terminal lets it through.
     theme: {
       ...theme.colors,
       ...(transparent ? { background: "#00000000" } : {}),
-      // Sin el borde del ruler de la derecha (se veía como una línea clara) y con una barra de
-      // desplazamiento discreta.
+      // Without the ruler's right border (it looked like a light line) and with a discreet
+      // scrollbar.
       overviewRulerBorder: "#00000000",
       scrollbarSliderBackground: `${theme.colors.foreground.slice(0, 7)}22`,
       scrollbarSliderHoverBackground: `${theme.colors.foreground.slice(0, 7)}44`,
@@ -86,8 +86,8 @@ const EFFECTS: Record<Exclude<Settings["background"]["effect"], "none">, Effect>
 };
 
 /**
- * Engancha la apariencia de esta ventana a la configuración.
- * `terminalWindow` = false para la ventana de configuración (opaca y sin efectos).
+ * Hooks this window's appearance up to the settings.
+ * `terminalWindow` = false for the settings window (opaque and without effects).
  */
 export function useAppearance(settings: Accessor<Settings>, terminalWindow: boolean) {
   const osDark = createOsDark();
@@ -95,7 +95,7 @@ export function useAppearance(settings: Accessor<Settings>, terminalWindow: bool
   const win = getCurrentWindow();
   const root = document.documentElement;
 
-  // Colores de la interfaz.
+  // Interface colors.
   createEffect(() => {
     const opacity = terminalWindow && isTransparent(settings()) ? settings().background.opacity : 1;
     for (const [k, v] of Object.entries(uiPalette(theme().colors, opacity))) {
@@ -104,7 +104,7 @@ export function useAppearance(settings: Accessor<Settings>, terminalWindow: bool
     }
   });
 
-  // Barra de título clara u oscura (en "según Windows" la decide Windows).
+  // Light or dark title bar (in "follow Windows" Windows decides).
   createEffect(
     on(
       () => (settings().appearance.mode === "auto" ? null : isDark(theme().colors) ? "dark" : "light"),
@@ -114,7 +114,7 @@ export function useAppearance(settings: Accessor<Settings>, terminalWindow: bool
 
   if (!terminalWindow) return { theme, osDark };
 
-  // Efecto de la ventana. Mica y Acrylic solo se ven donde el fondo es transparente.
+  // Window effect. Mica and Acrylic only show where the background is transparent.
   createEffect(
     on(
       () => settings().background.effect,
@@ -125,8 +125,8 @@ export function useAppearance(settings: Accessor<Settings>, terminalWindow: bool
     ),
   );
 
-  // Imagen de fondo: se lee la copia guardada y se usa como blob (no hace falta abrir el
-  // protocolo de archivos locales del WebView).
+  // Background image: the saved copy is read and used as a blob (no need to open the
+  // WebView's local file protocol).
   let url: string | null = null;
   createEffect(
     on(
@@ -157,7 +157,7 @@ export function useAppearance(settings: Accessor<Settings>, terminalWindow: bool
   return { theme, osDark };
 }
 
-/** Guarda una imagen elegida por el usuario como fondo y devuelve la ruta de la copia. */
+/** Saves an image chosen by the user as the background and returns the path of the copy. */
 export async function storeBackground(file: File): Promise<string> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   return invoke<string>("background_store", bytes, { headers: { "x-name": encodeURIComponent(file.name) } });

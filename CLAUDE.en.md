@@ -153,3 +153,5 @@ the code guide is in `docs\en\Code_Guide.txt` (and its PDF); the log of each pha
 ## Way of working
 - Each phase closes verified and logged in the Report; anything unverified is marked as such.
 - Bruno prefers answers in Spanish, direct, in paragraphs and with honest pushback.
+- Code comments and file names in English (the repo is public). Interface texts are written in
+  Spanish: they are the `t()` key (see "Languages").

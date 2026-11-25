@@ -220,5 +220,8 @@
   },
   "Nombres de archivos y carpetas en inglés (docs/, build-release.bat, GLOSSARY.md…)": {
     "subject": "File and folder names in English (docs/, build-release.bat, GLOSSARY.md…)"
+  },
+  "Comentarios del código en inglés": {
+    "subject": "Code comments in English"
   }
 }

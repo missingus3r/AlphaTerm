@@ -11,14 +11,14 @@ interface Props {
   servers: Server[];
   loading: boolean;
   error: string | null;
-  /** Pestaña de cada shell (por PID). */
+  /** Tab of each shell (by PID). */
   paneOf: (shellPid: number | null) => PaneRef | undefined;
   recipes: Recipe[];
   update: (f: (d: Settings) => void) => void;
   onRefresh: () => void;
   onStart: (r: Recipe) => void;
   onFocus: (tabId: string, paneId: string) => void;
-  /** Abrir la URL en el navegador integrado (al lado de la pestaña donde nació, si se sabe). */
+  /** Open the URL in the built-in browser (next to the tab where it started, if known). */
   onBrowse?: (url: string, pane?: PaneRef) => void;
 }
 
@@ -39,7 +39,7 @@ export default function ServersPanel(props: Props) {
     try {
       localStorage.setItem(FILTER_PREF, f);
     } catch {
-      /* no importa */
+      /* doesn't matter */
     }
   };
   const [showSystem, setShowSystem] = createSignal(false);
@@ -78,7 +78,7 @@ export default function ServersPanel(props: Props) {
     const dir = await open({ directory: true, title: t("Carpeta del servidor") });
     if (typeof dir !== "string") return;
     const id = `m${Date.now().toString(36)}`;
-    // El nombre es solo para mostrar (se puede cambiar): queda en el idioma de cuando se creó.
+    // The name is for display only (it can be changed): it stays in the language in use when it was created.
     props.update((d) => void d.recipes.push({ id, name: t("Servidor nuevo"), command: "npm run dev", cwd: dir, env: {}, ports: [], auto: false }));
     setEditing(id);
   };

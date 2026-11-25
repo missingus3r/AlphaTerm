@@ -24,21 +24,21 @@ export interface SpawnInfo {
 
 export type PtyEvent = { type: "exit"; code: number | null };
 
-// El backend nombra a cmd como Windows en castellano ("Símbolo del sistema"); el nombre queda así
-// porque el historial lo reconoce por él, y se traduce solo al mostrarlo.
+// The backend names cmd as Windows does in Spanish ("Símbolo del sistema"); the name stays that way
+// because the history recognizes it by that name, and it is translated only when displayed.
 const CMD_NAME = k("Símbolo del sistema");
-/** Nombre de un perfil para mostrar. */
+/** Name of a profile for display. */
 export const profileLabel = (name: string) => (name === CMD_NAME ? t(CMD_NAME) : name);
 
 export const termInfo = () => invoke<TermInfo>("term_info");
-/** Mata las sesiones de esta ventana (por si la vista se recargó). */
+/** Kills this window's sessions (in case the view was reloaded). */
 export const killOwned = () => invoke<void>("pty_kill_owned");
 
 export interface Foreground {
   name: string;
   pid: number;
 }
-/** Proceso en primer plano de cada sesión (clave: id de sesión). */
+/** Foreground process of each session (key: session id). */
 export const foreground = (ids: number[]) =>
   invoke<Record<string, Foreground | null>>("pty_foreground", { ids });
 export const gitBranch = (cwd: string) => invoke<string | null>("git_branch", { cwd });
@@ -54,7 +54,7 @@ export interface SpawnOptions {
   onEvent: (ev: PtyEvent) => void;
 }
 
-/** Sesión PTY del backend. La salida llega como ArrayBuffer por un canal binario. */
+/** Backend PTY session. Output arrives as an ArrayBuffer through a binary channel. */
 export class PtySession {
   private readonly queue: WriteQueue;
 
@@ -89,7 +89,7 @@ export class PtySession {
     return this.info.id;
   }
 
-  /** Encola: las escrituras llegan a la shell en el mismo orden en que se tipearon. */
+  /** Queues: writes reach the shell in the same order they were typed. */
   write(data: string) {
     this.queue.write(data);
   }

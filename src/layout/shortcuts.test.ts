@@ -21,7 +21,7 @@ describe("atajos", () => {
   });
 
   it("splits con teclado en español y en inglés", () => {
-    expect(matchShortcut(k("*", as))).toEqual({ type: "split", dir: "row" }); // Shift + tecla '+' en español
+    expect(matchShortcut(k("*", as))).toEqual({ type: "split", dir: "row" }); // Shift + '+' key on a Spanish keyboard
     expect(matchShortcut(k("+", as))).toEqual({ type: "split", dir: "row" });
     expect(matchShortcut(k("_", as))).toEqual({ type: "split", dir: "column" });
     expect(matchShortcut(k("D", as))).toEqual({ type: "split", dir: "auto" });
@@ -78,9 +78,9 @@ describe("atajos configurables", () => {
     const km = buildKeymap({ newTab: ["Ctrl+Shift+Y"] });
     expect(matchShortcut(k("Y", cs), km)).toEqual({ type: "newTab" });
     expect(matchShortcut(k("T", cs), km)).toBeNull();
-    // Lista vacía = sin atajo.
+    // Empty list = no shortcut.
     expect(matchShortcut(k("W", cs), buildKeymap({ closePane: [] }))).toBeNull();
-    // Combinaciones inválidas en el archivo se ignoran.
+    // Invalid combinations in the file are ignored.
     expect(matchShortcut(k("T", { ctrlKey: true, altKey: true }), buildKeymap({ newTab: ["Ctrl+Alt+T"] }))).toBeNull();
   });
 

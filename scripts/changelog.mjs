@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-// Genera src/generated/changelog.json desde git: cada versión (tag vX.Y.Z) con sus commits, y cada
-// commit con su traducción al inglés y al portugués (src/i18n/changelog/en.json y pt.json).
-// Lo corren `npm run dev`, `npm run build` y `npm run typecheck` (así la app siempre lo trae).
+// Generates src/generated/changelog.json from git: each version (tag vX.Y.Z) with its commits, and each
+// commit with its English and Portuguese translation (src/i18n/changelog/en.json and pt.json).
+// `npm run dev`, `npm run build` and `npm run typecheck` run it (so the app always ships it).
 //
-// Uso: node scripts/changelog.mjs [--next <versión>]
-//        --next: nombre para los commits que todavía no tienen tag (la versión que se está compilando).
+// Usage: node scripts/changelog.mjs [--next <version>]
+//        --next: name for the commits that don't have a tag yet (the version being built).
 //      node scripts/changelog.mjs --faltan [--desde <ref>]
-//        Lista los commits sin traducir (y las entradas mal formadas); sale con 1 si falta algo.
-//        --desde vX.Y.Z: solo los commits posteriores a esa referencia (así lo usa release.mjs).
+//        Lists the untranslated commits (and the malformed entries); exits with 1 if anything is missing.
+//        --desde vX.Y.Z: only the commits after that reference (this is how release.mjs uses it).
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -25,7 +25,7 @@ const arg = (name) => {
 
 const git = (args) => execFileSync("git", args, { cwd: repo, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
 
-/** Traducciones por idioma ({ en: { asunto: { subject, body } }, … }) y los archivos que no se pudieron leer. */
+/** Translations per language ({ en: { subject: { subject, body } }, … }) and the files that couldn't be read. */
 function readTranslations() {
   const dicts = {};
   const errors = [];
@@ -57,12 +57,12 @@ function generate(next) {
     missing = missingTranslations(commits, dicts).length;
     data = { generatedAt: new Date().toISOString(), versions: groupByVersion(withTranslations(commits, dicts), tags, next) };
   } catch {
-    // Sin git (por ejemplo, una copia sin .git): changelog vacío en vez de romper el build.
+    // Without git (for example, a copy without .git): empty changelog instead of breaking the build.
     data = { generatedAt: new Date().toISOString(), versions: [] };
   }
   fs.mkdirSync(path.dirname(out), { recursive: true });
   const text = JSON.stringify(data, null, 1) + "\n";
-  // No reescribir si no cambió nada (evita recargas de más en `npm run dev`).
+  // Don't rewrite if nothing changed (avoids extra reloads in `npm run dev`).
   const before = fs.existsSync(out) ? fs.readFileSync(out, "utf8").replace(/"generatedAt": "[^"]*"/, "") : "";
   if (before !== text.replace(/"generatedAt": "[^"]*"/, "")) fs.writeFileSync(out, text);
   const n = data.versions.reduce((s, v) => s + v.commits.length, 0);
