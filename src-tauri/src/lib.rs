@@ -12,6 +12,7 @@ pub mod git;
 pub mod guardian;
 pub mod history;
 pub mod llm;
+pub mod os;
 pub mod ports;
 pub mod procinfo;
 pub mod projects;
@@ -22,6 +23,8 @@ pub mod suggest;
 pub mod sysmon;
 pub mod usage;
 pub mod usage_live;
+#[cfg(target_os = "linux")]
+pub mod webkit;
 pub mod windows;
 
 use std::sync::Arc;
@@ -73,6 +76,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri::plugin::Builder::<tauri::Wry>::new("browser-page").invoke_handler(tauri::generate_handler![browser::message]).build())
         .manage(Arc::new(pty::PtyState::default()))
         .manage(procinfo::ProcState::default())
         .manage(sysmon::SysState::default())

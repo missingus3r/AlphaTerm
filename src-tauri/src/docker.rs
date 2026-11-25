@@ -69,8 +69,16 @@ pub struct EngineStatus {
     pub desktop: bool,
 }
 
+#[cfg(windows)]
 fn desktop_exe() -> Option<PathBuf> {
     let p = PathBuf::from(std::env::var("ProgramFiles").unwrap_or_else(|_| r"C:\Program Files".into())).join("Docker").join("Docker").join("Docker Desktop.exe");
+    p.exists().then_some(p)
+}
+
+/// Docker Desktop for Linux (the .deb/.rpm packages install it in /opt and as a user service).
+#[cfg(not(windows))]
+fn desktop_exe() -> Option<PathBuf> {
+    let p = PathBuf::from("/opt/docker-desktop/bin/docker-desktop");
     p.exists().then_some(p)
 }
 
@@ -93,7 +101,19 @@ pub async fn docker_status() -> EngineStatus {
 #[tauri::command]
 pub fn docker_desktop() -> Result<(), String> {
     let exe = desktop_exe().ok_or(tr("No se encontró Docker Desktop", "Docker Desktop wasn't found", "O Docker Desktop não foi encontrado"))?;
-    Command::new(exe).spawn().map(|_| ()).map_err(|e| e.to_string())
+    #[cfg(not(windows))]
+    {
+        // It runs as a systemd user service; the binary only opens the window.
+        let started = Command::new("systemctl").args(["--user", "start", "docker-desktop"]).status().map(|s| s.success()).unwrap_or(false);
+        if started {
+            return Ok(());
+        }
+    }
+    let mut child = Command::new(exe).spawn().map_err(|e| e.to_string())?;
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq)]

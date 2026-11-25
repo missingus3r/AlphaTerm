@@ -261,5 +261,14 @@
   "permitido (guardián apagado)": "allowed (Guardian off)",
   "permitido (regla de la sesión)": "allowed (session rule)",
   "permitido (30 min para esta sesión)": "allowed (30 min for this session)",
-  "bloqueado": "blocked"
+  "bloqueado": "blocked",
+  "bash, zsh y fish.": "bash, zsh and fish.",
+  "Con «Según el sistema» cambia solo cuando el escritorio pasa de claro a oscuro.": "With \"Follow the system\" it changes by itself when the desktop switches between light and dark.",
+  "Ctrl+Espacio lo abre siempre.": "Ctrl+Space always opens it.",
+  "En bash, zsh y fish: carpetas para cd, historial, opciones y valores típicos (ls, git, npm…). Tab inserta, ↓ elige, Esc cierra; ↑ sigue siendo el historial.": "In bash, zsh and fish: folders for cd, history, options and typical values (ls, git, npm…). Tab inserts, ↓ picks, Esc closes; ↑ is still the history.",
+  "frena a Claude Code (hooks) y a Codex (su modo de aprobación) lanzados desde AlphaTerm, y a lo que pase por la API. No puede frenar a cualquier programa: Linux no lo permite sin ser root.": "stops Claude Code (hooks) and Codex (its approval mode) launched from AlphaTerm, and whatever goes through the API. It can't stop any program: Linux doesn't allow it without being root.",
+  "Linux no deja frenar escrituras de cualquier programa sin ser root: el guardián actúa donde se puede.": "Linux doesn't let you stop any program's writes without being root: the Guardian acts where it can.",
+  "Por debajo de 100 % se ve el escritorio (si el escritorio permite ventanas transparentes).": "Below 100 % the desktop shows through (if the desktop allows transparent windows).",
+  "Se guarda una copia en ~/.config/AlphaTerm/fondos, así sigue andando si movés el original.": "A copy is saved in ~/.config/AlphaTerm/fondos, so it keeps working if you move the original.",
+  "Según el sistema": "Follow the system"
 }

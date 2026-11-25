@@ -7,10 +7,14 @@
 // - Stop: Claude Code finished answering (the built-in browser goes from "working" to "ready").
 // If AlphaTerm doesn't respond, it doesn't block (Claude Code continues with its own permissions).
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
-/** AlphaTerm folder: the one with control.json and settings.json. */
-const DIR = path.join(process.env.APPDATA || "", "AlphaTerm");
+/** AlphaTerm folder: the one with control.json and settings.json (%APPDATA%\AlphaTerm on Windows, ~/.config/AlphaTerm on Linux). */
+const DIR = path.join(
+  process.platform === "win32" ? process.env.APPDATA || "" : process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"),
+  "AlphaTerm",
+);
 
 // Language of the reason (es, en, pt): ALPHATERM_LANG (AlphaTerm's tabs have it) or, if it is not
 // set, the `language` key of settings.json, in the same folder as control.json; otherwise, Spanish.

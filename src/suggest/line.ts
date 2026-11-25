@@ -53,7 +53,7 @@ export interface Parsed {
   index: number;
 }
 
-/** In cmd only `"` is a quote; in PowerShell `'` too. */
+/** In cmd only `"` is a quote; in PowerShell and the Linux shells `'` too. */
 export function parseLine(line: string, shell: Shell): Parsed {
   const quotes = shell === "cmd" ? ['"'] : ['"', "'"];
   const words: Word[] = [];

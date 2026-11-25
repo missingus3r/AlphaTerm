@@ -85,7 +85,8 @@ fn write_files(url: &str, token: &str) {
     let _ = crate::settings::save_to(&dir.join("control.json"), &json!({ "url": url, "token": token, "pid": std::process::id() }));
     let _ = std::fs::write(dir.join("alphaterm-mcp.mjs"), MCP_JS);
     let _ = std::fs::write(dir.join("guardian-hook.mjs"), HOOK_JS);
-    let fwd = |p: std::path::PathBuf| p.display().to_string().replace('\\', "/");
+    // Forward slashes (Windows accepts them, and they don't need escaping in JSON or a command line).
+    let fwd = |p: std::path::PathBuf| if cfg!(windows) { p.display().to_string().replace('\\', "/") } else { p.display().to_string() };
     let hook_cmd = format!("node \"{}\"", fwd(dir.join("guardian-hook.mjs")));
     // Stop: signals when Claude Code finished answering (the browser goes from "trabajando" to "listo").
     let stop = json!([ { "hooks": [ { "type": "command", "command": hook_cmd, "timeout": 15 } ] } ]);
@@ -279,7 +280,7 @@ pub fn dispatch(app: &AppHandle, method: &str, p: Value, caller: Option<String>)
             if !cmd.is_empty() {
                 guard_command(app, &cmd, &caller, &None)?;
             }
-            let leaf = json!({ "kind": "leaf", "id": pane, "profileId": s(&p, "profile").unwrap_or_else(|| "powershell".into()), "cwd": s(&p, "cwd"),
+            let leaf = json!({ "kind": "leaf", "id": pane, "profileId": s(&p, "profile").unwrap_or_else(crate::pty::profiles::default_profile), "cwd": s(&p, "cwd"),
                 "startup": if cmd.is_empty() { Value::Null } else { json!({ "command": cmd }) } });
             let layout = json!({ "version": 1, "layout": { "tabs": [ { "id": tab, "root": leaf, "activePane": pane } ], "activeTab": tab } });
             let label = tauri::async_runtime::block_on(crate::windows::window_new(app.clone(), Some(layout)))?;

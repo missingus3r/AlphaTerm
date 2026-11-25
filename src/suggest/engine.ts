@@ -67,7 +67,10 @@ export interface Ctx {
 
 const MAX = 60;
 const norm = (s: string) => s.toLowerCase().replace(/\.(exe|cmd|bat|com)$/, "");
-const isNetwork = (s: string) => s.startsWith("\\\\") || s.startsWith("//");
+// UNC paths only exist on Windows (on Linux "//" is the root).
+const isNetwork = (s: string, shell: Shell) => shell !== "sh" && (s.startsWith("\\\\") || s.startsWith("//"));
+/** Separator to add to a folder in this shell. */
+const slashOf = (shell: Shell) => (shell === "sh" ? "/" : "\\");
 const looksLikePath = (s: string, shell: Shell) =>
   // In cmd, `/s` is an option: it is a path only if there is another slash (`/tmp/x`) or it starts differently.
   !(shell === "cmd" && /^\/[^\\/]*$/.test(s)) &&
@@ -91,7 +94,7 @@ export function analyze(p: Parsed, shell: Shell): Analysis {
       opts: [],
       subs: [],
       pathLike,
-      askPwsh: shell === "ps" && !pathLike && !isNetwork(value) && value.length >= 3,
+      askPwsh: shell === "ps" && !pathLike && !isNetwork(value, shell) && value.length >= 3,
       auto: pathLike ? value.length >= 1 : value.length >= 2,
     };
   }
@@ -133,7 +136,7 @@ export function analyze(p: Parsed, shell: Shell): Analysis {
     opts,
     subs,
     pathLike,
-    askPwsh: shell === "ps" && !known && !isNetwork(value),
+    askPwsh: shell === "ps" && !known && !isNetwork(value, shell),
     auto,
   };
 }
@@ -151,12 +154,19 @@ function match(label: string, typed: string, contains: boolean): { bonus: number
 }
 
 const matchesShell = (entry: string | null, shell: Shell) =>
-  !entry || (shell === "ps" ? /powershell/i.test(entry) : /s[ií]mbolo|\bcmd\b/i.test(entry));
+  !entry ||
+  (shell === "ps" ? /powershell/i.test(entry) : shell === "sh" ? /\b(bash|zsh|fish)\b/i.test(entry) : /s[ií]mbolo|\bcmd\b/i.test(entry));
 
-const sameDir = (a: string | null, b: string) => !!a && a.toLowerCase().replace(/\\+$/, "") === b.toLowerCase().replace(/\\+$/, "");
+// Windows folders don't distinguish upper and lower case; Linux ones do.
+const sameDir = (a: string | null, b: string, shell: Shell) => {
+  if (!a) return false;
+  const n = (x: string) => (shell === "sh" ? x.replace(/\/+$/, "") : x.toLowerCase().replace(/\\+$/, ""));
+  return n(a) === n(b);
+};
 
 /** There is an absolute path in the arguments (valid from any folder). */
 const ABSOLUTE = /\s["']?([a-zA-Z]:[\\/]|~|\\\\)/;
+const ABSOLUTE_SH = /\s["']?(\/|~)/;
 
 function historyLines(hist: HistEntry[], ctx: Ctx, a: Analysis): Suggestion[] {
   const line = ctx.line.toLowerCase();
@@ -173,10 +183,11 @@ function historyLines(hist: HistEntry[], ctx: Ctx, a: Analysis): Suggestion[] {
     const g = groups.get(c) ?? { command: c, count: 0, at: 0, here: false };
     g.count++;
     g.at = Math.max(g.at, e.at);
-    g.here ||= sameDir(e.cwd, ctx.cwd);
+    g.here ||= sameDir(e.cwd, ctx.cwd, ctx.shell);
     groups.set(c, g);
   }
-  return [...groups.values()].filter((g) => !relative || g.here || ABSOLUTE.test(g.command)).map((g) => {
+  const absolute = ctx.shell === "sh" ? ABSOLUTE_SH : ABSOLUTE;
+  return [...groups.values()].filter((g) => !relative || g.here || absolute.test(g.command)).map((g) => {
     const hours = Math.max(0, (now - g.at) / 3_600_000);
     return {
       insert: g.command,
@@ -207,22 +218,25 @@ async function listing(a: Analysis, ctx: Ctx, src: Sources, dirsOnly: boolean): 
   const value = a.word.value;
   const cut = Math.max(value.lastIndexOf("\\"), value.lastIndexOf("/")) + 1;
   // `'Mis Documentos\\'`: the trailing slash is doubled inside quotes (see insert.ts); here it counts as one.
-  const dirPart = value.slice(0, cut).replace(/\\{2,}/g, "\\");
-  const namePart = value.slice(cut);
+  const sh = ctx.shell === "sh";
+  const slash = slashOf(ctx.shell);
+  // (On Linux "\\" is a name character and isn't touched.)
+  const dirPart = sh ? value.slice(0, value.lastIndexOf("/") + 1) : value.slice(0, cut).replace(/\\{2,}/g, "\\");
+  const namePart = value.slice(sh ? dirPart.length : cut);
   const out: Suggestion[] = [];
-  const entries = isNetwork(value) ? [] : await src.listDir(dirPart, dirsOnly, namePart.startsWith("."));
+  const entries = isNetwork(value, ctx.shell) ? [] : await src.listDir(dirPart, dirsOnly, namePart.startsWith("."));
   for (const e of entries) {
     const m = match(e.name, namePart, true);
     if (!m) continue;
-    const label = e.name + (e.dir ? "\\" : "");
+    const label = e.name + (e.dir ? slash : "");
     out.push({ insert: dirPart + label, label, kind: e.dir ? "folder" : "file", dir: e.dir, replace: "word", score: 650 + (e.dir ? 5 : 0) + m.bonus, hits: m.hits });
   }
   if (dirsOnly) {
     const specials: Value[] = [{ v: "..", desc: k("carpeta de arriba") }];
-    if (ctx.shell === "ps" && dirPart === "") specials.push({ v: "~", desc: k("tu carpeta de usuario") });
+    if ((ctx.shell === "ps" || sh) && dirPart === "") specials.push({ v: "~", desc: k("tu carpeta de usuario") });
     for (const s of specials) {
       const m = match(s.v, namePart, false);
-      if (m) out.push({ insert: `${dirPart}${s.v}\\`, label: `${s.v}\\`, desc: s.desc, kind: "folder", dir: true, replace: "word", score: 660 + m.bonus, hits: m.hits });
+      if (m) out.push({ insert: `${dirPart}${s.v}${slash}`, label: `${s.v}${slash}`, desc: s.desc, kind: "folder", dir: true, replace: "word", score: 660 + m.bonus, hits: m.hits });
     }
   }
   return out;
@@ -300,7 +314,9 @@ export async function collect(a: Analysis, ctx: Ctx, src: Sources, ps?: PsMsg): 
       }
       for (const n of await src.pathCommands()) {
         const m = match(n, typed, false);
-        if (m) out.push({ insert: n.toLowerCase(), label: n.toLowerCase(), desc: k("programa del PATH"), kind: "command", replace: "word", score: 100 + m.bonus, hits: m.hits });
+        // Linux program names distinguish upper and lower case (Windows ones don't: they're shown in lower case).
+        const name = ctx.shell === "sh" ? n : n.toLowerCase();
+        if (m) out.push({ insert: name, label: name, desc: k("programa del PATH"), kind: "command", replace: "word", score: 100 + m.bonus, hits: m.hits });
       }
     }
   } else {

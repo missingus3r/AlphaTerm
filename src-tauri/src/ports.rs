@@ -59,9 +59,73 @@ pub fn listening() -> Vec<Listen> {
     out
 }
 
+/// Linux: the LISTEN sockets of `/proc/net/tcp` and `tcp6`; the owner is found by the socket inode
+/// among the `fd`s of each process. Those of other users (root's sshd, cups…) can't be read without
+/// privileges: they stay with PID 0 and are shown as system ones.
 #[cfg(not(windows))]
 pub fn listening() -> Vec<Listen> {
-    Vec::new()
+    let mut socks = Vec::new();
+    for (file, v6) in [("/proc/net/tcp", false), ("/proc/net/tcp6", true)] {
+        if let Ok(text) = std::fs::read_to_string(file) {
+            socks.extend(parse_proc_net_tcp(&text, v6));
+        }
+    }
+    if socks.is_empty() {
+        return Vec::new();
+    }
+    let wanted: std::collections::HashSet<u64> = socks.iter().map(|s| s.2).collect();
+    let mut owner: HashMap<u64, u32> = HashMap::new();
+    if let Ok(rd) = std::fs::read_dir("/proc") {
+        for e in rd.flatten() {
+            let Some(pid) = e.file_name().to_str().and_then(|n| n.parse::<u32>().ok()) else { continue };
+            let Ok(fds) = std::fs::read_dir(e.path().join("fd")) else { continue };
+            for fd in fds.flatten() {
+                let Ok(target) = std::fs::read_link(fd.path()) else { continue };
+                let t = target.to_string_lossy();
+                if let Some(inode) = t.strip_prefix("socket:[").and_then(|r| r.strip_suffix(']')).and_then(|n| n.parse::<u64>().ok()) {
+                    if wanted.contains(&inode) {
+                        owner.entry(inode).or_insert(pid);
+                    }
+                }
+            }
+        }
+    }
+    socks.into_iter().map(|(port, addr, inode)| Listen { port, addr, pid: owner.get(&inode).copied().unwrap_or(0) }).collect()
+}
+
+/// Lines of `/proc/net/tcp[6]` in LISTEN state (`0A`) → (port, address, socket inode).
+/// Addresses are hexadecimal in the kernel's byte order: groups of 4 bytes, each one little-endian.
+#[cfg_attr(windows, allow(dead_code))]
+pub fn parse_proc_net_tcp(text: &str, v6: bool) -> Vec<(u16, String, u64)> {
+    text.lines()
+        .skip(1)
+        .filter_map(|l| {
+            let f: Vec<&str> = l.split_whitespace().collect();
+            if f.len() < 10 || f[3] != "0A" {
+                return None;
+            }
+            let (addr_hex, port_hex) = f[1].split_once(':')?;
+            let port = u16::from_str_radix(port_hex, 16).ok()?;
+            let mut bytes = Vec::new();
+            for chunk in addr_hex.as_bytes().chunks(8) {
+                let word = u32::from_str_radix(std::str::from_utf8(chunk).ok()?, 16).ok()?;
+                bytes.extend_from_slice(&word.to_le_bytes());
+            }
+            let addr = if v6 {
+                let b: [u8; 16] = bytes.try_into().ok()?;
+                let ip = std::net::Ipv6Addr::from(b);
+                // A v4 address listened on through IPv6 ("::ffff:127.0.0.1") is shown as v4.
+                match ip.to_ipv4_mapped() {
+                    Some(v4) => v4.to_string(),
+                    None => format!("[{ip}]"),
+                }
+            } else {
+                let b: [u8; 4] = bytes.try_into().ok()?;
+                std::net::Ipv4Addr::from(b).to_string()
+            };
+            Some((port, addr, f[9].parse().ok()?))
+        })
+        .collect()
 }
 
 #[derive(Serialize, Debug)]
@@ -85,6 +149,8 @@ pub struct Server {
 const SYSTEM_NAMES: &[&str] = &[
     "system", "svchost.exe", "lsass.exe", "wininit.exe", "services.exe", "spoolsv.exe", "smss.exe", "csrss.exe",
     "winlogon.exe", "dashost.exe", "searchindexer.exe", "msmpeng.exe", "nissrv.exe", "jhi_service.exe",
+    // Linux (only if they belong to the user; root's ones already come as PID 0).
+    "systemd", "systemd-resolved", "sshd", "cupsd", "avahi-daemon", "dnsmasq", "gnome-shell", "gsd-sharing", "kdeconnectd",
 ];
 
 /// Groups by process and looks for which shell each one descends from.
@@ -120,12 +186,18 @@ pub async fn ports_list(state: tauri::State<'_, Arc<crate::pty::PtyState>>) -> R
             true,
             ProcessRefreshKind::nothing().with_cmd(UpdateKind::Always).with_cwd(UpdateKind::Always),
         );
-        let parents: HashMap<u32, Option<u32>> = sys.processes().iter().map(|(p, pr)| (p.as_u32(), pr.parent().map(Pid::as_u32))).collect();
+        let parents: HashMap<u32, Option<u32>> = sys.processes().iter().filter(|(_, pr)| !crate::procinfo::is_thread(pr)).map(|(p, pr)| (p.as_u32(), pr.parent().map(Pid::as_u32))).collect();
         Ok(group(&listens, &parents, &shells)
             .into_iter()
             .map(|(pid, ports, addrs, shell_pid)| {
                 let p = sys.process(Pid::from_u32(pid));
-                let name = p.map(|p| p.name().to_string_lossy().into_owned()).unwrap_or_else(|| if pid == 4 { "System".into() } else { format!("PID {pid}") });
+                let name = p.map(|p| p.name().to_string_lossy().into_owned()).unwrap_or_else(|| {
+                    if pid == 4 || pid == 0 {
+                        crate::i18n::tr("Sistema", "System", "Sistema").into()
+                    } else {
+                        format!("PID {pid}")
+                    }
+                });
                 let cmdline = p
                     .map(|p| p.cmd().iter().map(|s| s.to_string_lossy()).collect::<Vec<_>>().join(" "))
                     .unwrap_or_default();
@@ -153,6 +225,9 @@ pub async fn ports_kill(pid: u32) -> Result<String, String> {
     if pid <= 4 || pid == std::process::id() {
         return Err(crate::i18n::tr("Ese proceso no se puede detener desde acá.", "That process can't be stopped from here.", "Esse processo não pode ser encerrado daqui.").into());
     }
+    #[cfg(not(windows))]
+    return tauri::async_runtime::spawn_blocking(move || kill_tree(pid)).await.map_err(|e| e.to_string())?;
+    #[cfg(windows)]
     tauri::async_runtime::spawn_blocking(move || {
         let mut cmd = std::process::Command::new("taskkill");
         cmd.args(["/PID", &pid.to_string(), "/T", "/F"]);
@@ -173,6 +248,64 @@ pub async fn ports_kill(pid: u32) -> Result<String, String> {
     .map_err(|e| e.to_string())?
 }
 
+/// Linux: SIGTERM to the process and all its descendants (children first); whatever is still alive
+/// after 2 s gets SIGKILL, like `taskkill /T /F`.
+#[cfg(not(windows))]
+fn kill_tree(pid: u32) -> Result<String, String> {
+    use sysinfo::Signal;
+    let mut sys = System::new().map_err(|e| e.to_string())?;
+    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());
+    if sys.process(Pid::from_u32(pid)).is_none() {
+        return Err(tr!("No existe el proceso {pid}", "Process {pid} doesn't exist", "O processo {pid} não existe"));
+    }
+    let parents: HashMap<u32, Option<u32>> = sys.processes().iter().filter(|(_, pr)| !crate::procinfo::is_thread(pr)).map(|(p, pr)| (p.as_u32(), pr.parent().map(Pid::as_u32))).collect();
+    let tree = descendants(pid, &parents);
+    let mut denied = false;
+    for p in tree.iter().rev() {
+        if let Some(proc_) = sys.process(Pid::from_u32(*p)) {
+            if proc_.kill_with(Signal::Term) == Some(false) {
+                denied |= *p == pid;
+            }
+        }
+    }
+    if denied {
+        return Err(tr!("No hay permiso para detener el proceso {pid}", "No permission to stop process {pid}", "Sem permissão para encerrar o processo {pid}"));
+    }
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    loop {
+        sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());
+        let alive: Vec<u32> = tree.iter().copied().filter(|p| sys.process(Pid::from_u32(*p)).is_some_and(|x| x.status() != sysinfo::ProcessStatus::Zombie)).collect();
+        if alive.is_empty() {
+            break;
+        }
+        if std::time::Instant::now() > end {
+            for p in alive {
+                if let Some(x) = sys.process(Pid::from_u32(p)) {
+                    x.kill_with(Signal::Kill);
+                }
+            }
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    Ok(tr!("Se detuvo el proceso {pid} ({} en total)", "Process {pid} was stopped ({} in total)", "O processo {pid} foi encerrado ({} no total)"; tree.len()))
+}
+
+/// The process and everything that hangs from it, parents before children.
+#[cfg_attr(windows, allow(dead_code))]
+pub fn descendants(pid: u32, parents: &HashMap<u32, Option<u32>>) -> Vec<u32> {
+    let mut out = vec![pid];
+    let mut i = 0;
+    while i < out.len() {
+        let cur = out[i];
+        let mut kids: Vec<u32> = parents.iter().filter(|(_, par)| **par == Some(cur)).map(|(k, _)| *k).filter(|k| !out.contains(k)).collect();
+        kids.sort();
+        out.extend(kids);
+        i += 1;
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -188,6 +321,52 @@ mod tests {
         assert_eq!(g[1], (30, vec![5173, 24678], vec!["127.0.0.1".to_string(), "[::1]".to_string()], Some(10)));
     }
 
+    #[test]
+    fn lee_proc_net_tcp() {
+        let v4 = "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n\
+                     0: 0100007F:927D 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 127379 1 0\n\
+                     1: 0100007F:927D 0100007F:B000 01 00000000:00000000 00:00000000 00000000  1000        0 5555 1 0\n\
+                     2: 00000000:1435 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 42 1 0\n";
+        assert_eq!(parse_proc_net_tcp(v4, false), vec![(37501, "127.0.0.1".to_string(), 127379), (5173, "0.0.0.0".to_string(), 42)]);
+        let v6 = "  sl  local_address                         remote_address                        st\n\
+                     0: 00000000000000000000000001000000:1F90 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 77 1 0\n\
+                     1: 0000000000000000FFFF00000100007F:0050 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 78 1 0\n\
+                     2: 00000000000000000000000000000000:0016 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  0        0 79 1 0\n";
+        assert_eq!(
+            parse_proc_net_tcp(v6, true),
+            vec![(8080, "[::1]".to_string(), 77), (80, "127.0.0.1".to_string(), 78), (22, "[::]".to_string(), 79)]
+        );
+    }
+
+    #[test]
+    fn arbol_de_procesos() {
+        let parents: HashMap<u32, Option<u32>> = [(10, Some(1)), (20, Some(10)), (30, Some(20)), (31, Some(20)), (99, Some(1))].into_iter().collect();
+        assert_eq!(descendants(10, &parents), vec![10, 20, 30, 31]);
+        assert_eq!(descendants(99, &parents), vec![99]);
+    }
+
+    /// Linux: a real server of this same test is found with its PID, and stopping it kills its tree.
+    #[cfg(not(windows))]
+    #[test]
+    fn encuentra_y_detiene_un_servidor_real() {
+        let mut child = std::process::Command::new("python3")
+            .args(["-c", "import socket,time; s=socket.socket(); s.bind(('127.0.0.1',0)); s.listen(); print(s.getsockname()[1], flush=True); time.sleep(60)"])
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .expect("python3");
+        let mut line = String::new();
+        std::io::BufRead::read_line(&mut std::io::BufReader::new(child.stdout.take().unwrap()), &mut line).unwrap();
+        let port: u16 = line.trim().parse().unwrap();
+        let l = listening();
+        let found = l.iter().find(|x| x.port == port).unwrap_or_else(|| panic!("no está el puerto {port}: {l:?}"));
+        assert_eq!(found.pid, child.id());
+        assert_eq!(found.addr, "127.0.0.1");
+        kill_tree(child.id()).unwrap();
+        let status = child.wait().unwrap();
+        assert!(!status.success());
+    }
+
+    #[cfg(windows)]
     #[test]
     fn lee_la_tabla_real() {
         // On Windows something is always listening (for example RPC's 135).

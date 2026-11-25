@@ -76,7 +76,7 @@ fn now_s() -> i64 {
 }
 
 fn home() -> PathBuf {
-    std::env::var_os("USERPROFILE").map(PathBuf::from).unwrap_or_default()
+    crate::os::home()
 }
 
 /// Label of a usage window. It always stays in Spanish: the frontend uses it as an id (window
@@ -600,14 +600,19 @@ fn rounds() {
 const STATUSLINE_JS: &str = r#"// AlphaTerm statusline for Claude Code: saves the limits Claude Code passes to it
 // (for AlphaTerm's usage footer) and shows a short line. No dependencies.
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
+const DIR = path.join(
+  process.platform === "win32" ? process.env.APPDATA || "" : process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"),
+  "AlphaTerm",
+);
 let raw = "";
 process.stdin.on("data", (d) => (raw += d));
 process.stdin.on("end", () => {
   let data = {};
   try { data = JSON.parse(raw); } catch {}
   try {
-    const dir = path.join(process.env.APPDATA || "", "AlphaTerm");
+    const dir = DIR;
     fs.mkdirSync(dir, { recursive: true });
     const file = path.join(dir, "claude-statusline.json");
     fs.writeFileSync(file + ".tmp", JSON.stringify({ ...data, _capturedAt: Date.now() }));
@@ -616,7 +621,7 @@ process.stdin.on("end", () => {
   // Language: ALPHATERM_LANG (AlphaTerm tabs) or the one in AlphaTerm's settings.
   let lang = process.env.ALPHATERM_LANG;
   if (!["es", "en", "pt"].includes(lang)) {
-    try { lang = JSON.parse(fs.readFileSync(path.join(process.env.APPDATA || "", "AlphaTerm", "settings.json"), "utf8").replace(/^\uFEFF/, "")).language; } catch {}
+    try { lang = JSON.parse(fs.readFileSync(path.join(DIR, "settings.json"), "utf8").replace(/^\uFEFF/, "")).language; } catch {}
   }
   const week = lang === "en" ? "wk" : "sem";
   const rl = data.rate_limits || {};
@@ -676,7 +681,8 @@ pub fn usage_statusline_install() -> Result<String, String> {
     let mut v: Value = serde_json::from_str(&text).map_err(|e| tr!("~/.claude/settings.json no es JSON válido: {e}", "~/.claude/settings.json isn't valid JSON: {e}", "~/.claude/settings.json não é um JSON válido: {e}"))?;
     let backup = path.with_extension("json.antes-de-alphaterm");
     std::fs::write(&backup, &text).map_err(|e| e.to_string())?;
-    let cmd = format!("node \"{}\"", script.display().to_string().replace('\\', "/"));
+    let shown = script.display().to_string();
+    let cmd = format!("node \"{}\"", if cfg!(windows) { shown.replace('\\', "/") } else { shown });
     v.as_object_mut().ok_or(tr("settings.json no es un objeto", "settings.json isn't an object", "settings.json não é um objeto"))?.insert("statusLine".into(), serde_json::json!({ "type": "command", "command": cmd }));
     let out = serde_json::to_string_pretty(&v).map_err(|e| e.to_string())?;
     std::fs::write(&path, out + "\n").map_err(|e| e.to_string())?;

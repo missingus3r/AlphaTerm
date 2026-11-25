@@ -10,6 +10,7 @@ import { UsageDetail, windowName } from "./UsageDetail";
 import { appInfo, versionTooltip } from "./appInfo";
 import { ChangelogModal } from "./ChangelogModal";
 import { t } from "../i18n";
+import { pathSegments } from "./pathSegments";
 export { providerFor, type ProviderId } from "./usage";
 
 const NAMES = PROVIDER_NAMES;
@@ -70,10 +71,7 @@ function Provider(props: { id: ProviderId; everyMs: number; active: boolean; ope
 /** Location of the active pane: each segment opens that folder; button to copy the path. */
 function Location(props: { cwd?: string; branch?: string }) {
   const parts = () => {
-    const p = (props.cwd ?? "").replace(/[\\/]+$/, "");
-    if (!p) return [];
-    const segs = p.split(/[\\/]/);
-    return segs.map((name, i) => ({ name: name || "\\", path: segs.slice(0, i + 1).join("\\") + (i === 0 ? "\\" : "") }));
+    return pathSegments(props.cwd ?? "");
   };
   const openDir = (path: string) => void invoke("fs_open", { path, with: "explorer" }).catch(() => {});
   return (

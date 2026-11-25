@@ -48,9 +48,15 @@ fn now_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0)
 }
 
-/// Key of a path (Windows is case-insensitive and treats both separators alike).
+/// Key of a path (Windows is case-insensitive and treats both separators alike; Linux is neither).
 pub fn norm(p: &Path) -> String {
-    p.to_string_lossy().replace('/', "\\").trim_end_matches('\\').to_lowercase()
+    if cfg!(windows) {
+        p.to_string_lossy().replace('/', "\\").trim_end_matches('\\').to_lowercase()
+    } else {
+        let s = p.to_string_lossy();
+        let t = s.trim_end_matches('/');
+        if t.is_empty() { "/".into() } else { t.to_string() }
+    }
 }
 
 fn is_pdf(p: &Path) -> bool {
@@ -377,7 +383,7 @@ impl DirWatch {
 /// Folders too broad to watch: a drive root, the user's folder, and the roots
 /// of AppData and Temp (their subfolders are fine: a project may live there), and Windows ones.
 pub fn too_broad(root: &Path) -> bool {
-    let home = std::env::var_os("USERPROFILE").map(PathBuf::from).unwrap_or_default();
+    let home = crate::os::home();
     let k = norm(root);
     let exact = [
         home.clone(),
@@ -388,6 +394,20 @@ pub fn too_broad(root: &Path) -> bool {
         home.join("AppData").join("Local").join("Temp"),
         std::env::temp_dir(),
     ];
+    // Linux: the user's configuration and caches, and the system's folders.
+    #[cfg(not(windows))]
+    {
+        let linux = [home.join(".config"), home.join(".cache"), home.join(".local"), home.join(".local").join("share"), PathBuf::from("/tmp"), PathBuf::from("/home")];
+        if linux.iter().any(|p| norm(p) == k) {
+            return true;
+        }
+        if ["/usr", "/etc", "/var", "/opt", "/proc", "/sys", "/dev", "/run", "/boot", "/snap", "/bin", "/sbin", "/lib"]
+            .iter()
+            .any(|d| root == Path::new(d) || root.starts_with(d))
+        {
+            return true;
+        }
+    }
     root.parent().is_none()
         || exact.iter().any(|p| norm(p) == k)
         || k.starts_with("c:\\windows")
@@ -1104,6 +1124,28 @@ mod tests {
         assert!(d.contains("--- a/x.txt") && d.contains("-b") && d.contains("+c"), "{d}");
     }
 
+    #[cfg(not(windows))]
+    #[test]
+    fn filtra_temporales_y_carpetas_pesadas_en_linux() {
+        let root = Path::new("/home/x/p");
+        let snap = Snap::default();
+        assert!(ignored(root, Path::new("/home/x/p/node_modules/x/a.js"), &snap));
+        assert!(ignored(root, Path::new("/home/x/p/.git/index"), &snap));
+        assert!(ignored(root, Path::new("/home/x/p/a.txt.swp"), &snap));
+        assert!(!ignored(root, Path::new("/home/x/p/.env"), &snap), "un archivo oculto suelto sí cuenta");
+        assert!(!ignored(root, Path::new("/home/x/p/src/main.rs"), &snap));
+        assert!(ignored(Path::new("/home/x/otra"), Path::new("/home/x/p/a.txt"), &snap));
+        assert!(too_broad(Path::new("/")));
+        let home = crate::os::home();
+        assert!(too_broad(&home));
+        assert!(too_broad(&home.join(".config")));
+        assert!(too_broad(Path::new("/usr/lib")));
+        assert!(too_broad(Path::new("/tmp")));
+        assert!(!too_broad(&home.join("proyectos").join("web")));
+        assert!(!too_broad(Path::new("/tmp/un-proyecto")), "una subcarpeta de /tmp sí");
+    }
+
+    #[cfg(windows)]
     #[test]
     fn filtra_temporales_y_carpetas_pesadas() {
         let root = Path::new("C:\\p");
@@ -1117,7 +1159,7 @@ mod tests {
         assert!(ignored(Path::new("C:\\otra"), Path::new("C:\\p\\a.txt"), &snap));
         assert!(too_broad(Path::new("C:\\")));
         assert!(!too_broad(Path::new("C:\\Users\\x\\Desktop\\proyecto")));
-        let home = PathBuf::from(std::env::var_os("USERPROFILE").unwrap());
+        let home = crate::os::home();
         assert!(too_broad(&home));
         assert!(too_broad(&home.join("AppData").join("Local")));
         assert!(too_broad(&std::env::temp_dir()));

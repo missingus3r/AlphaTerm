@@ -14,10 +14,12 @@
 // install fails, it undoes the commit and tag it created (they are local and freshly made) and leaves the files
 // as they were.
 //
-// If `src-tauri\target\release\alphaterm.exe` is open (an old AlphaTerm running from there),
-// it can't be overwritten: it builds into `src-tauri\target\prueba` and installs from there.
+// If `src-tauri/target/release/alphaterm(.exe)` is open (an old AlphaTerm running from there),
+// it can't be overwritten: it builds into `src-tauri/target/prueba` and installs from there.
+// Works on Windows (build-release.bat) and Linux (build-release.sh).
 import { execFileSync, execSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { bumpVersion } from "./changelog-lib.mjs";
@@ -25,6 +27,7 @@ import { bumpVersion } from "./changelog-lib.mjs";
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const main = path.join(repo, "src-tauri", "target");
 const git = (...args) => execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
+const exeName = process.platform === "win32" ? "alphaterm.exe" : "alphaterm";
 
 /** Is a program running from this .exe? (an .exe in use can't be opened for writing). */
 function inUse(file) {
@@ -33,7 +36,8 @@ function inUse(file) {
     fs.closeSync(fs.openSync(file, "r+"));
     return false;
   } catch (e) {
-    return e.code === "EBUSY" || e.code === "EPERM" || e.code === "EACCES";
+    // ETXTBSY: Linux, a running binary.
+    return e.code === "EBUSY" || e.code === "EPERM" || e.code === "EACCES" || e.code === "ETXTBSY";
   }
 }
 
@@ -119,12 +123,12 @@ if (kind) {
 
 // --- 2) Build and install ---
 try {
-  const target = inUse(path.join(main, "release", "alphaterm.exe")) ? path.join(main, "prueba") : main;
-  if (target !== main) console.log(`target\\release\\alphaterm.exe está abierto: se compila en ${target}.`);
+  const target = inUse(path.join(main, "release", exeName)) ? path.join(main, "prueba") : main;
+  if (target !== main) console.log(`target/release/${exeName} está abierto: se compila en ${target}.`);
   console.log(`Compilando AlphaTerm ${version}…\n`);
   const env = { ...process.env, CARGO_TARGET_DIR: target };
   // Rust installed outside the PATH (~/.cargo/bin).
-  env.PATH = `${path.join(process.env.USERPROFILE ?? "", ".cargo", "bin")}${path.delimiter}${env.PATH ?? env.Path ?? ""}`;
+  env.PATH = `${path.join(os.homedir(), ".cargo", "bin")}${path.delimiter}${env.PATH ?? env.Path ?? ""}`;
   // `npm run build` (Tauri's beforeBuildCommand) generates the changelog with the tags up to date.
   execSync("npx tauri build --no-bundle", { cwd: repo, env, stdio: "inherit" });
   execSync(`node "${path.join(repo, "scripts", "install.mjs")}" --desde "${path.join(target, "release")}"`, { cwd: repo, stdio: "inherit" });

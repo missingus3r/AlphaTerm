@@ -102,7 +102,7 @@ pub fn sys_top(state: tauri::State<SysState>, shells: Vec<u32>) -> Result<Top, S
         let rows: Vec<ProcRow> = s
             .processes()
             .iter()
-            .filter(|(pid, _)| pid.as_u32() != 0)
+            .filter(|(pid, p)| pid.as_u32() != 0 && !crate::procinfo::is_thread(p))
             .map(|(pid, p)| ProcRow {
                 pid: pid.as_u32(),
                 name: p.name().to_string_lossy().into_owned(),
@@ -113,6 +113,7 @@ pub fn sys_top(state: tauri::State<SysState>, shells: Vec<u32>) -> Result<Top, S
         let map: HashMap<u32, (Option<u32>, f32, u64)> = s
             .processes()
             .iter()
+            .filter(|(_, p)| !crate::procinfo::is_thread(p))
             .map(|(pid, p)| (pid.as_u32(), (p.parent().map(Pid::as_u32), p.cpu_usage() / cores, p.memory())))
             .collect();
         let mut by_cpu = rows.clone();

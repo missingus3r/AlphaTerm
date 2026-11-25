@@ -193,5 +193,8 @@
   "sin seguimiento": "não rastreado",
   "{n} días": "{n} dias",
   "Agregado a mano": "Adicionado manualmente",
-  "Carpeta usada hace poco": "Pasta usada recentemente"
+  "Carpeta usada hace poco": "Pasta usada recentemente",
+  "Abrir con el programa asociado": "Abrir com o programa associado",
+  "Archivos": "Arquivos",
+  "Volúmenes (uno por línea: nombre:/ruta o /carpeta:/ruta)": "Volumes (um por linha: nome:/caminho ou /pasta:/caminho)"
 }

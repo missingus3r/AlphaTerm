@@ -3,7 +3,8 @@
 //! If AlphaTerm is opened from another program (Claude Code, VS Code, a CI task…), it inherits its
 //! environment: variables that turn off colors (NO_COLOR=1, which Claude Code sets for its tools),
 //! "child session" marks and even tokens. Those are removed from the shells, unless the user has
-//! them defined in their Windows environment (registry): there they are a preference and are respected.
+//! them defined in their persistent environment (the registry on Windows; `/etc/environment` and
+//! `environment.d` on Linux): there they are a preference and are respected.
 
 use std::collections::HashSet;
 
@@ -34,7 +35,40 @@ pub fn persistent_names() -> HashSet<String> {
             }
         }
     }
+    #[cfg(not(windows))]
+    {
+        let mut files = vec![std::path::PathBuf::from("/etc/environment"), crate::os::home().join(".pam_environment")];
+        let mut dirs = vec![std::path::PathBuf::from("/etc/environment.d")];
+        if let Some(base) = crate::os::config_base() {
+            dirs.push(base.join("environment.d"));
+        }
+        for d in dirs {
+            if let Ok(rd) = std::fs::read_dir(d) {
+                files.extend(rd.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|e| e == "conf")));
+            }
+        }
+        for f in files {
+            if let Ok(text) = std::fs::read_to_string(f) {
+                out.extend(env_file_names(&text));
+            }
+        }
+    }
     out
+}
+
+/// Names defined in an environment file (`NAME=value`, `export NAME=value`, or pam's `NAME DEFAULT=…`).
+#[cfg_attr(windows, allow(dead_code))]
+fn env_file_names(text: &str) -> Vec<String> {
+    text.lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .filter_map(|l| {
+            let l = l.strip_prefix("export ").unwrap_or(l).trim_start();
+            let name: String = l.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '_').collect();
+            let rest = l[name.len()..].trim_start();
+            (!name.is_empty() && (rest.starts_with('=') || rest.starts_with("DEFAULT") || rest.starts_with("OVERRIDE"))).then(|| name.to_ascii_uppercase())
+        })
+        .collect()
 }
 
 /// Process variables that must be removed from a new shell.
@@ -56,5 +90,11 @@ mod tests {
         assert_eq!(r, vec!["NO_COLOR", "CLAUDE_CODE_CHILD_SESSION", "CLAUDECODE", "CLAUDE_CODE_MESSAGING_TOKEN", "CI"]);
         assert!(!is_inherited_noise("CLAUDE_CONFIG_DIR"), "una configuración del usuario, no del proceso padre");
         assert!(!is_inherited_noise("ANTHROPIC_API_KEY"));
+    }
+
+    #[test]
+    fn lee_los_nombres_de_un_archivo_de_entorno() {
+        let text = "# comentario\nPATH=\"/usr/bin\"\nexport NO_COLOR=1\n  FORCE_COLOR DEFAULT=1\nraro\n=x\n";
+        assert_eq!(env_file_names(text), ["PATH", "NO_COLOR", "FORCE_COLOR"]);
     }
 }

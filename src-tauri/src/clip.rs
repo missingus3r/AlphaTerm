@@ -20,7 +20,7 @@ pub fn write_png(path: &Path, width: u32, height: u32, rgba: &[u8]) -> Result<()
 }
 
 fn paste_dir() -> PathBuf {
-    std::env::temp_dir().join("AlphaTerm").join("pegadas")
+    crate::os::temp_dir().join("pegadas")
 }
 
 /// Saves the clipboard image and returns the path (None if there is no image).

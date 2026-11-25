@@ -17,14 +17,13 @@ pub const EVENT: &str = "settings-changed";
 const POLL: Duration = Duration::from_millis(1000);
 const MAX_IMAGE: usize = 25 * 1024 * 1024;
 
-/// App data folder (`%APPDATA%\AlphaTerm`). With ALPHATERM_DATA_DIR another one is used (to
+/// App data folder (`%APPDATA%\AlphaTerm` on Windows, `~/.config/AlphaTerm` on Linux). With ALPHATERM_DATA_DIR another one is used (to
 /// try a new version next to the open one without touching its session or its settings).
 pub fn data_dir() -> PathBuf {
     if let Some(d) = std::env::var_os("ALPHATERM_DATA_DIR").filter(|d| !d.is_empty()) {
         return PathBuf::from(d);
     }
-    let base = std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
-    base.join("AlphaTerm")
+    crate::os::config_base().unwrap_or_else(std::env::temp_dir).join("AlphaTerm")
 }
 
 /// The app used to be called NovaTerm: the first time, `%APPDATA%\NovaTerm` is copied to `%APPDATA%\AlphaTerm`
@@ -33,7 +32,7 @@ pub fn migrate_from_novaterm() -> bool {
     if std::env::var_os("ALPHATERM_DATA_DIR").is_some() {
         return false;
     }
-    let Some(base) = std::env::var_os("APPDATA").map(PathBuf::from) else { return false };
+    let Some(base) = crate::os::config_base() else { return false };
     migrate_dir(&base.join("NovaTerm"), &data_dir())
 }
 
@@ -191,11 +190,7 @@ pub fn settings_reveal(state: tauri::State<SettingsState>) -> Result<(), String>
     if !state.path.exists() {
         save_to(&state.path, &Value::Object(Default::default()))?;
     }
-    std::process::Command::new("explorer.exe")
-        .arg(format!("/select,{}", state.path.display()))
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    crate::os::reveal(&state.path)
 }
 
 /// Opens the settings window (or brings it to the front if it's already open).
@@ -223,7 +218,8 @@ fn backgrounds_dir() -> PathBuf {
 
 /// Safe file name (no paths or odd characters) with a known image extension.
 pub fn safe_image_name(name: &str) -> Option<String> {
-    let base = Path::new(name).file_name()?.to_string_lossy().to_string();
+    // Both slashes on every system: a name with "\\" from Windows must not keep its folders on Linux.
+    let base = name.rsplit(['/', '\\']).next().filter(|b| !b.is_empty() && *b != "." && *b != "..")?.to_string();
     let ext = Path::new(&base).extension()?.to_string_lossy().to_lowercase();
     if !["png", "jpg", "jpeg", "webp", "gif", "bmp"].contains(&ext.as_str()) {
         return None;

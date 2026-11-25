@@ -7,16 +7,20 @@
 //            node alphaterm-mcp.mjs call <method> '{"json": "params"}'
 //
 // Uses ALPHATERM_CONTROL_URL / ALPHATERM_CONTROL_TOKEN (AlphaTerm's tabs have them) or,
-// if they are missing, %APPDATA%\AlphaTerm\control.json.
+// if they are missing, control.json in AlphaTerm's folder (%APPDATA%\AlphaTerm, ~/.config/AlphaTerm).
 //
 // Language of the descriptions and messages (es, en, pt): ALPHATERM_LANG (the tabs have it
 // too) or, if it is missing, the `language` key of settings.json, in the same folder as
 // control.json; otherwise, Spanish. The errors AlphaTerm sends already come in its language.
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
-/** AlphaTerm folder: the one with control.json and settings.json. */
-const DIR = path.join(process.env.APPDATA || "", "AlphaTerm");
+/** AlphaTerm folder: the one with control.json and settings.json (%APPDATA%\AlphaTerm on Windows, ~/.config/AlphaTerm on Linux). */
+const DIR = path.join(
+  process.platform === "win32" ? process.env.APPDATA || "" : process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config"),
+  "AlphaTerm",
+);
 
 function detectLang() {
   const ok = (l) => (typeof l === "string" && ["es", "en", "pt"].includes(l.trim().toLowerCase()) ? l.trim().toLowerCase() : null);
@@ -136,9 +140,9 @@ const TOOLS = [
     name: "alphaterm_run",
     method: "run",
     description: tr(
-      "Corre un comando en un panel y (si wait, por defecto) espera a que termine y devuelve la salida y el código. Necesita shell con integración (PowerShell, Git Bash, cmd). Lo que borra o pisa archivos pasa por el guardián (el usuario aprueba).",
-      "Runs a command in a pane and (if wait, the default) waits for it to finish and returns the output and exit code. Needs a shell with integration (PowerShell, Git Bash, cmd). Anything that deletes or overwrites files goes through the Guardian (the user approves).",
-      "Executa um comando em um painel e (se wait, o padrão) espera terminar e retorna a saída e o código. Precisa de um shell com integração (PowerShell, Git Bash, cmd). O que apaga ou sobrescreve arquivos passa pelo Guardião (o usuário aprova).",
+      "Corre un comando en un panel y (si wait, por defecto) espera a que termine y devuelve la salida y el código. Necesita shell con integración (PowerShell, Git Bash, cmd; en Linux bash, zsh o fish). Lo que borra o pisa archivos pasa por el guardián (el usuario aprueba).",
+      "Runs a command in a pane and (if wait, the default) waits for it to finish and returns the output and exit code. Needs a shell with integration (PowerShell, Git Bash, cmd; on Linux bash, zsh or fish). Anything that deletes or overwrites files goes through the Guardian (the user approves).",
+      "Executa um comando em um painel e (se wait, o padrão) espera terminar e retorna a saída e o código. Precisa de um shell com integração (PowerShell, Git Bash, cmd; no Linux bash, zsh ou fish). O que apaga ou sobrescreve arquivos passa pelo Guardião (o usuário aprova).",
     ),
     props: ["pane", "command", "wait", "timeout_ms"],
     required: ["pane", "command"],

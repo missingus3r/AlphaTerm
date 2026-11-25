@@ -32,6 +32,13 @@ similar = "3.2.1"
 png = "0.18"
 pdf-extract = "0.12.1"
 
+# Linux: the built-in browser is a WebKitGTK webview (the same versions Tauri/wry already use).
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = { version = "2.0", features = ["v2_40"] }
+javascriptcore-rs = "1"
+cairo-rs = "0.18"
+gtk = "0.18"
+
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56"
 webview2-com = "0.39"

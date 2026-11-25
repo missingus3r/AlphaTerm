@@ -1,7 +1,9 @@
 //! Shell integration: how each profile is launched so that it emits OSC 133 / 633 / 7.
 //! - PowerShell (5.1 and 7): the script goes through `-EncodedCommand`, which the execution policy
 //!   doesn't block (on some work PCs .ps1 files are blocked).
-//! - Git Bash: `--init-file` with a script that first loads what a login shell would load.
+//! - Git Bash and bash on Linux: `--init-file` with a script that first loads the user's own files.
+//! - zsh (Linux): `ZDOTDIR` points to a folder whose `.zshenv`/`.zshrc` load the user's and add the marks.
+//! - fish (Linux): `--init-command` sources the script (after the user's config.fish).
 //! - cmd: only the PROMPT variable (prompt and folder marks; no exit code or command).
 //! - WSL and custom profiles: no integration.
 
@@ -10,6 +12,8 @@ use std::path::PathBuf;
 
 const PS_SCRIPT: &str = include_str!("../../shell/alphaterm.ps1");
 const BASH_SCRIPT: &str = include_str!("../../shell/alphaterm.bash");
+const ZSH_SCRIPT: &str = include_str!("../../shell/alphaterm.zsh");
+const FISH_SCRIPT: &str = include_str!("../../shell/alphaterm.fish");
 
 /// cmd's PROMPT: `$e` is ESC and the OSCs end with ST (`ESC \`).
 /// 133;D without a code (cmd doesn't expose it), 9;9 with the folder, 133;A/B around the prompt.
@@ -27,17 +31,36 @@ pub fn powershell_encoded() -> String {
     base64::engine::general_purpose::STANDARD.encode(utf16)
 }
 
-/// Writes the bash script with LF line endings (git may have converted it to CRLF) and returns
-/// the path with forward slashes, which bash understands.
-fn bash_init_file() -> std::io::Result<String> {
-    let dir = std::env::temp_dir().join("AlphaTerm");
-    std::fs::create_dir_all(&dir)?;
-    let path: PathBuf = dir.join("alphaterm.bash");
-    let body = BASH_SCRIPT.replace("\r\n", "\n");
+/// Writes a script with LF line endings (git may have converted it to CRLF) to `<temp>/<rel>`,
+/// only if it changed, and returns its path.
+fn script_file(rel: &[&str], body: &str) -> std::io::Result<PathBuf> {
+    let mut path: PathBuf = crate::os::temp_dir();
+    for r in rel {
+        path.push(r);
+    }
+    std::fs::create_dir_all(path.parent().unwrap())?;
+    let body = body.replace("\r\n", "\n");
     if std::fs::read_to_string(&path).ok().as_deref() != Some(body.as_str()) {
         std::fs::write(&path, body)?;
     }
-    Ok(path.to_string_lossy().replace('\\', "/"))
+    Ok(path)
+}
+
+/// The bash script's path with forward slashes, which bash understands (also Git Bash).
+fn bash_init_file() -> std::io::Result<String> {
+    Ok(script_file(&["alphaterm.bash"], BASH_SCRIPT)?.to_string_lossy().replace('\\', "/"))
+}
+
+/// Folder for `ZDOTDIR`: its `.zshenv` and `.zshrc` are the same script, which knows which one it is by
+/// `ALPHATERM_ZSH_STAGE`.
+fn zsh_dotdir() -> std::io::Result<PathBuf> {
+    script_file(&["zsh", ".zshenv"], ZSH_SCRIPT)?;
+    Ok(script_file(&["zsh", ".zshrc"], ZSH_SCRIPT)?.parent().unwrap().to_path_buf())
+}
+
+/// A path quoted for fish's `source` ('…' with \\ and \' escaped).
+fn fish_quote(p: &str) -> String {
+    format!("'{}'", p.replace('\\', "\\\\").replace('\'', "\\'"))
 }
 
 /// Arguments and variables to launch the profile with integration. If something fails, it launches without it.
@@ -48,8 +71,23 @@ pub fn launch_for(profile_id: &str, base_args: &[String]) -> Launch {
             args: vec!["-NoLogo".into(), "-NoExit".into(), "-EncodedCommand".into(), powershell_encoded()],
             env: vec![],
         },
-        "gitbash" => match bash_init_file() {
+        "gitbash" | "bash" => match bash_init_file() {
             Ok(path) => Launch { args: vec!["--init-file".into(), path, "-i".into()], env: vec![] },
+            Err(_) => plain(),
+        },
+        "zsh" => match zsh_dotdir() {
+            Ok(dir) => {
+                let mut env = vec![("ZDOTDIR".into(), dir.to_string_lossy().into_owned()), ("ALPHATERM_ZSH_STAGE".into(), "env".into())];
+                // If the user has their own ZDOTDIR, the script goes back to it.
+                if let Some(user) = std::env::var_os("ZDOTDIR").filter(|v| !v.is_empty()) {
+                    env.push(("ALPHATERM_USER_ZDOTDIR".into(), user.to_string_lossy().into_owned()));
+                }
+                Launch { args: vec!["-i".into()], env }
+            }
+            Err(_) => plain(),
+        },
+        "fish" => match script_file(&["alphaterm.fish"], FISH_SCRIPT) {
+            Ok(path) => Launch { args: vec!["-i".into(), "--init-command".into(), format!("source {}", fish_quote(&path.to_string_lossy()))], env: vec![] },
             Err(_) => plain(),
         },
         "cmd" => Launch { args: base_args.to_vec(), env: vec![("PROMPT".into(), CMD_PROMPT.into())] },
@@ -71,6 +109,20 @@ mod tests {
         assert!(!back.contains('\r'));
         // Fits comfortably in the Windows command line (32,767 characters).
         assert!(powershell_encoded().len() < 20_000);
+    }
+
+    #[test]
+    fn zsh_y_fish_con_sus_scripts() {
+        let z = launch_for("zsh", &[]);
+        let dir = &z.env.iter().find(|(k, _)| k == "ZDOTDIR").unwrap().1;
+        let rc = std::fs::read_to_string(PathBuf::from(dir).join(".zshrc")).unwrap();
+        assert!(rc.contains("133;A") && !rc.contains('\r'));
+        assert!(PathBuf::from(dir).join(".zshenv").is_file());
+        assert!(z.env.iter().any(|(k, v)| k == "ALPHATERM_ZSH_STAGE" && v == "env"));
+        let f = launch_for("fish", &[]);
+        assert_eq!(f.args[1], "--init-command");
+        assert!(f.args[2].starts_with("source '") && f.args[2].ends_with("alphaterm.fish'"), "{:?}", f.args);
+        assert_eq!(fish_quote("/a b/it's"), r"'/a b/it\'s'");
     }
 
     #[test]

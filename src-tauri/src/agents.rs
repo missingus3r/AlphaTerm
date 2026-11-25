@@ -11,6 +11,7 @@ use serde::Serialize;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+#[cfg(windows)]
 const EXTS: &[&str] = &["exe", "cmd", "bat", "com", "ps1"];
 
 /// First token of a command line (respects double quotes).
@@ -53,6 +54,7 @@ pub fn expand_vars(s: &str, get: impl Fn(&str) -> Option<String>) -> String {
 }
 
 fn registry_path() -> Vec<String> {
+    #[allow(unused_mut)]
     let mut out = Vec::new();
     #[cfg(windows)]
     {
@@ -73,6 +75,25 @@ fn registry_path() -> Vec<String> {
     out
 }
 
+#[cfg(not(windows))]
+fn extra_dirs() -> Vec<PathBuf> {
+    // Opened from the desktop, the PATH may lack what the user adds in their shell's rc files.
+    let h = crate::os::home();
+    let mut v: Vec<PathBuf> = [".local/bin", ".bun/bin", ".opencode/bin", ".npm-global/bin", ".claude/local", ".cargo/bin", ".deno/bin", "bin"]
+        .iter()
+        .map(|d| h.join(d))
+        .collect();
+    // Every Node installed with nvm (the newest first).
+    if let Ok(rd) = std::fs::read_dir(h.join(".nvm").join("versions").join("node")) {
+        let mut nodes: Vec<PathBuf> = rd.flatten().map(|e| e.path().join("bin")).collect();
+        nodes.sort();
+        v.extend(nodes.into_iter().rev());
+    }
+    v.extend(["/usr/local/bin", "/snap/bin"].map(PathBuf::from));
+    v
+}
+
+#[cfg(windows)]
 fn extra_dirs() -> Vec<PathBuf> {
     let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
     let mut v = Vec::new();
@@ -96,7 +117,9 @@ pub fn search_dirs() -> Vec<PathBuf> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
     let mut push = |p: PathBuf| {
-        let key = p.to_string_lossy().trim_end_matches('\\').to_lowercase();
+        let key = p.to_string_lossy().trim_end_matches(['\\', '/']).to_string();
+        // Windows paths don't distinguish upper and lower case; Linux ones do.
+        let key = if cfg!(windows) { key.to_lowercase() } else { key };
         if !key.is_empty() && seen.insert(key) {
             out.push(p);
         }
@@ -118,8 +141,34 @@ pub fn resolve_in(name: &str, dirs: &[PathBuf]) -> Option<PathBuf> {
     }
     let p = Path::new(name);
     if p.is_absolute() {
-        return p.is_file().then(|| p.to_path_buf());
+        return is_program(p).then(|| p.to_path_buf());
     }
+    #[cfg(not(windows))]
+    {
+        // Linux: no extensions; the exact name, if it's an executable file.
+        dirs.iter().map(|d| d.join(name)).find(|c| is_program(c))
+    }
+    #[cfg(windows)]
+    {
+        resolve_with_exts(p, name, dirs)
+    }
+}
+
+/// A file that can be run (on Linux, with some execute bit).
+fn is_program(p: &Path) -> bool {
+    #[cfg(not(windows))]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::metadata(p).map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0).unwrap_or(false)
+    }
+    #[cfg(windows)]
+    {
+        p.is_file()
+    }
+}
+
+#[cfg(windows)]
+fn resolve_with_exts(p: &Path, name: &str, dirs: &[PathBuf]) -> Option<PathBuf> {
     let has_ext = p.extension().map(|e| EXTS.contains(&e.to_string_lossy().to_lowercase().as_str())).unwrap_or(false);
     for d in dirs {
         if has_ext {
@@ -270,7 +319,7 @@ fn models_for(kind: &str, command: &str) -> Result<Vec<ModelInfo>, String> {
         "codex" => {
             let home = std::env::var_os("CODEX_HOME")
                 .map(PathBuf::from)
-                .or_else(|| std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join(".codex")))
+                .or_else(|| Some(crate::os::home().join(".codex")))
                 .ok_or(crate::i18n::tr("no se encontró la carpeta de Codex", "Codex's folder wasn't found", "a pasta do Codex não foi encontrada"))?;
             let json = std::fs::read_to_string(home.join("models_cache.json"))
                 .map_err(|_| {
@@ -334,6 +383,26 @@ mod tests {
         assert_eq!(expand_vars("%USERPROFILE%\\bin;%NOEXISTE%\\x;100%", get), "C:\\Users\\yo\\bin;%NOEXISTE%\\x;100%");
     }
 
+    #[cfg(not(windows))]
+    #[test]
+    fn resuelve_programas_de_linux() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = std::env::temp_dir().join(format!("alphaterm-agents-linux-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join("miagente"), "#!/bin/sh\necho hola\n").unwrap();
+        std::fs::set_permissions(d.join("miagente"), std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::fs::write(d.join("noejecutable"), "x").unwrap();
+        let dirs = vec![PathBuf::from("/no/existe"), d.clone()];
+        assert_eq!(resolve_in("miagente", &dirs), Some(d.join("miagente")));
+        assert_eq!(resolve_in("noejecutable", &dirs), None, "sin permiso de ejecución no es un programa");
+        assert_eq!(resolve_in("otro", &dirs), None);
+        assert!(resolve_in("sh", &search_dirs()).is_some(), "sh está en el PATH");
+        assert!(search_dirs().contains(&crate::os::home().join(".local").join("bin")));
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    #[cfg(windows)]
     #[test]
     fn resuelve_con_extensiones() {
         let d = std::env::temp_dir().join(format!("alphaterm-agents-{}", std::process::id()));

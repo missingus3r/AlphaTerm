@@ -1,3 +1,5 @@
+import { currentOs, type Os } from "../platform";
+
 /**
  * Paths in the terminal output (what agents show: "Escribí C:\x\a.ts",
  * "src/layout/TabBar.tsx:42", "./build/out.png"). They become links that open the folder or the
@@ -14,20 +16,28 @@ export interface PathMatch {
   col?: number;
 }
 
-// Absolute (C:\..., C:/..., \\server\share\...) or relative with at least one slash
-// (./x, ../x, src/x.ts, .claude\settings.json). No spaces: a path with spaces only
+// Absolute (C:\..., C:/..., \\server\share\... on Windows; /home/x... on Linux) or relative with at
+// least one slash (./x, ../x, src/x.ts, .claude\settings.json). No spaces: a path with spaces only
 // is only recognized inside quotes.
-const ABS = String.raw`(?:(?<![A-Za-z0-9])[A-Za-z]:[\\/]|\\\\[^\\\s]+\\)[^\s"'<>|*?\x00-\x1f]*`;
+const ABS_WIN = String.raw`(?:(?<![A-Za-z0-9])[A-Za-z]:[\\/]|\\\\[^\\\s]+\\)[^\s"'<>|*?\x00-\x1f]*`;
+// Linux: from a "/" that isn't part of a word, URL or relative path ("a/b", "http://").
+const ABS_LINUX = String.raw`(?<![\w.~:/\\-])\/[\w.@~+-][^\s"'<>|*?\x00-\x1f]*`;
 const REL = String.raw`(?:\.{1,2}[\\/]|[\w.@-]+[\\/])[^\s"'<>|*?:\x00-\x1f]*(?::\d+){0,2}`;
-const QUOTED = String.raw`["'\x60]((?:[A-Za-z]:[\\/]|\.{1,2}[\\/])[^"'\x60\x00-\x1f]+)["'\x60]`;
-const RE = new RegExp(`${QUOTED}|(${ABS})|(?<![\\w:/\\\\.-])(${REL})`, "g");
+const QUOTED_WIN = String.raw`["'\x60]((?:[A-Za-z]:[\\/]|\.{1,2}[\\/])[^"'\x60\x00-\x1f]+)["'\x60]`;
+const QUOTED_LINUX = String.raw`["'\x60]((?:\/|\.{1,2}\/)[^"'\x60\x00-\x1f]+)["'\x60]`;
+const RES: Partial<Record<Os, RegExp>> = {};
+const regexFor = (os: Os) =>
+  (RES[os] ??=
+    os === "windows"
+      ? new RegExp(`${QUOTED_WIN}|(${ABS_WIN})|(?<![\\w:/\\\\.-])(${REL})`, "g")
+      : new RegExp(`${QUOTED_LINUX}|(${ABS_LINUX})|(?<![\\w:/\\\\.-])(${REL})`, "g"));
 
 const TRAIL = /[.,;:)\]}>'"`]+$/;
 const LINECOL = /:(\d+)(?::(\d+))?$/;
 
 export function findPaths(text: string): PathMatch[] {
   const out: PathMatch[] = [];
-  for (const m of text.matchAll(RE)) {
+  for (const m of text.matchAll(regexFor(currentOs()))) {
     const quoted = m[1] !== undefined;
     let raw = m[1] ?? m[2] ?? m[3];
     if (!raw) continue;
@@ -53,8 +63,9 @@ export function findPaths(text: string): PathMatch[] {
   return out;
 }
 
-/** Absolute path (with Windows slashes) from a relative one and the pane's folder. */
+/** Absolute path (with the system's slashes) from a relative one and the pane's folder. */
 export function resolvePath(raw: string, cwd?: string): string | null {
+  if (currentOs() === "linux") return resolvePosix(raw, cwd);
   let p = raw.replace(/\//g, "\\");
   if (!/^([A-Za-z]:\\|\\\\)/.test(p)) {
     if (!cwd) return null;
@@ -74,6 +85,21 @@ export function resolvePath(raw: string, cwd?: string): string | null {
   }
   const joined = out.join("\\");
   return unc ? `\\\\${joined.replace(/^\\+/, "")}` : joined.length === 2 ? `${joined}\\` : joined;
+}
+
+function resolvePosix(raw: string, cwd?: string): string | null {
+  let p = raw;
+  if (!p.startsWith("/")) {
+    if (!cwd) return null;
+    p = `${cwd.replace(/\/+$/, "")}/${p}`;
+  }
+  const out: string[] = [];
+  for (const part of p.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") out.pop();
+    else out.push(part);
+  }
+  return `/${out.join("/")}`;
 }
 
 const IMAGE = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico", "avif"];

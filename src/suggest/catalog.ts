@@ -6,6 +6,9 @@
  * The internal cmd commands that are cmdlet aliases in PowerShell (dir, del, copy, type…) go
  * for cmd only: in PowerShell their options are different and the session itself knows them (TabExpansion2).
  *
+ * Windows commands go with `shells: WIN` (cmd and PowerShell) and Linux ones with `shells: SH`
+ * (bash, zsh, fish); those without `shells` exist in all of them (git, npm, docker…).
+ *
  * Descriptions are in Spanish, marked with `k()`: `SuggestMenu` translates them when showing them.
  */
 import { k } from "../i18n";
@@ -40,7 +43,7 @@ export interface Opt {
 export interface CmdSpec {
   names: string[];
   desc: string;
-  /** Without this, in both. */
+  /** Without this, in all of them. */
   shells?: Shell[];
   subs?: CmdSpec[];
   opts?: Opt[];
@@ -56,10 +59,12 @@ const sub = (names: string | string[], desc: string, rest: Partial<CmdSpec> = {}
   ...rest,
 });
 const CMD: Shell[] = ["cmd"];
+const WIN: Shell[] = ["cmd", "ps"];
+const SH: Shell[] = ["sh"];
 
 export const CATALOG: CmdSpec[] = [
   // --- Files and folders ------------------------------------------------------------------------
-  sub("cd", k("Cambiar de carpeta"), { args: "folders", opts: [o("/d", k("también cambia de unidad"))] }),
+  sub("cd", k("Cambiar de carpeta"), { shells: WIN, args: "folders", opts: [o("/d", k("también cambia de unidad"))] }),
   sub(["pushd"], k("Ir a una carpeta recordando la actual (volver con popd)"), { args: "folders" }),
   sub(["popd"], k("Volver a la carpeta guardada con pushd")),
   sub(["dir"], k("Listar archivos y carpetas"), {
@@ -72,37 +77,41 @@ export const CATALOG: CmdSpec[] = [
   sub(["del", "erase"], k("Borrar archivos"), { shells: CMD, args: "paths", opts: [o("/s", k("también en subcarpetas")), o("/q", k("sin preguntar")), o("/f", k("también los de solo lectura")), o("/p", k("pregunta por cada uno"))] }),
   sub(["copy"], k("Copiar archivos"), { shells: CMD, args: "paths", opts: [o("/y", k("pisa sin preguntar")), o("/-y", k("pregunta antes de pisar"))] }),
   sub(["xcopy"], k("Copiar carpetas enteras"), { shells: CMD, args: "paths", opts: [o("/e", k("con subcarpetas, también vacías")), o("/i", k("el destino es una carpeta")), o("/y", k("pisa sin preguntar")), o("/h", k("incluye ocultos"))] }),
-  sub(["robocopy"], k("Copiar o espejar carpetas (robusto, reanuda)"), { args: "folders", opts: [o("/e", k("con subcarpetas")), o("/mir", k("espeja: borra en el destino lo que no está en el origen")), o("/z", k("reanudable")), o("/mt:8", k("8 hilos"))] }),
+  sub(["robocopy"], k("Copiar o espejar carpetas (robusto, reanuda)"), { shells: WIN, args: "folders", opts: [o("/e", k("con subcarpetas")), o("/mir", k("espeja: borra en el destino lo que no está en el origen")), o("/z", k("reanudable")), o("/mt:8", k("8 hilos"))] }),
   sub(["move"], k("Mover o renombrar archivos"), { shells: CMD, args: "paths", opts: [o("/y", k("pisa sin preguntar"))] }),
   sub(["ren", "rename"], k("Renombrar un archivo o carpeta"), { shells: CMD, args: "paths" }),
   sub(["type"], k("Mostrar el contenido de un archivo"), { shells: CMD, args: "paths" }),
-  sub(["tree"], k("Árbol de carpetas"), { args: "folders", opts: [o("/f", k("con los archivos")), o("/a", k("con caracteres simples"))] }),
+  sub(["tree"], k("Árbol de carpetas"), { shells: WIN, args: "folders", opts: [o("/f", k("con los archivos")), o("/a", k("con caracteres simples"))] }),
   sub(["start"], k("Abrir un archivo, carpeta o programa en otra ventana"), { shells: CMD, args: [v(".", k("esta carpeta en el Explorador"))] }),
-  sub(["explorer"], k("Abrir el Explorador de archivos"), { args: [v(".", k("esta carpeta"))] }),
+  sub(["explorer"], k("Abrir el Explorador de archivos"), { shells: WIN, args: [v(".", k("esta carpeta"))] }),
   sub(["code"], k("Abrir en Visual Studio Code"), { args: [v(".", k("esta carpeta"))], opts: [o("-n", k("ventana nueva")), o("-r", k("en la ventana abierta")), o("--diff", k("comparar dos archivos"))] }),
-  sub(["notepad"], k("Abrir en el Bloc de notas"), { args: "paths" }),
+  sub(["notepad"], k("Abrir en el Bloc de notas"), { shells: WIN, args: "paths" }),
   sub(["where"], k("Dónde está un programa del PATH"), { shells: CMD }),
-  sub(["attrib"], k("Ver o cambiar atributos de archivos"), { args: "paths", opts: [o("+h", k("ocultar")), o("-h", k("mostrar")), o("+r", k("solo lectura")), o("-r", k("quitar solo lectura")), o("/s", k("en subcarpetas"))] }),
+  sub(["attrib"], k("Ver o cambiar atributos de archivos"), { shells: WIN, args: "paths", opts: [o("+h", k("ocultar")), o("-h", k("mostrar")), o("+r", k("solo lectura")), o("-r", k("quitar solo lectura")), o("/s", k("en subcarpetas"))] }),
 
   // --- Network --------------------------------------------------------------------------------------
   sub(["ping"], k("Probar si responde un equipo o sitio"), {
+    shells: WIN,
     args: "hosts",
     opts: [o("-t", k("hasta Ctrl+C")), o("-n", k("cantidad de pings"), [v("4"), v("10"), v("100")]), o("-l", k("tamaño del paquete en bytes"), [v("32"), v("1472")]), o("-a", k("muestra el nombre del equipo")), o("-4", k("solo IPv4")), o("-6", k("solo IPv6")), o("-w", k("espera máxima en ms"), [v("1000"), v("5000")])],
   }),
-  sub(["tracert"], k("Ver por dónde pasa la conexión hasta un sitio"), { args: "hosts", opts: [o("-d", k("sin resolver nombres (más rápido)")), o("-h", k("saltos máximos"), [v("15"), v("30")]), o("-w", k("espera por salto en ms"))] }),
-  sub(["pathping"], k("tracert + pérdida de paquetes por salto"), { args: "hosts", opts: [o("-n", k("sin resolver nombres"))] }),
+  sub(["tracert"], k("Ver por dónde pasa la conexión hasta un sitio"), { shells: WIN, args: "hosts", opts: [o("-d", k("sin resolver nombres (más rápido)")), o("-h", k("saltos máximos"), [v("15"), v("30")]), o("-w", k("espera por salto en ms"))] }),
+  sub(["pathping"], k("tracert + pérdida de paquetes por salto"), { shells: WIN, args: "hosts", opts: [o("-n", k("sin resolver nombres"))] }),
   sub(["nslookup"], k("Consultar el DNS de un nombre"), { args: "hosts" }),
   sub(["ipconfig"], k("Ver la configuración de red"), {
+    shells: WIN,
     args: [v("/all", k("todo, con MAC y DNS")), v("/flushdns", k("vaciar la caché de DNS")), v("/displaydns", k("ver la caché de DNS")), v("/release", k("soltar la IP")), v("/renew", k("pedir IP nueva"))],
   }),
   sub(["netstat"], k("Conexiones y puertos abiertos"), {
+    shells: WIN,
     args: [v("-ano", k("todo, numérico y con PID")), v("-an", k("todo, numérico"))],
     opts: [o("-a", k("todas las conexiones y puertos en escucha")), o("-n", k("números en vez de nombres")), o("-o", k("con el PID dueño")), o("-b", k("con el programa (como administrador)")), o("-r", k("tabla de rutas")), o("-e", k("estadísticas de la placa"))],
   }),
   sub(["arp"], k("Tabla de equipos de la red local"), { args: [v("-a", k("ver la tabla"))] }),
-  sub(["route"], k("Tabla de rutas"), { args: [v("print", k("ver las rutas"))] }),
+  sub(["route"], k("Tabla de rutas"), { shells: WIN, args: [v("print", k("ver las rutas"))] }),
   sub(["curl"], k("Pedir una URL"), {
-    shells: CMD,
+    // In PowerShell 5.1 `curl` is an alias of Invoke-WebRequest (other options).
+    shells: ["cmd", "sh"],
     args: [v("http://localhost:3000"), v("http://localhost:8080"), v("https://")],
     opts: [o("-I", k("solo los encabezados")), o("-L", k("seguir redirecciones")), o("-o", k("guardar en un archivo"), "paths"), o("-O", k("guardar con el nombre remoto")), o("-X", k("método"), [v("GET"), v("POST"), v("PUT"), v("DELETE")]), o("-H", k("encabezado")), o("-d", k("datos a enviar")), o("-v", k("mostrar todo")), o("-s", k("sin progreso")), o("-k", k("sin verificar el certificado"))],
   }),
@@ -110,17 +119,19 @@ export const CATALOG: CmdSpec[] = [
   sub(["scp"], k("Copiar archivos por SSH"), { args: "paths", opts: [o("-r", k("carpetas enteras")), o("-P", k("puerto"))] }),
 
   // --- System ----------------------------------------------------------------------------------
-  sub(["tasklist"], k("Procesos abiertos"), { opts: [o("/v", k("con detalle")), o("/svc", k("con los servicios de cada uno")), o("/fi", k("filtro"), [v('"IMAGENAME eq chrome.exe"'), v('"STATUS eq NOT RESPONDING"')])] }),
-  sub(["taskkill"], k("Cerrar un proceso"), { opts: [o("/IM", k("por nombre"), "processes"), o("/PID", k("por número de proceso")), o("/F", k("a la fuerza")), o("/T", k("con sus procesos hijos"))] }),
+  sub(["tasklist"], k("Procesos abiertos"), { shells: WIN, opts: [o("/v", k("con detalle")), o("/svc", k("con los servicios de cada uno")), o("/fi", k("filtro"), [v('"IMAGENAME eq chrome.exe"'), v('"STATUS eq NOT RESPONDING"')])] }),
+  sub(["taskkill"], k("Cerrar un proceso"), { shells: WIN, opts: [o("/IM", k("por nombre"), "processes"), o("/PID", k("por número de proceso")), o("/F", k("a la fuerza")), o("/T", k("con sus procesos hijos"))] }),
   sub(["shutdown"], k("Apagar o reiniciar"), {
+    shells: WIN,
     opts: [o("/s", k("apagar")), o("/r", k("reiniciar")), o("/a", k("cancelar un apagado programado")), o("/t", k("en N segundos"), [v("0", k("ya")), v("60"), v("3600", k("en una hora"))]), o("/h", k("hibernar")), o("/l", k("cerrar sesión"))],
   }),
-  sub(["systeminfo"], k("Datos del equipo y de Windows")),
-  sub(["whoami"], k("Usuario actual"), { args: [v("/all", k("con grupos y privilegios")), v("/groups", k("grupos")), v("/priv", k("privilegios"))] }),
+  sub(["systeminfo"], k("Datos del equipo y de Windows"), { shells: WIN }),
+  sub(["whoami"], k("Usuario actual"), { shells: WIN, args: [v("/all", k("con grupos y privilegios")), v("/groups", k("grupos")), v("/priv", k("privilegios"))] }),
   sub(["hostname"], k("Nombre del equipo")),
-  sub(["sfc"], k("Revisar archivos de Windows (como administrador)"), { args: [v("/scannow", k("revisar y reparar")), v("/verifyonly", k("solo revisar"))] }),
-  sub(["chkdsk"], k("Revisar un disco"), { args: [v("C:")], opts: [o("/f", k("corregir errores")), o("/r", k("buscar sectores malos")), o("/scan", k("en línea, sin desmontar"))] }),
+  sub(["sfc"], k("Revisar archivos de Windows (como administrador)"), { shells: WIN, args: [v("/scannow", k("revisar y reparar")), v("/verifyonly", k("solo revisar"))] }),
+  sub(["chkdsk"], k("Revisar un disco"), { shells: WIN, args: [v("C:")], opts: [o("/f", k("corregir errores")), o("/r", k("buscar sectores malos")), o("/scan", k("en línea, sin desmontar"))] }),
   sub(["winget"], k("Instalar y actualizar programas"), {
+    shells: WIN,
     subs: [
       sub("search", k("buscar un programa")),
       sub("install", k("instalar"), { opts: [o("--id", k("por id exacto")), o("-e", k("nombre exacto")), o("--silent", k("sin ventanas"))] }),
@@ -132,12 +143,91 @@ export const CATALOG: CmdSpec[] = [
     ],
   }),
   sub(["wsl"], k("Linux dentro de Windows"), {
+    shells: WIN,
     opts: [o("-l", k("distribuciones instaladas")), o("-v", k("con versión y estado")), o("--shutdown", k("apagar todas")), o("-d", k("usar una distribución")), o("--install", k("instalar")), o("--update", k("actualizar WSL")), o("-u", k("como otro usuario"))],
   }),
   sub(["set"], k("Ver o cambiar variables de entorno"), { shells: CMD }),
   sub(["echo"], k("Mostrar un texto"), { shells: CMD }),
   sub(["cls"], k("Limpiar la pantalla"), { shells: CMD }),
   sub(["exit"], k("Cerrar la shell")),
+
+  // --- Linux (bash, zsh, fish) ----------------------------------------------------------------------
+  // Folders (the listing adds ".." and "~"); `cd -` goes back to the previous one.
+  sub("cd", k("Cambiar de carpeta"), { shells: SH, args: "folders", opts: [o("-", k("la carpeta anterior"))] }),
+  sub(["ls"], k("Listar archivos y carpetas"), {
+    shells: SH,
+    args: "paths",
+    opts: [o("-l", k("con detalle")), o("-a", k("incluye ocultos y de sistema")), o("-la", k("con detalle, también los ocultos")), o("-lh", k("con tamaños legibles")), o("-t", k("ordenado por fecha")), o("-S", k("ordenado por tamaño")), o("-R", k("incluye subcarpetas"))],
+  }),
+  sub(["mkdir"], k("Crear una carpeta"), { shells: SH, args: "folders", opts: [o("-p", k("con las carpetas intermedias"))] }),
+  sub(["rmdir"], k("Borrar una carpeta vacía"), { shells: SH, args: "folders" }),
+  sub(["rm"], k("Borrar archivos"), { shells: SH, args: "paths", opts: [o("-r", k("con todo lo que tiene adentro")), o("-f", k("sin preguntar")), o("-rf", k("una carpeta entera, sin preguntar")), o("-i", k("pregunta por cada uno"))] }),
+  sub(["cp"], k("Copiar archivos"), { shells: SH, args: "paths", opts: [o("-r", k("con subcarpetas")), o("-a", k("conservando permisos y fechas")), o("-i", k("pregunta antes de pisar")), o("-v", k("mostrando cada uno"))] }),
+  sub(["mv"], k("Mover o renombrar archivos"), { shells: SH, args: "paths", opts: [o("-i", k("pregunta antes de pisar")), o("-n", k("nunca pisa"))] }),
+  sub(["cat"], k("Mostrar el contenido de un archivo"), { shells: SH, args: "paths", opts: [o("-n", k("con números de línea"))] }),
+  sub(["less"], k("Leer un archivo de a una pantalla"), { shells: SH, args: "paths" }),
+  sub(["head"], k("Primeras líneas de un archivo"), { shells: SH, args: "paths", opts: [o("-n", k("cuántas líneas"), [v("20"), v("50")])] }),
+  sub(["tail"], k("Últimas líneas de un archivo"), { shells: SH, args: "paths", opts: [o("-f", k("ir mostrando lo nuevo")), o("-n", k("cuántas líneas"), [v("20"), v("100")])] }),
+  sub(["touch"], k("Crear un archivo vacío (o actualizar su fecha)"), { shells: SH, args: "paths" }),
+  sub(["ln"], k("Crear un enlace"), { shells: SH, args: "paths", opts: [o("-s", k("simbólico"))] }),
+  sub(["chmod"], k("Cambiar permisos"), { shells: SH, args: "paths", opts: [o("+x", k("hacerlo ejecutable")), o("-R", k("también en subcarpetas")), o("755", k("todo para vos, leer y ejecutar para el resto")), o("644", k("leer y escribir para vos, leer para el resto"))] }),
+  sub(["chown"], k("Cambiar el dueño"), { shells: SH, args: "paths", opts: [o("-R", k("también en subcarpetas"))] }),
+  sub(["find"], k("Buscar archivos"), { shells: SH, args: "folders", opts: [o("-name", k("por nombre")), o("-iname", k("por nombre, sin mayúsculas")), o("-type", k("tipo"), [v("f", k("archivos")), v("d", k("carpetas"))]), o("-mtime", k("modificado hace N días"), [v("-1"), v("-7")])] }),
+  sub(["grep"], k("Buscar texto en archivos"), { shells: SH, args: "paths", opts: [o("-r", k("también en subcarpetas")), o("-i", k("sin distinguir mayúsculas")), o("-n", k("con números de línea")), o("-v", k("las que no coinciden")), o("-l", k("solo los nombres de archivo")), o("-E", k("expresión regular extendida"))] }),
+  sub(["du"], k("Cuánto ocupa una carpeta"), { shells: SH, args: "folders", opts: [o("-sh", k("el total, legible")), o("-h", k("tamaños legibles")), o("--max-depth=1", k("solo un nivel"))] }),
+  sub(["df"], k("Espacio libre en los discos"), { shells: SH, opts: [o("-h", k("tamaños legibles"))] }),
+  sub(["tree"], k("Árbol de carpetas"), { shells: SH, args: "folders", opts: [o("-a", k("incluye ocultos y de sistema")), o("-L", k("hasta N niveles"), [v("2"), v("3")]), o("-d", k("solo carpetas"))] }),
+  sub(["xdg-open"], k("Abrir con el programa asociado"), { shells: SH, args: [v(".", k("esta carpeta en el gestor de archivos"))] }),
+  sub(["which"], k("Dónde está un programa del PATH"), { shells: SH }),
+  sub(["ps"], k("Procesos abiertos"), { shells: SH, args: [v("aux", k("todos, con detalle")), v("-ef", k("todos, con el proceso padre"))] }),
+  sub(["kill"], k("Cerrar un proceso"), { shells: SH, opts: [o("-9", k("a la fuerza")), o("-15", k("pidiéndole que termine"))] }),
+  sub(["pkill", "killall"], k("Cerrar un proceso por nombre"), { shells: SH, args: "processes", opts: [o("-9", k("a la fuerza"))] }),
+  sub(["top", "htop"], k("Procesos en vivo"), { shells: SH }),
+  sub(["free"], k("Memoria libre"), { shells: SH, opts: [o("-h", k("tamaños legibles"))] }),
+  sub(["uname"], k("Datos del sistema"), { shells: SH, opts: [o("-a", k("todo"))] }),
+  sub(["whoami"], k("Usuario actual"), { shells: SH }),
+  sub(["ping"], k("Probar si responde un equipo o sitio"), { shells: SH, args: "hosts", opts: [o("-c", k("cantidad de pings"), [v("4"), v("10"), v("100")]), o("-i", k("segundos entre pings"), [v("0.2"), v("5")]), o("-s", k("tamaño del paquete en bytes"), [v("56"), v("1472")])] }),
+  sub(["traceroute", "tracepath"], k("Ver por dónde pasa la conexión hasta un sitio"), { shells: SH, args: "hosts", opts: [o("-n", k("sin resolver nombres (más rápido)"))] }),
+  sub(["ip"], k("Ver la configuración de red"), { shells: SH, subs: [sub(["a", "addr"], k("direcciones de cada interfaz")), sub(["r", "route"], k("Tabla de rutas")), sub("link", k("interfaces"))] }),
+  sub(["ss"], k("Conexiones y puertos abiertos"), { shells: SH, args: [v("-tulpn", k("puertos en escucha, con el programa")), v("-tan", k("conexiones TCP, numérico"))] }),
+  sub(["wget"], k("Bajar un archivo"), { shells: SH, opts: [o("-O", k("guardar en un archivo"), "paths"), o("-c", k("reanudar"))] }),
+  sub(["tar"], k("Archivos .tar"), { shells: SH, args: "paths", opts: [o("-xzf", k("descomprimir un .tar.gz")), o("-czf", k("comprimir en un .tar.gz")), o("-xf", k("descomprimir")), o("-tf", k("ver qué tiene"))] }),
+  sub(["unzip"], k("Descomprimir un .zip"), { shells: SH, args: "paths", opts: [o("-d", k("en esta carpeta"), "folders"), o("-l", k("ver qué tiene"))] }),
+  sub(["sudo"], k("Correr como administrador"), { shells: SH, opts: [o("-i", k("una shell de root")), o("-u", k("como otro usuario"))] }),
+  sub(["apt"], k("Instalar y actualizar programas"), {
+    shells: SH,
+    subs: [
+      sub("install", k("instalar"), { opts: [o("-y", k("sin preguntar"))] }),
+      sub("remove", k("desinstalar")),
+      sub("update", k("actualizar la lista de paquetes")),
+      sub("upgrade", k("actualizar"), { opts: [o("-y", k("sin preguntar"))] }),
+      sub("search", k("buscar un programa")),
+      sub("show", k("detalles de un programa")),
+      sub("list", k("programas instalados"), { opts: [o("--installed", k("solo los instalados")), o("--upgradable", k("solo los que tienen actualización"))] }),
+      sub("autoremove", k("borrar lo que no se usa")),
+    ],
+  }),
+  sub(["systemctl"], k("Servicios del sistema"), {
+    shells: SH,
+    opts: [o("--user", k("los de tu usuario"))],
+    subs: [
+      sub("status", k("estado")),
+      sub("start", k("arrancar")),
+      sub("stop", k("parar")),
+      sub("restart", k("reiniciar")),
+      sub("enable", k("arrancar con el sistema"), { opts: [o("--now", k("y arrancarlo ya"))] }),
+      sub("disable", k("no arrancar con el sistema")),
+      sub("list-units", k("servicios"), { opts: [o("--failed", k("solo los que fallaron"))] }),
+    ],
+  }),
+  sub(["journalctl"], k("Registro del sistema"), { shells: SH, opts: [o("-u", k("de un servicio")), o("-f", k("ir mostrando lo nuevo")), o("-e", k("desde el final")), o("-b", k("desde el último arranque")), o("--since", k("desde"), [v('"1 hour ago"'), v("today")])] }),
+  sub(["echo"], k("Mostrar un texto"), { shells: SH }),
+  sub(["export"], k("Definir una variable de entorno"), { shells: SH }),
+  sub(["env"], k("Ver las variables de entorno"), { shells: SH }),
+  sub(["source", "."], k("Cargar un script en esta shell"), { shells: SH, args: "paths" }),
+  sub(["clear"], k("Limpiar la pantalla"), { shells: SH }),
+  sub(["history"], k("Comandos anteriores"), { shells: SH }),
+  sub(["man"], k("Manual de un comando"), { shells: SH }),
 
   // --- Development -------------------------------------------------------------------------------
   sub(["git"], k("Control de versiones"), {
@@ -184,8 +274,8 @@ export const CATALOG: CmdSpec[] = [
   }),
   sub(["npx"], k("Correr un paquete de Node"), { args: [v("tauri"), v("vite"), v("vitest"), v("tsc"), v("eslint"), v("prettier")] }),
   sub(["node"], k("Correr JavaScript"), { args: "paths", opts: [o("--version", k("versión")), o("-e", k("evaluar este código")), o("--watch", k("reiniciar al guardar")), o("--inspect", k("con depurador"))] }),
-  sub(["python", "py"], k("Correr Python"), { args: "paths", opts: [o("-m", k("módulo"), [v("pip"), v("venv"), v("http.server", k("servidor web en esta carpeta"))]), o("-c", k("este código")), o("-V", k("versión"))] }),
-  sub(["pip"], k("Paquetes de Python"), {
+  sub(["python", "py", "python3"], k("Correr Python"), { args: "paths", opts: [o("-m", k("módulo"), [v("pip"), v("venv"), v("http.server", k("servidor web en esta carpeta"))]), o("-c", k("este código")), o("-V", k("versión"))] }),
+  sub(["pip", "pip3"], k("Paquetes de Python"), {
     subs: [
       sub("install", k("instalar"), { opts: [o("-r", k("desde un archivo"), [v("requirements.txt")]), o("-U", k("actualizar")), o("--user", k("para este usuario"))] }),
       sub("uninstall", k("desinstalar")),

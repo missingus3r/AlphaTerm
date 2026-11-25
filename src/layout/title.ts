@@ -51,6 +51,7 @@ export function preferTyped(typed: string | undefined, fromTitle: string): strin
 
 export function folderName(cwd?: string): string {
   if (!cwd) return "";
+  if (/^\/+$/.test(cwd)) return "/";
   const parts = cwd.replace(/[\\/]+$/, "").split(/[\\/]/);
   const last = parts[parts.length - 1] ?? "";
   return /^[a-zA-Z]:$/.test(last) ? `${last}\\` : last;

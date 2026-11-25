@@ -5,6 +5,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import type { DockerPreset, Settings } from "../settings/schema";
 import { envToText, parseEnvText } from "./agentState";
 import { t } from "../i18n";
+import { isWindows } from "../platform";
 
 interface Engine {
   installed: boolean;
@@ -213,7 +214,7 @@ export default function DockerPanel(props: Props) {
                     <textarea class="text mono" rows={3} value={envToText(p.env)} onChange={(e) => setPreset(p.name, (x) => void (x.env = parseEnvText(e.currentTarget.value)))} />
                   </label>
                   <label>
-                    {t("Volúmenes (uno por línea: nombre:/ruta o C:\\carpeta:/ruta)")}
+                    {isWindows() ? t("Volúmenes (uno por línea: nombre:/ruta o C:\\carpeta:/ruta)") : t("Volúmenes (uno por línea: nombre:/ruta o /carpeta:/ruta)")}
                     <textarea class="text mono" rows={2} value={p.volumes.join("\n")} onChange={(e) => setPreset(p.name, (x) => void (x.volumes = e.currentTarget.value.split(/\r?\n/).map((v) => v.trim()).filter(Boolean)))} />
                   </label>
                   <label>

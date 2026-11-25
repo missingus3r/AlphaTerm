@@ -94,14 +94,16 @@ pub struct SpawnInfo {
 pub struct TermInfo {
     profiles: Vec<profiles::Profile>,
     default_profile: String,
-    /// Windows build, for xterm.js's `windowsPty` option.
+    /// Windows build, for xterm.js's `windowsPty` option (0 outside Windows: no ConPTY).
     windows_build: u32,
+    /// "windows" or "linux": paths, shells and a few texts change with it.
+    os: &'static str,
 }
 
 #[tauri::command]
 pub fn term_info() -> TermInfo {
-    let build = sysinfo::System::kernel_version().ok().and_then(|v| v.parse().ok()).unwrap_or(0);
-    TermInfo { profiles: profiles::detect(), default_profile: profiles::DEFAULT_PROFILE.into(), windows_build: build }
+    let build = if cfg!(windows) { sysinfo::System::kernel_version().ok().and_then(|v| v.parse().ok()).unwrap_or(0) } else { 0 };
+    TermInfo { profiles: profiles::detect(), default_profile: profiles::default_profile(), windows_build: build, os: std::env::consts::OS }
 }
 
 fn size(cols: u16, rows: u16) -> PtySize {
@@ -109,7 +111,7 @@ fn size(cols: u16, rows: u16) -> PtySize {
 }
 
 fn home_dir() -> PathBuf {
-    std::env::var_os("USERPROFILE").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("C:\\"))
+    crate::os::home()
 }
 
 #[tauri::command]
@@ -343,6 +345,7 @@ mod tests {
     use std::time::Instant;
 
     /// Opens a real ConPTY with cmd, writes a command and waits for the output and the end.
+    #[cfg(windows)]
     #[test]
     fn conpty_real_eco_y_salida() {
         let state = Arc::new(PtyState::default());
@@ -379,12 +382,41 @@ mod tests {
         assert!(state.sessions.lock().unwrap().is_empty(), "la sesión quedó registrada");
     }
 
+    /// Linux: a real PTY with bash, a command and its output, and the exit code at the end.
+    #[cfg(not(windows))]
+    #[test]
+    fn pty_real_eco_y_salida() {
+        let state = Arc::new(PtyState::default());
+        let (dtx, drx) = channel::<Vec<u8>>();
+        let (etx, erx) = channel::<Option<u32>>();
+        let info = spawn(&state, "test", "bash", None, 80, 24, move |b| dtx.send(b).is_ok(), move |c| etx.send(c).unwrap()).expect("spawn");
+        assert!(info.pid.is_some());
+        assert!(info.profile.available);
+        state.write(info.id, b"echo NOVA_$((40+2))_OK; [ \"$TERM_PROGRAM\" = AlphaTerm ] && echo PROG_OK\r").unwrap();
+        state.write(info.id, b"exit 7\r").unwrap();
+        let code = match erx.recv_timeout(Duration::from_secs(15)) {
+            Ok(c) => c,
+            Err(_) => {
+                let out: Vec<u8> = drx.try_iter().flatten().collect();
+                panic!("la sesión no terminó; salida: {:?}", String::from_utf8_lossy(&out));
+            }
+        };
+        assert_eq!(code, Some(7));
+        let out: Vec<u8> = drx.try_iter().flatten().collect();
+        let text = String::from_utf8_lossy(&out);
+        assert!(text.contains("NOVA_42_OK") && text.contains("PROG_OK"), "salida: {text}");
+        assert!(state.sessions.lock().unwrap().is_empty(), "la sesión quedó registrada");
+    }
+
     #[test]
     fn kill_corta_la_sesion() {
         let state = Arc::new(PtyState::default());
         let (etx, erx) = channel::<Option<u32>>();
-        let info = spawn(&state, "test", "cmd", None, 80, 24, |_| true, move |c| etx.send(c).unwrap()).unwrap();
-        state.write(info.id, b"[1;1R").unwrap();
+        let shell = if cfg!(windows) { "cmd" } else { "bash" };
+        let info = spawn(&state, "test", shell, None, 80, 24, |_| true, move |c| etx.send(c).unwrap()).unwrap();
+        if cfg!(windows) {
+            state.write(info.id, b"\x1b[1;1R").unwrap();
+        }
         let t = Instant::now();
         state.get(info.id).map(|s| kill_session(&s)).unwrap();
         erx.recv_timeout(Duration::from_secs(10)).expect("kill no terminó la sesión");
@@ -535,7 +567,10 @@ mod integration_tests {
         let state = Arc::new(PtyState::default());
         let (tx, rx) = channel::<Vec<u8>>();
         let info = spawn(&state, "test", profile, None, 120, 30, move |b| tx.send(b).is_ok(), |_| {}).unwrap();
-        state.write(info.id, b"\x1b[1;1R").unwrap();
+        // ConPTY asks for the cursor position at startup (xterm.js answers it in the app); a Unix PTY doesn't.
+        if cfg!(windows) {
+            state.write(info.id, b"\x1b[1;1R").unwrap();
+        }
         let mut out = String::new();
         assert!(wait_for(&rx, &mut out, "\x1b]133;B", 30), "{profile}: no llegó el fin del prompt: {out:?}");
         assert!(out.contains("\x1b]7;file://") || out.contains("\x1b]9;9;"), "{profile}: sin carpeta: {out:?}");
@@ -547,6 +582,7 @@ mod integration_tests {
         state.write(info.id, b"exit\r").unwrap();
     }
 
+    #[cfg(windows)]
     #[test]
     fn powershell_emite_marcas_y_codigo() {
         check_shell("powershell", "cmd /c exit 4", 4);
@@ -571,6 +607,7 @@ mod integration_tests {
         }
     }
 
+    #[cfg(windows)]
     fn completions(payload: &str) -> serde_json::Value {
         use base64::Engine;
         let bytes = base64::engine::general_purpose::STANDARD.decode(payload.trim()).expect("base64");
@@ -579,6 +616,7 @@ mod integration_tests {
 
     /// Risk 1 of the command suggestions design: the hidden shortcut (F12,e) reaches PSReadLine through
     /// the ConPTY, runs TabExpansion2 and the reply comes back as an OSC 7717 without touching the buffer.
+    #[cfg(windows)]
     #[test]
     fn powershell_completa_con_f12() {
         let dir = std::env::temp_dir().join("alphaterm-f12");
@@ -624,5 +662,39 @@ mod integration_tests {
         if profiles::detect().iter().any(|p| p.id == "gitbash" && p.available) {
             check_shell("gitbash", "(exit 5)", 5);
         }
+    }
+
+    /// Linux shells: prompt marks, folder (OSC 7 with an absolute path, no doubled slash),
+    /// command text and exit code. zsh and fish are tested only if they are installed.
+    #[cfg(not(windows))]
+    #[test]
+    fn shells_de_linux_emiten_marcas_y_codigo() {
+        check_shell("bash", "(exit 5)", 5);
+        for (p, fail, code) in [("zsh", "(exit 6)", 6), ("fish", "false", 1)] {
+            if profiles::detect().iter().any(|x| x.id == p && x.available) {
+                check_shell(p, fail, code);
+            }
+        }
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn osc7_con_ruta_absoluta() {
+        let dir = std::env::temp_dir().join(format!("alphaterm osc7 {}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        for p in ["bash", "zsh", "fish"] {
+            if !profiles::detect().iter().any(|x| x.id == p && x.available) {
+                continue;
+            }
+            let state = Arc::new(PtyState::default());
+            let (tx, rx) = channel::<Vec<u8>>();
+            let info = spawn(&state, "test", p, Some(dir.to_string_lossy().into_owned()), 120, 30, move |b| tx.send(b).is_ok(), |_| {}).unwrap();
+            let mut out = String::new();
+            let osc = wait_osc(&rx, &mut out, 0, "\x1b]7;file://", 30).unwrap_or_else(|| panic!("{p}: sin OSC 7: {out:?}"));
+            let path = &osc[osc.find('/').expect("host/ruta")..];
+            assert_eq!(path, dir.to_string_lossy().replace(' ', "%20"), "{p}");
+            state.write(info.id, b"exit\r").unwrap();
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

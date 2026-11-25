@@ -9,6 +9,12 @@ use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
 /// Console hosts: they are children of the shell but are not "what is running".
 const IGNORED: &[&str] = &["conhost.exe", "openconsole.exe"];
 
+/// Is it a thread and not a process? On Linux sysinfo lists every thread (task) as one more entry, with the
+/// process's memory and its own name ("Thread-8 (process_request_thread)"): they don't count as processes.
+pub fn is_thread(p: &sysinfo::Process) -> bool {
+    p.thread_kind().is_some()
+}
+
 #[derive(Default)]
 pub struct ProcState {
     sys: Mutex<Option<System>>,
@@ -78,6 +84,7 @@ impl ProcState {
         let nodes: HashMap<u32, Node> = sys
             .processes()
             .iter()
+            .filter(|(_, p)| !is_thread(p))
             .map(|(pid, p)| {
                 (
                     pid.as_u32(),
@@ -124,6 +131,27 @@ pub fn git_branch(cwd: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Linux: a program with threads is one process (its threads aren't the "foreground process").
+    #[cfg(not(windows))]
+    #[test]
+    fn los_hilos_no_son_procesos() {
+        let mut child = std::process::Command::new("python3")
+            .args(["-c", "import threading,time\nfor i in range(3): threading.Thread(target=time.sleep, args=(30,), name=f'hilo-{i}').start()\nprint('ok', flush=True); time.sleep(30)"])
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let mut line = String::new();
+        std::io::BufRead::read_line(&mut std::io::BufReader::new(child.stdout.take().unwrap()), &mut line).unwrap();
+        let mut sys = System::new().unwrap();
+        sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing());
+        let all = sys.processes().values().filter(|p| p.pid().as_u32() == child.id() || p.parent().map(Pid::as_u32) == Some(child.id())).count();
+        let procs = sys.processes().values().filter(|p| !is_thread(p)).filter(|p| p.pid().as_u32() == child.id() || p.parent().map(Pid::as_u32) == Some(child.id())).count();
+        let _ = child.kill();
+        let _ = child.wait();
+        assert!(all > 1, "sysinfo debería listar los hilos ({all})");
+        assert_eq!(procs, 1);
+    }
 
     fn node(parent: Option<u32>, name: &str, start: u64) -> Node {
         Node { parent, name: name.into(), start }

@@ -14,6 +14,7 @@ pub struct Profile {
     pub available: bool,
 }
 
+#[cfg(windows)]
 fn sys_root() -> PathBuf {
     PathBuf::from(env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into()))
 }
@@ -24,10 +25,12 @@ pub fn find_in_path(exe: &str) -> Option<PathBuf> {
     env::split_paths(&path).map(|d| d.join(exe)).find(|p| p.is_file())
 }
 
+#[cfg_attr(not(windows), allow(dead_code))]
 fn first_existing(cands: impl IntoIterator<Item = PathBuf>) -> Option<PathBuf> {
     cands.into_iter().find(|p| p.is_file())
 }
 
+#[cfg(windows)]
 /// Git Bash: `bin\bash.exe` of Git for Windows (the one in `usr\bin` doesn't set up the login environment,
 /// and `System32\bash.exe` is WSL's).
 fn git_bash() -> Option<PathBuf> {
@@ -58,6 +61,7 @@ fn make(id: &str, name: &str, found: Option<PathBuf>, fallback: &str, args: &[&s
     }
 }
 
+#[cfg(windows)]
 pub fn detect() -> Vec<Profile> {
     let sys32 = sys_root().join("System32");
     let pwsh = find_in_path("pwsh.exe").or_else(|| {
@@ -81,12 +85,37 @@ pub fn detect() -> Vec<Profile> {
     ]
 }
 
-pub const DEFAULT_PROFILE: &str = "powershell";
+#[cfg(windows)]
+pub fn default_profile() -> String {
+    "powershell".into()
+}
+
+/// Linux: the usual shells, wherever they are installed (`/usr/bin`, `/bin`, Homebrew, Nix…).
+#[cfg(not(windows))]
+pub fn detect() -> Vec<Profile> {
+    vec![
+        make("bash", "Bash", find_in_path("bash"), "bash", &[]),
+        make("zsh", "Zsh", find_in_path("zsh"), "zsh", &[]),
+        make("fish", "Fish", find_in_path("fish"), "fish", &[]),
+    ]
+}
+
+/// Linux: the user's login shell (`$SHELL`) if it's one of the known ones; otherwise bash.
+#[cfg(not(windows))]
+pub fn default_profile() -> String {
+    let login = env::var("SHELL").ok().and_then(|s| Path::new(&s).file_name().map(|n| n.to_string_lossy().into_owned()));
+    let profiles = detect();
+    match login {
+        Some(name) if profiles.iter().any(|p| p.id == name && p.available) => name,
+        _ => "bash".into(),
+    }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[cfg(windows)]
     #[test]
     fn detecta_los_perfiles_base() {
         let ps = detect();
@@ -100,6 +129,7 @@ mod tests {
         }
     }
 
+    #[cfg(windows)]
     #[test]
     fn git_bash_no_es_el_de_wsl() {
         if let Some(b) = git_bash() {
@@ -107,5 +137,17 @@ mod tests {
             assert!(!s.contains("system32"), "{s}");
             assert!(s.ends_with(r"bin\bash.exe"));
         }
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn detecta_las_shells_de_linux() {
+        let ps = detect();
+        let ids: Vec<_> = ps.iter().map(|p| p.id.as_str()).collect();
+        assert_eq!(ids, ["bash", "zsh", "fish"]);
+        // Every Linux with AlphaTerm has bash.
+        let bash = ps.iter().find(|p| p.id == "bash").unwrap();
+        assert!(bash.available && Path::new(&bash.command).is_absolute(), "{bash:?}");
+        assert!(ps.iter().any(|p| p.id == default_profile() && p.available));
     }
 }

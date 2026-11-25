@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "browser-pages",
+  "description": "Built-in browser pages (Linux): they may only send their marks, console and errors to AlphaTerm",
+  "platforms": ["linux"],
+  "webviews": ["browser-*"],
+  "remote": {
+    "urls": ["http://*", "https://*", "http://*:*", "https://*:*"]
+  },
+  "permissions": ["browser-page:allow-message"]
+}

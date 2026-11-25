@@ -7,6 +7,7 @@ import { DiffTable } from "./DiffTable";
 import { changeTags, matchesFilter, totals, type ChangeFilter, type ChangeSummary } from "./changes";
 import { ago } from "../widgets/format";
 import { t } from "../i18n";
+import { isWindows } from "../platform";
 
 interface DiffOut {
   text: string;
@@ -99,7 +100,7 @@ function FileCard(props: { c: ChangeSummary; open: boolean; split: boolean; onTo
           </button>
         </Show>
         <Show when={!props.c.deleted}>
-          <button class="link small" onClick={() => open("default")} title={t("Abrir con el programa de Windows")}>
+          <button class="link small" onClick={() => open("default")} title={isWindows() ? t("Abrir con el programa de Windows") : t("Abrir con el programa asociado")}>
             {t("Abrir")}
           </button>
         </Show>

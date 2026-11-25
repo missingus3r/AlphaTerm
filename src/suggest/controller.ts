@@ -60,7 +60,7 @@ export interface SuggestCtl {
   dispose(): void;
 }
 
-export const SUGGEST_PROFILES = ["cmd", "powershell", "pwsh"];
+export const SUGGEST_PROFILES = ["cmd", "powershell", "pwsh", "bash", "zsh", "fish"];
 const PS_IDLE_MS = 150;
 const PS_SLOW_MS = 300;
 const ECHO_WAIT_MS = 300;
@@ -72,7 +72,7 @@ function makeNonce(): string {
 }
 
 export function createSuggest(o: SuggestOptions): SuggestCtl {
-  const shell: Shell = o.profileId === "cmd" ? "cmd" : "ps";
+  const shell: Shell = o.profileId === "cmd" ? "cmd" : ["bash", "zsh", "fish"].includes(o.profileId) ? "sh" : "ps";
   const supported = SUGGEST_PROFILES.includes(o.profileId);
   const now = o.now ?? Date.now;
   const nonce = makeNonce();

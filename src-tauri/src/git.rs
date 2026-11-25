@@ -167,7 +167,8 @@ pub fn parse_status(raw: &str) -> Status {
 pub async fn git_root(dir: String) -> Result<Option<String>, String> {
     blocking(move || {
         let o = run(Path::new(&dir), &["rev-parse", "--show-toplevel"], FAST)?;
-        Ok(o.ok.then(|| o.stdout.trim().replace('/', "\\")))
+        // git answers with "/"; on Windows the rest of the app uses "\\".
+        Ok(o.ok.then(|| if cfg!(windows) { o.stdout.trim().replace('/', "\\") } else { o.stdout.trim().to_string() }))
     })
     .await
 }
@@ -231,7 +232,9 @@ pub async fn git_commit(root: String, message: String) -> Result<String, String>
         return Err(tr("El mensaje del commit está vacío", "The commit message is empty", "A mensagem do commit está vazia").into());
     }
     blocking(move || {
-        let tmp = std::env::temp_dir().join(format!("alphaterm-commit-{}.txt", std::process::id()));
+        let dir = crate::os::temp_dir();
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let tmp = dir.join(format!("commit-{}.txt", std::process::id()));
         std::fs::write(&tmp, &message).map_err(|e| e.to_string())?;
         let r = ok(Path::new(&root), &["commit", "-F", &tmp.display().to_string()], NET);
         let _ = std::fs::remove_file(&tmp);
@@ -416,6 +419,24 @@ async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, String> + Sen
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The repo's root comes in this system's form (on Linux, as git gives it: "/home/…").
+    #[test]
+    fn raiz_del_repo_en_la_forma_del_sistema() {
+        let d = std::env::temp_dir().join(format!("alphaterm-gitroot-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("sub")).unwrap();
+        assert!(run(&d, &["init", "-q"], FAST).unwrap().ok);
+        let root = tauri::async_runtime::block_on(git_root(d.join("sub").display().to_string())).unwrap().unwrap();
+        let expected = std::fs::canonicalize(&d).unwrap();
+        assert_eq!(std::fs::canonicalize(&root).unwrap(), expected, "{root}");
+        if cfg!(windows) {
+            assert!(!root.contains('/'), "{root}");
+        } else {
+            assert!(root.starts_with('/') && !root.contains('\\'), "{root}");
+        }
+        let _ = std::fs::remove_dir_all(&d);
+    }
 
     #[test]
     fn status_porcelain_v2() {

@@ -9,6 +9,7 @@
  */
 import type { AgentDef } from "../settings/schema";
 import { k, t } from "../i18n";
+import { isWindows } from "../platform";
 
 export type LaunchValue = string | boolean;
 export type LaunchValues = Record<string, LaunchValue>;
@@ -127,7 +128,7 @@ const CLAUDE: LaunchOpt[] = [
   { key: "worktree", kind: "bool", section: "session", session: true, label: k("Trabajar en un worktree de git nuevo"), args: ["--worktree"] },
   { key: "name", kind: "text", section: "session", label: k("Nombre de la sesión"), placeholder: k("se ve en el prompt y en /resume"), args: one("--name") },
   { key: "prompt", kind: "text", section: "session", session: true, slot: "lead", multiline: true, label: k("Primer mensaje"), placeholder: k("lo manda apenas arranca"), args: (v) => [v] },
-  { key: "addDir", kind: "text", section: "more", label: k("Carpetas adicionales"), placeholder: k("C:\\otra\\carpeta; separadas por ;"), args: each("--add-dir") },
+  { key: "addDir", kind: "text", section: "more", label: k("Carpetas adicionales"), placeholder: isWindows() ? k("C:\\otra\\carpeta; separadas por ;") : k("/otra/carpeta; separadas por ;"), args: each("--add-dir") },
   { key: "appendSystemPrompt", kind: "text", section: "more", multiline: true, label: k("Agregar al system prompt"), args: one("--append-system-prompt") },
   {
     key: "systemPrompt",
@@ -410,10 +411,23 @@ export const optionsFor = (command: string): LaunchOpt[] => CATALOG[agentKind(co
 
 // --- Quoting by shell ------------------------------------------------------------------------
 
-export type ShellKind = "ps5" | "pwsh" | "cmd" | "posix";
+export type ShellKind = "ps5" | "pwsh" | "cmd" | "posix" | "fish";
+
+const POSIX_PROFILES = ["gitbash", "wsl", "bash", "zsh"];
 
 export const shellKindOf = (profileId: string): ShellKind =>
-  profileId === "powershell" ? "ps5" : profileId === "pwsh" ? "pwsh" : profileId === "gitbash" || profileId === "wsl" ? "posix" : "cmd";
+  profileId === "powershell"
+    ? "ps5"
+    : profileId === "pwsh"
+      ? "pwsh"
+      : profileId === "fish"
+        ? "fish"
+        : POSIX_PROFILES.includes(profileId)
+          ? "posix"
+          : // A custom profile: on Linux every shell quotes like sh; on Windows, like cmd.
+            isWindows()
+            ? "cmd"
+            : "posix";
 
 /** An argument ready to type in the shell. Simple ones go as they are. */
 export function quoteArg(arg: string, shell: ShellKind): string {
@@ -421,6 +435,9 @@ export function quoteArg(arg: string, shell: ShellKind): string {
   switch (shell) {
     case "posix":
       return `'${arg.replace(/'/g, `'\\''`)}'`;
+    case "fish":
+      // In fish, inside '…' the backslash escapes \ and ' (the sh trick '\'' doesn't work there).
+      return `'${arg.replace(/[\\']/g, (c) => `\\${c}`)}'`;
     case "ps5":
       // PowerShell 5.1 loses inner double quotes when passing the argument to an .exe: they go as \".
       return `'${arg.replace(/'/g, "''").replace(/"/g, '\\"')}'`;

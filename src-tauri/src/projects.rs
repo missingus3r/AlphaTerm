@@ -47,7 +47,7 @@ pub fn cwd_in_lines(lines: impl Iterator<Item = String>) -> Option<String> {
 }
 
 fn home() -> PathBuf {
-    std::env::var_os("USERPROFILE").map(PathBuf::from).unwrap_or_default()
+    crate::os::home()
 }
 
 fn claude_projects() -> Vec<(String, u64)> {
@@ -297,6 +297,24 @@ pub fn fs_open(path: String, with: String) -> Result<(), String> {
     if !p.exists() {
         return Err(tr!("No existe {path}", "{path} doesn't exist", "{path} não existe"));
     }
+    #[cfg(not(windows))]
+    return match with.as_str() {
+        // "explorer" is the file manager (the name stays because the frontend sends it).
+        "explorer" => crate::os::reveal(&p),
+        "default" => crate::os::open(&p),
+        "vscode" => {
+            let code = crate::agents::resolve_in("code", &crate::agents::search_dirs()).ok_or(crate::i18n::tr("No se encontró VS Code (code) en el PATH", "VS Code (code) wasn't found in the PATH", "O VS Code (code) não foi encontrado no PATH"))?;
+            let mut c = std::process::Command::new(code);
+            c.arg(&p).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+            let mut child = c.spawn().map_err(|e| e.to_string())?;
+            std::thread::spawn(move || {
+                let _ = child.wait();
+            });
+            Ok(())
+        }
+        other => Err(tr!("No sé abrir con {other}", "Don't know how to open with {other}", "Não sei abrir com {other}")),
+    };
+    #[cfg(windows)]
     let mut cmd = match with.as_str() {
         "explorer" => {
             let mut c = std::process::Command::new("explorer.exe");
@@ -323,10 +341,9 @@ pub fn fs_open(path: String, with: String) -> Result<(), String> {
     };
     #[cfg(windows)]
     {
-        use std::os::windows::process::CommandExt;
-        cmd.creation_flags(0x0800_0000);
+        crate::os::no_window(&mut cmd);
+        cmd.spawn().map(|_| ()).map_err(|e| e.to_string())
     }
-    cmd.spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

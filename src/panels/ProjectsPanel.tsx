@@ -7,6 +7,7 @@ import type { AgentDef, Settings } from "../settings/schema";
 import { fmtBytes } from "../widgets/format";
 import { mergeProjects, projectName, type Found, type Project } from "./projects";
 import { t } from "../i18n";
+import { isInside, isWindows } from "../platform";
 
 interface Entry {
   name: string;
@@ -50,7 +51,7 @@ export default function ProjectsPanel(props: Props) {
   const toggle = (dir: string) => {
     if (openDirs().includes(dir)) {
       // Also close whatever hangs from it.
-      setOpenDirs(openDirs().filter((d) => d !== dir && !d.startsWith(dir + "\\")));
+      setOpenDirs(openDirs().filter((d) => d !== dir && !isInside(d, dir)));
     } else {
       setOpenDirs([...openDirs(), dir]);
       void load(dir);
@@ -211,7 +212,7 @@ export default function ProjectsPanel(props: Props) {
                     </Show>
                   </span>
                   <button class="link" onClick={() => openWith(p.path, "explorer")}>
-                    {t("Explorador")}
+                    {isWindows() ? t("Explorador") : t("Archivos")}
                   </button>
                   <button class="link" onClick={() => openWith(p.path, "vscode")}>
                     VS Code

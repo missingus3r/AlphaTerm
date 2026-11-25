@@ -21,7 +21,8 @@ pub struct DirEntry {
 /// The folder to list for what was typed (`dir` is the part up to the last slash, or empty).
 /// `None` for network paths: they can take seconds to respond.
 pub fn resolve_dir(cwd: &Path, dir: &str, home: &Path) -> Option<PathBuf> {
-    if dir.starts_with("\\\\") || dir.starts_with("//") {
+    // UNC paths only exist on Windows (on Linux, "\\" is a valid name and "//" is the root).
+    if cfg!(windows) && (dir.starts_with("\\\\") || dir.starts_with("//")) {
         return None;
     }
     if dir.is_empty() {
@@ -34,7 +35,7 @@ pub fn resolve_dir(cwd: &Path, dir: &str, home: &Path) -> Option<PathBuf> {
         return Some(home.join(rest));
     }
     let b = dir.as_bytes();
-    if b.len() == 2 && b[1] == b':' && b[0].is_ascii_alphabetic() {
+    if cfg!(windows) && b.len() == 2 && b[1] == b':' && b[0].is_ascii_alphabetic() {
         return Some(PathBuf::from(format!("{dir}\\")));
     }
     // `join` replaces everything if `dir` is already absolute.
@@ -126,9 +127,24 @@ pub fn gateway() -> Option<String> {
     (!ip.is_unspecified()).then(|| ip.to_string())
 }
 
+/// Linux: the default route (destination 0.0.0.0) of `/proc/net/route`.
 #[cfg(not(windows))]
 pub fn gateway() -> Option<String> {
-    None
+    gateway_from_route(&std::fs::read_to_string("/proc/net/route").ok()?)
+}
+
+/// `/proc/net/route` keeps the addresses in hexadecimal, in the machine's byte order (little-endian).
+#[cfg_attr(windows, allow(dead_code))]
+pub fn gateway_from_route(text: &str) -> Option<String> {
+    text.lines().skip(1).find_map(|l| {
+        let f: Vec<&str> = l.split_whitespace().collect();
+        if f.len() < 3 || f[1] != "00000000" {
+            return None;
+        }
+        let g = u32::from_str_radix(f[2], 16).ok()?;
+        let ip = std::net::Ipv4Addr::from(g.to_le_bytes());
+        (!ip.is_unspecified()).then(|| ip.to_string())
+    })
 }
 
 /// Names of the open processes (for `taskkill /IM`), without repeats.
@@ -140,6 +156,7 @@ pub fn processes() -> Vec<String> {
     let mut out: Vec<String> = sys
         .processes()
         .values()
+        .filter(|p| !crate::procinfo::is_thread(p))
         .map(|p| p.name().to_string_lossy().into_owned())
         .filter(|n| !n.is_empty() && seen.insert(n.to_lowercase()))
         .collect();
@@ -155,7 +172,7 @@ static PATH_CACHE: Mutex<Option<(Instant, Vec<String>)>> = Mutex::new(None);
 static GW_CACHE: Mutex<Option<(Instant, Option<String>)>> = Mutex::new(None);
 
 fn home() -> PathBuf {
-    std::env::var_os("USERPROFILE").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("C:\\"))
+    crate::os::home()
 }
 
 async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static, fallback: T) -> T {
@@ -239,6 +256,13 @@ pub async fn suggest_processes() -> Vec<String> {
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn gateway_de_la_tabla_de_rutas() {
+        let t = "Iface\tDestination\tGateway \tFlags\nwlp2s0\t0001A8C0\t00000000\t0001\nwlp2s0\t00000000\t0101A8C0\t0003\n";
+        assert_eq!(gateway_from_route(t).as_deref(), Some("192.168.1.1"));
+        assert_eq!(gateway_from_route("Iface\tDestination\tGateway\n"), None);
+    }
     use std::path::{Path, PathBuf};
 
     fn tmp(name: &str) -> PathBuf {
@@ -265,6 +289,20 @@ mod tests {
         assert!(list_dir(&d.join("no-existe"), false, false).is_empty());
     }
 
+    #[cfg(not(windows))]
+    #[test]
+    fn resuelve_la_carpeta_de_lo_escrito_en_linux() {
+        let cwd = Path::new("/home/x/proy");
+        let home = Path::new("/home/x");
+        assert_eq!(resolve_dir(cwd, "", home), Some(PathBuf::from("/home/x/proy")));
+        assert_eq!(resolve_dir(cwd, "src/", home), Some(PathBuf::from("/home/x/proy/src/")));
+        assert_eq!(resolve_dir(cwd, "~", home), Some(PathBuf::from("/home/x")));
+        assert_eq!(resolve_dir(cwd, "~/Docs/", home), Some(PathBuf::from("/home/x/Docs/")));
+        assert_eq!(resolve_dir(cwd, "/etc/", home), Some(PathBuf::from("/etc/")));
+        assert_eq!(resolve_dir(cwd, "//etc/", home), Some(PathBuf::from("//etc/")), "en Linux // es la raíz, no una red");
+    }
+
+    #[cfg(windows)]
     #[test]
     fn resuelve_la_carpeta_de_lo_escrito() {
         let cwd = Path::new(r"C:\proy");

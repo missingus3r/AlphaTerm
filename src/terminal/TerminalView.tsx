@@ -76,7 +76,7 @@ interface Props {
   env?: Record<string, string>;
   windowsBuild: number;
   look: TermLook;
-  /** Command suggestions (cmd and PowerShell). */
+  /** Command suggestions (cmd, PowerShell and the Linux shells). */
   suggest: SuggestSettings;
   /** App shortcut for this key (or null if it goes to the shell). */
   match: (e: KeyboardEvent) => Action | null;
@@ -123,7 +123,8 @@ export function TerminalView(props: Props) {
       scrollback: look0.scrollback,
       allowTransparency: look0.transparent,
       theme: look0.theme,
-      windowsPty: { backend: "conpty", buildNumber: props.windowsBuild },
+      // Only with ConPTY (Windows): on Linux the PTY is the real thing and xterm.js mustn't compensate.
+      ...(props.windowsBuild > 0 ? { windowsPty: { backend: "conpty" as const, buildNumber: props.windowsBuild } } : {}),
       overviewRuler: { width: 8 },
     });
     const fit = new FitAddon();

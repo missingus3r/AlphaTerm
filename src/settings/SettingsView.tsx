@@ -12,6 +12,7 @@ import { appInfo, versionTooltip } from "../widgets/appInfo";
 import { allThemes, findTheme, importThemes, themeId, themeLabel, type Theme } from "./themes";
 import { k, LANGS, locale, t, type Lang } from "../i18n";
 import "./settings.css";
+import { isWindows } from "../platform";
 
 type Section = "idioma" | "apariencia" | "fuente" | "fondo" | "terminal" | "agentes" | "consumo" | "atajos" | "proximo";
 const SECTIONS: [Section, string][] = [
@@ -325,10 +326,10 @@ function ThemeSection(props: SectionProps & { osDark: boolean }) {
   return (
     <section>
       <h2>{t("Tema y colores")}</h2>
-      <Row label={t("Modo")} hint={t("Con «Según Windows» cambia solo cuando Windows pasa de claro a oscuro.")}>
+      <Row label={t("Modo")} hint={isWindows() ? t("Con «Según Windows» cambia solo cuando Windows pasa de claro a oscuro.") : t("Con «Según el sistema» cambia solo cuando el escritorio pasa de claro a oscuro.")}>
         <Segmented
           value={props.s.appearance.mode}
-          options={[["dark", t("Oscuro")], ["light", t("Claro")], ["auto", t("Según Windows")]]}
+          options={[["dark", t("Oscuro")], ["light", t("Claro")], ["auto", isWindows() ? t("Según Windows") : t("Según el sistema")]]}
           onChange={(v) => {
             setSlot(null);
             props.set((d) => void (d.appearance.mode = v));
@@ -424,7 +425,7 @@ function ThemeSection(props: SectionProps & { osDark: boolean }) {
 // --- Font and cursor -------------------------------------------------------------------------------
 
 // A function (not a constant) so the sample commit message follows the language.
-const sample = () => ["PS C:\\AlphaTerm> git log --oneline -3", `c91ef04 F2: ${t("pestañas, splits y shell integration")}`, "=> != === <= >= -> |> :: www 0O1lI ñ á"];
+const sample = () => [isWindows() ? "PS C:\\AlphaTerm> git log --oneline -3" : "~/AlphaTerm$ git log --oneline -3", `c91ef04 F2: ${t("pestañas, splits y shell integration")}`, "=> != === <= >= -> |> :: www 0O1lI ñ á"];
 
 function FontSection(props: SectionProps & { theme: Theme }) {
   const [fonts] = createResource(monospaceFonts);
@@ -524,6 +525,8 @@ function BackgroundSection(props: SectionProps) {
   return (
     <section>
       <h2>{t("Fondo de la ventana")}</h2>
+      {/* Mica and Acrylic are Windows 11's; Linux has no window effects (the compositor decides). */}
+      <Show when={isWindows()}>
       <Row label={t("Efecto de Windows 11")} hint={t("Mica toma el tono del fondo de pantalla; Acrylic deja ver lo que hay detrás, desenfocado. Solo se ven si el fondo no es opaco.")}>
         <Segmented<Effect>
           value={b().effect}
@@ -537,10 +540,14 @@ function BackgroundSection(props: SectionProps) {
           }
         />
       </Row>
-      <Row label={t("Opacidad del fondo")} hint={t("Por debajo de 100 % se ve el efecto (o el escritorio, si no hay efecto).")}>
+      </Show>
+      <Row
+        label={t("Opacidad del fondo")}
+        hint={isWindows() ? t("Por debajo de 100 % se ve el efecto (o el escritorio, si no hay efecto).") : t("Por debajo de 100 % se ve el escritorio (si el escritorio permite ventanas transparentes).")}
+      >
         <Slider value={b().opacity} range={LIMITS.opacity} step={0.01} format={pct} onChange={(v) => set((x) => void (x.opacity = v))} />
       </Row>
-      <Row label={t("Imagen")} hint={t("Se guarda una copia en %APPDATA%\\AlphaTerm\\fondos, así sigue andando si movés el original.")}>
+      <Row label={t("Imagen")} hint={isWindows() ? t("Se guarda una copia en %APPDATA%\\AlphaTerm\\fondos, así sigue andando si movés el original.") : t("Se guarda una copia en ~/.config/AlphaTerm/fondos, así sigue andando si movés el original.")}>
         <div class="actions tight">
           <button class="btn" onClick={() => fileInput.click()}>
             {b().image ? t("Cambiar imagen…") : t("Elegir imagen…")}
@@ -628,7 +635,11 @@ function TerminalSection(props: SectionProps & { info: TermInfo }) {
           onChange={(e) => props.set((d) => void (d.terminal.scrollback = Number(e.currentTarget.value)))}
         />
       </Row>
-      <Row label={t("Sugerencias de comandos")} hint={t("En cmd y PowerShell: carpetas para cd, historial, opciones y valores típicos (ping, git, npm…). Tab inserta, ↓ elige, Esc cierra; ↑ sigue siendo el historial.")}>
+      <Row label={t("Sugerencias de comandos")} hint={
+          isWindows()
+            ? t("En cmd y PowerShell: carpetas para cd, historial, opciones y valores típicos (ping, git, npm…). Tab inserta, ↓ elige, Esc cierra; ↑ sigue siendo el historial.")
+            : t("En bash, zsh y fish: carpetas para cd, historial, opciones y valores típicos (ls, git, npm…). Tab inserta, ↓ elige, Esc cierra; ↑ sigue siendo el historial.")
+        }>
         <Toggle
           checked={props.s.terminal.suggest.enabled}
           label={props.s.terminal.suggest.enabled ? t("Activadas") : t("Desactivadas")}
@@ -636,13 +647,14 @@ function TerminalSection(props: SectionProps & { info: TermInfo }) {
         />
       </Row>
       <Show when={props.s.terminal.suggest.enabled}>
-        <Row label={t("Mostrar el menú")} hint={t("Ctrl+Espacio lo abre siempre (en PowerShell reemplaza al menú de completados propio).")}>
+        <Row label={t("Mostrar el menú")} hint={isWindows() ? t("Ctrl+Espacio lo abre siempre (en PowerShell reemplaza al menú de completados propio).") : t("Ctrl+Espacio lo abre siempre.")}>
           <Segmented
             value={props.s.terminal.suggest.mode}
             options={[["auto", t("Al escribir")], ["manual", t("Solo con Ctrl+Espacio")]]}
             onChange={(v) => props.set((d) => void (d.terminal.suggest.mode = v))}
           />
         </Row>
+        <Show when={isWindows()}>
         <Row label={t("Completados de PowerShell")} hint={t("Le pregunta a la propia sesión (cmdlets, parámetros, módulos). Si una respuesta tarda más de 300 ms, esa pestaña solo pregunta con Ctrl+Espacio.")}>
           <Toggle
             checked={props.s.terminal.suggest.pwsh}
@@ -650,6 +662,7 @@ function TerminalSection(props: SectionProps & { info: TermInfo }) {
             onChange={(v) => props.set((d) => void (d.terminal.suggest.pwsh = v))}
           />
         </Row>
+        </Show>
       </Show>
       <Row label={t("Detectar el programa en uso cada")} hint={t("Para el nombre de la pestaña cuando la shell no tiene integración. Se pausa con la ventana minimizada.")}>
         <select
@@ -721,7 +734,7 @@ function AgentsSection(props: SectionProps) {
           <span>{t("Borrados: siempre.")}</span>
           <Toggle checked={g().modify} label={t("También modificaciones (editar, crear, pisar)")} onChange={(v) => props.set((d) => void (d.guardian.modify = v))} />
         </Row>
-        <Row label={t("Dónde frena")} hint={t("Windows no deja frenar escrituras de cualquier programa sin un driver: el guardián actúa donde se puede.")}>
+        <Row label={t("Dónde frena")} hint={isWindows() ? t("Windows no deja frenar escrituras de cualquier programa sin un driver: el guardián actúa donde se puede.") : t("Linux no deja frenar escrituras de cualquier programa sin ser root: el guardián actúa donde se puede.")}>
           <Toggle checked={g().claude} label={t("Claude Code lanzado desde AlphaTerm (hook antes de cada edición, escritura o comando que borra)")} onChange={(v) => props.set((d) => void (d.guardian.claude = v))} />
           <Toggle checked={g().codex} label={t("Codex lanzado desde AlphaTerm (con su modo de aprobación: -s read-only -a on-request)")} onChange={(v) => props.set((d) => void (d.guardian.codex = v))} />
           <small class="muted">{t("Siempre: comandos que un agente manda por la API de control (run, send, docker rm). Otros agentes (agy, OpenCode…) no se pueden frenar desde afuera.")}</small>
@@ -1043,7 +1056,9 @@ function AboutSection(props: { path: string }) {
       <ul class="next">
         <li>
           <b>{t("Guardián")}</b>:{" "}
-          {t("frena a Claude Code (hooks) y a Codex (su modo de aprobación) lanzados desde AlphaTerm, y a lo que pase por la API. No puede frenar a cualquier programa: Windows no lo permite sin un driver de sistema de archivos.")}
+          {isWindows()
+            ? t("frena a Claude Code (hooks) y a Codex (su modo de aprobación) lanzados desde AlphaTerm, y a lo que pase por la API. No puede frenar a cualquier programa: Windows no lo permite sin un driver de sistema de archivos.")
+            : t("frena a Claude Code (hooks) y a Codex (su modo de aprobación) lanzados desde AlphaTerm, y a lo que pase por la API. No puede frenar a cualquier programa: Linux no lo permite sin ser root.")}
         </li>
         <li>
           <b>{t("Consumo")}</b>:{" "}
@@ -1054,7 +1069,7 @@ function AboutSection(props: { path: string }) {
           {t("de Claude Code lanzado desde AlphaTerm se sabe exactamente qué cambió; de otros agentes, se compara con una copia de la carpeta tomada al arrancar (sin lo que ignora git ni archivos de más de 2 MB).")}
         </li>
         <li>
-          <b>{t("Integración de la shell")}</b>: {t("PowerShell, Git Bash y cmd. WSL no, y en cmd no se sabe el código de salida.")}
+          <b>{t("Integración de la shell")}</b>: {isWindows() ? t("PowerShell, Git Bash y cmd. WSL no, y en cmd no se sabe el código de salida.") : t("bash, zsh y fish.")}
         </li>
       </ul>
     </section>

@@ -6,6 +6,8 @@
  * - OSC 7 (file://host/path) and OSC 9;9;path (Windows Terminal/ConEmu): current folder.
  */
 
+import { isWindows } from "../platform";
+
 export type ShellMark =
   | { type: "promptStart" }
   | { type: "promptEnd" }
@@ -65,11 +67,17 @@ export function parseOsc7(data: string): string | null {
   } catch {
     path = m[1];
   }
-  return toWindowsPath(path);
+  return toLocalPath(path);
+}
+
+/** The folder a shell reports, in this system's form (on Linux it already comes as is: `/home/x`). */
+export function toLocalPath(p: string): string {
+  if (isWindows()) return toWindowsPath(p);
+  return p.length > 1 ? p.replace(/\/+$/, "") : p;
 }
 
 export function parseOsc9(data: string): string | null {
   if (!data.startsWith("9;")) return null;
   const p = data.slice(2).replace(/^"|"$/g, "");
-  return p ? toWindowsPath(p) : null;
+  return p ? toLocalPath(p) : null;
 }

@@ -8,6 +8,7 @@ import { Effect, getCurrentWindow } from "@tauri-apps/api/window";
 import type { ITheme } from "@xterm/xterm";
 import { DEFAULT_FONT, type CursorStyle, type Settings } from "./schema";
 import { findTheme, isDark, uiPalette, type Theme } from "./themes";
+import { isWindows } from "../platform";
 
 /** What a terminal needs to know about the settings. */
 export interface TermLook {
@@ -114,8 +115,8 @@ export function useAppearance(settings: Accessor<Settings>, terminalWindow: bool
 
   if (!terminalWindow) return { theme, osDark };
 
-  // Window effect. Mica and Acrylic only show where the background is transparent.
-  createEffect(
+  // Window effect. Mica and Acrylic only show where the background is transparent. Windows 11 only.
+  if (isWindows()) createEffect(
     on(
       () => settings().background.effect,
       (effect) => {

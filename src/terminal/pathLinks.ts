@@ -2,6 +2,7 @@ import type { IDisposable, ILink, Terminal } from "@xterm/xterm";
 import { invoke } from "@tauri-apps/api/core";
 import { findPaths, mimeOf, previewKind, resolvePath } from "./paths";
 import { t } from "../i18n";
+import { baseName } from "../platform";
 
 interface Stat {
   dir: boolean;
@@ -53,7 +54,7 @@ function showPreview(path: string, stat: Stat, x: number, y: number) {
   showTimer = setTimeout(async () => {
     pop ??= Object.assign(document.createElement("div"), { className: "path-preview" });
     if (!pop.isConnected) document.body.appendChild(pop);
-    const name = path.split("\\").pop() || path;
+    const name = baseName(path);
     const head = `<div class="pp-head"><b></b><small></small></div>`;
     pop.innerHTML = head;
     pop.querySelector("b")!.textContent = name;

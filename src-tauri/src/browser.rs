@@ -6,19 +6,30 @@
 //! AlphaTerm through the `__alphaterm` function, added with `Runtime.addBinding`: marks
 //! arrive as `Runtime.bindingCalled` events and are forwarded to the window as `browser-marks`.
 //!
-//! The methods that talk to CDP block waiting for the response: never call them from the main
+//! On Linux the child is a WebKitGTK webview, driven with WebKit's own API (`webkit.rs`); the marks,
+//! the console and the errors arrive through a script message handler (`scripts/browser-linux.js`).
+//!
+//! The methods that talk to CDP (or WebKit) block waiting for the response: never call them from the main
 //! thread (commands are async and go through `spawn_blocking`; the control API uses its own threads).
 
 use crate::i18n::{tr, Lang};
 use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
-use std::sync::{mpsc, Arc, Mutex};
+#[cfg(windows)]
+use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tauri::webview::{NewWindowResponse, PageLoadEvent, WebviewBuilder};
 use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, WebviewUrl};
 
 const OVERLAY_JS: &str = include_str!("../scripts/browser-overlay.js");
+/// Linux: the `__alphaterm` channel, console, errors and input (what CDP gives on Windows).
+#[cfg(target_os = "linux")]
+const PLATFORM_JS: &str = include_str!("../scripts/browser-linux.js");
+#[cfg(not(target_os = "linux"))]
+const PLATFORM_JS: &str = "";
+#[cfg(windows)]
 const CDP_TIMEOUT: Duration = Duration::from_secs(20);
 const CONSOLE_MAX: usize = 300;
 
@@ -75,7 +86,7 @@ pub fn get(app: &AppHandle, id: &str) -> Result<Arc<Entry>, String> {
     app.state::<BrowserState>().0.lock().unwrap().get(id).cloned().ok_or_else(|| tr!("No hay un navegador con id {id}", "There's no browser with id {id}", "Não há um navegador com id {id}"))
 }
 
-fn webview(app: &AppHandle, e: &Entry) -> Result<tauri::Webview, String> {
+pub(crate) fn webview(app: &AppHandle, e: &Entry) -> Result<tauri::Webview, String> {
     app.get_webview(&e.label).ok_or_else(|| tr("El navegador ya no está abierto", "The browser is no longer open", "O navegador não está mais aberto").into())
 }
 
@@ -148,9 +159,9 @@ pub fn cdp(app: &AppHandle, e: &Entry, method: &str, params: Value) -> Result<Va
     serde_json::from_str(&raw).map_err(|err| tr!("{method}: respuesta inválida ({err})", "{method}: invalid response ({err})", "{method}: resposta inválida ({err})"))
 }
 
-#[cfg(not(windows))]
-pub fn cdp(_app: &AppHandle, _e: &Entry, _method: &str, _params: Value) -> Result<Value, String> {
-    Err(tr("El navegador integrado solo está hecho para Windows", "The built-in browser only works on Windows", "O navegador integrado só funciona no Windows").into())
+#[cfg(not(any(windows, target_os = "linux")))]
+fn unsupported<T>() -> Result<T, String> {
+    Err(tr("El navegador integrado solo está hecho para Windows y Linux", "The built-in browser only works on Windows and Linux", "O navegador integrado só funciona no Windows e no Linux").into())
 }
 
 /// Subscribes to the DevTools events of interest (marks, console, errors).
@@ -183,9 +194,34 @@ fn subscribe(app: &AppHandle, e: &Arc<Entry>) {
     });
 }
 
+/// Linux: the page's messages (marks, page, edit mode, console, errors) arrive through `message` (the `browser-page` plugin).
 #[cfg(not(windows))]
 fn subscribe(_app: &AppHandle, _e: &Arc<Entry>) {}
 
+/// Command of the `browser-page` plugin: what a browser page sends with `__alphaterm` (Linux,
+/// `scripts/browser-linux.js`). Only the browsers' webviews may call it (`capabilities/browser-pages.json`),
+/// and each one only reaches its own entry: it's found by the label of the webview that calls.
+#[tauri::command]
+pub fn message(app: AppHandle, webview: tauri::Webview, msg: String) {
+    let id = app.state::<BrowserState>().0.lock().unwrap().values().find(|e| e.label == webview.label()).map(|e| e.id.clone());
+    if let Some(id) = id {
+        on_message(&app, &id, &msg);
+    }
+}
+
+/// A message of the `__alphaterm` function (the marking layer; on Linux, also the console and errors).
+fn on_message(app: &AppHandle, id: &str, payload: &str) {
+    let Ok(e) = get(app, id) else { return };
+    let Ok(msg) = serde_json::from_str::<Value>(payload) else { return };
+    let s = |k: &str| msg.get(k).and_then(Value::as_str).map(str::to_string);
+    match msg.get("type").and_then(Value::as_str) {
+        Some("console") => push_console(app, &e, &s("level").unwrap_or_else(|| "log".into()), s("text").unwrap_or_default(), s("at")),
+        Some("exception") => push_console(app, &e, "exception", s("text").unwrap_or_else(|| "Error".into()), s("at")),
+        _ => on_binding(app, &e, id, &msg),
+    }
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
 fn on_event(app: &AppHandle, id: &str, ev: &str, raw: &str) {
     let Ok(e) = get(app, id) else { return };
     let Ok(v) = serde_json::from_str::<Value>(raw) else { return };
@@ -194,30 +230,8 @@ fn on_event(app: &AppHandle, id: &str, ev: &str, raw: &str) {
             if v.get("name").and_then(Value::as_str) != Some("__alphaterm") {
                 return;
             }
-            let Some(msg) = v.get("payload").and_then(Value::as_str).and_then(|p| serde_json::from_str::<Value>(p).ok()) else { return };
-            match msg.get("type").and_then(Value::as_str) {
-                Some("marks") => {
-                    let marks = msg.get("marks").cloned().unwrap_or(json!([]));
-                    *e.marks.lock().unwrap() = marks.clone();
-                    let _ = app.emit_to(&e.window, "browser-marks", json!({ "id": id, "marks": marks }));
-                }
-                Some("page") => {
-                    {
-                        let mut page = e.page.lock().unwrap();
-                        for k in ["url", "title", "hmr"] {
-                            if let Some(x) = msg.get(k) {
-                                page[k] = x.clone();
-                            }
-                        }
-                    }
-                    // New page: the previous page's marks no longer apply.
-                    *e.marks.lock().unwrap() = json!([]);
-                    let _ = app.emit_to(&e.window, "browser-page", json!({ "id": id, "url": msg.get("url"), "title": msg.get("title"), "hmr": msg.get("hmr") }));
-                }
-                Some("edit") => {
-                    let _ = app.emit_to(&e.window, "browser-edit", json!({ "id": id, "on": msg.get("on") }));
-                }
-                _ => {}
+            if let Some(p) = v.get("payload").and_then(Value::as_str) {
+                on_message(app, id, p);
             }
         }
         "Runtime.consoleAPICalled" => {
@@ -239,6 +253,34 @@ fn on_event(app: &AppHandle, id: &str, ev: &str, raw: &str) {
     }
 }
 
+fn on_binding(app: &AppHandle, e: &Entry, id: &str, msg: &Value) {
+    match msg.get("type").and_then(Value::as_str) {
+        Some("marks") => {
+            let marks = msg.get("marks").cloned().unwrap_or(json!([]));
+            *e.marks.lock().unwrap() = marks.clone();
+            let _ = app.emit_to(&e.window, "browser-marks", json!({ "id": id, "marks": marks }));
+        }
+        Some("page") => {
+            {
+                let mut page = e.page.lock().unwrap();
+                for k in ["url", "title", "hmr"] {
+                    if let Some(x) = msg.get(k) {
+                        page[k] = x.clone();
+                    }
+                }
+            }
+            // New page: the previous page's marks no longer apply.
+            *e.marks.lock().unwrap() = json!([]);
+            let _ = app.emit_to(&e.window, "browser-page", json!({ "id": id, "url": msg.get("url"), "title": msg.get("title"), "hmr": msg.get("hmr") }));
+        }
+        Some("edit") => {
+            let _ = app.emit_to(&e.window, "browser-edit", json!({ "id": id, "on": msg.get("on") }));
+        }
+        _ => {}
+    }
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
 fn remote_text(a: &Value) -> String {
     if let Some(v) = a.get("value") {
         return match v {
@@ -273,6 +315,16 @@ fn push_console(app: &AppHandle, e: &Entry, level: &str, text: String, at: Optio
 
 /// Evaluates JS in the page (awaits promises) and returns the value as JSON.
 pub fn eval(app: &AppHandle, e: &Entry, js: &str) -> Result<Value, String> {
+    #[cfg(target_os = "linux")]
+    return crate::webkit::eval(app, e, js);
+    #[cfg(not(any(windows, target_os = "linux")))]
+    return unsupported();
+    #[cfg(windows)]
+    eval_cdp(app, e, js)
+}
+
+#[cfg(windows)]
+fn eval_cdp(app: &AppHandle, e: &Entry, js: &str) -> Result<Value, String> {
     let r = cdp(app, e, "Runtime.evaluate", json!({ "expression": js, "returnByValue": true, "awaitPromise": true, "userGesture": true }))?;
     if let Some(ex) = r.get("exceptionDetails") {
         let msg = ex["exception"]["description"].as_str().or(ex["text"].as_str()).unwrap_or(tr("Error en el script", "Script error", "Erro no script"));
@@ -283,6 +335,16 @@ pub fn eval(app: &AppHandle, e: &Entry, js: &str) -> Result<Value, String> {
 
 /// PNG capture: the viewport, the whole page, or a clip (document coordinates, CSS px).
 pub fn screenshot(app: &AppHandle, e: &Entry, clip: Option<(f64, f64, f64, f64)>, full: bool) -> Result<Vec<u8>, String> {
+    #[cfg(target_os = "linux")]
+    return crate::webkit::screenshot(app, e, clip, full);
+    #[cfg(not(any(windows, target_os = "linux")))]
+    return unsupported();
+    #[cfg(windows)]
+    screenshot_cdp(app, e, clip, full)
+}
+
+#[cfg(windows)]
+fn screenshot_cdp(app: &AppHandle, e: &Entry, clip: Option<(f64, f64, f64, f64)>, full: bool) -> Result<Vec<u8>, String> {
     use base64::Engine;
     let mut params = json!({ "format": "png" });
     if let Some((x, y, w, h)) = clip {
@@ -330,24 +392,38 @@ pub fn click(app: &AppHandle, e: &Entry, selector: Option<&str>, x: Option<f64>,
     };
     // So the marking layer doesn't swallow the click if it's in edit mode.
     let _ = eval(app, e, "window.__alphaPass = true");
-    let mut res = Ok(());
-    for (t, buttons) in [("mouseMoved", 0), ("mousePressed", 1), ("mouseReleased", 0)] {
-        let r = cdp(app, e, "Input.dispatchMouseEvent", json!({ "type": t, "x": px, "y": py, "button": if t == "mouseMoved" { "none" } else { "left" }, "buttons": buttons, "clickCount": 1 }));
-        if let Err(err) = r {
-            res = Err(err);
-            break;
-        }
-    }
+    let res = mouse_click(app, e, px, py);
     let _ = eval(app, e, "window.__alphaPass = false");
     res?;
     Ok(json!({ "clicked": { "x": px, "y": py }, "element": what }))
+}
+
+#[cfg(windows)]
+fn mouse_click(app: &AppHandle, e: &Entry, px: f64, py: f64) -> Result<(), String> {
+    for (t, buttons) in [("mouseMoved", 0), ("mousePressed", 1), ("mouseReleased", 0)] {
+        cdp(app, e, "Input.dispatchMouseEvent", json!({ "type": t, "x": px, "y": py, "button": if t == "mouseMoved" { "none" } else { "left" }, "buttons": buttons, "clickCount": 1 }))?;
+    }
+    Ok(())
+}
+
+/// Linux: DOM events at that point (see `scripts/browser-linux.js`).
+#[cfg(not(windows))]
+fn mouse_click(app: &AppHandle, e: &Entry, px: f64, py: f64) -> Result<(), String> {
+    let r = eval(app, e, &format!("__alphaInput.click({px}, {py})"))?;
+    if r["ok"].as_bool() == Some(false) {
+        return Err(tr!("No hay ningún elemento en {px}, {py}", "There's no element at {px}, {py}", "Não há nenhum elemento em {px}, {py}"));
+    }
+    Ok(())
 }
 
 pub fn type_text(app: &AppHandle, e: &Entry, text: &str, selector: Option<&str>) -> Result<Value, String> {
     if let Some(s) = selector {
         click(app, e, Some(s), None, None)?;
     }
+    #[cfg(windows)]
     cdp(app, e, "Input.insertText", json!({ "text": text }))?;
+    #[cfg(not(windows))]
+    eval(app, e, &format!("__alphaInput.type({})", json!(text)))?;
     Ok(json!({ "typed": text.chars().count() }))
 }
 
@@ -391,6 +467,18 @@ pub fn key(app: &AppHandle, e: &Entry, combo: &str) -> Result<Value, String> {
     };
     let plain_char = text.is_none() && key.chars().count() == 1 && m & 2 == 0 && m & 1 == 0;
     let down_text = text.map(str::to_string).or_else(|| plain_char.then(|| key.clone()));
+    #[cfg(not(windows))]
+    {
+        let _ = (vk, &down_text);
+        let k = json!({ "key": key, "code": code, "keyCode": vk, "text": down_text, "modifiers": m });
+        let _ = eval(app, e, "window.__alphaPass = true");
+        let r = eval(app, e, &format!("__alphaInput.key({k})"));
+        let _ = eval(app, e, "window.__alphaPass = false");
+        r?;
+        Ok(json!({ "pressed": combo }))
+    }
+    #[cfg(windows)]
+    {
     let mut down = json!({ "type": if down_text.is_some() { "keyDown" } else { "rawKeyDown" }, "key": key, "code": code, "windowsVirtualKeyCode": vk, "nativeVirtualKeyCode": vk, "modifiers": m });
     if let Some(t) = &down_text {
         down["text"] = json!(t);
@@ -403,6 +491,26 @@ pub fn key(app: &AppHandle, e: &Entry, combo: &str) -> Result<Value, String> {
     r1?;
     r2?;
     Ok(json!({ "pressed": combo }))
+    }
+}
+
+/// Reload (`hard`: without the cache).
+fn reload(app: &AppHandle, e: &Entry, hard: bool) -> Result<(), String> {
+    #[cfg(windows)]
+    return cdp(app, e, "Page.reload", json!({ "ignoreCache": hard })).map(|_| ());
+    #[cfg(target_os = "linux")]
+    return crate::webkit::reload(app, e, hard);
+    #[cfg(not(any(windows, target_os = "linux")))]
+    return unsupported();
+}
+
+fn stop_loading(app: &AppHandle, e: &Entry) -> Result<(), String> {
+    #[cfg(windows)]
+    return cdp(app, e, "Page.stopLoading", json!({})).map(|_| ());
+    #[cfg(target_os = "linux")]
+    return crate::webkit::stop(app, e);
+    #[cfg(not(any(windows, target_os = "linux")))]
+    return unsupported();
 }
 
 pub fn navigate(app: &AppHandle, e: &Entry, url: &str) -> Result<String, String> {
@@ -600,7 +708,7 @@ pub fn request(app: &AppHandle, e: &Entry, text: &str, global: bool, l: Lang) ->
     let info = eval(app, e, "({ url: location.href, title: document.title })").unwrap_or(json!({}));
     let url = info["url"].as_str().unwrap_or("").to_string();
     let title = info["title"].as_str().unwrap_or("").to_string();
-    let dir: PathBuf = std::env::temp_dir().join("AlphaTerm").join("navegador").join(stamp());
+    let dir: PathBuf = crate::os::temp_dir().join("navegador").join(stamp());
     std::fs::create_dir_all(&dir).map_err(|err| tr_in!(l; "No se pudo crear {}: {err}", "Couldn't create {}: {err}", "Não foi possível criar {}: {err}"; dir.display()))?;
 
     let _ = eval(app, e, "window.__alphaOverlay && __alphaOverlay.hideHover()");
@@ -648,7 +756,7 @@ pub async fn browser_open(app: AppHandle, window: tauri::Window, id: String, url
             *e.owner.lock().unwrap() = Some(o);
         }
         let wv = webview(&app, &e)?;
-        let _ = wv.set_bounds(tauri::Rect { position: LogicalPosition::new(x, y).into(), size: LogicalSize::new(w.max(1.0), h.max(1.0)).into() });
+        set_rect(&app, &e, &wv, x, y, w, h)?;
         let _ = wv.show();
         return Ok(u);
     }
@@ -659,7 +767,7 @@ pub async fn browser_open(app: AppHandle, window: tauri::Window, id: String, url
     let (app_title, id_title, win_title) = (app.clone(), id.clone(), win_label.clone());
     let (app_new, label_new) = (app.clone(), label.clone());
     let builder = WebviewBuilder::new(&label, WebviewUrl::External(parsed))
-        .initialization_script(format!("window.__ALPHATERM_LANG__ = \"{}\";\n{OVERLAY_JS}", crate::i18n::lang().code()))
+        .initialization_script(format!("window.__ALPHATERM_LANG__ = \"{}\";\n{PLATFORM_JS}\n{OVERLAY_JS}", crate::i18n::lang().code()))
         .on_page_load(move |_wv, payload| {
             let loading = matches!(payload.event(), PageLoadEvent::Started);
             let url = payload.url().to_string();
@@ -700,12 +808,20 @@ pub async fn browser_open(app: AppHandle, window: tauri::Window, id: String, url
     });
     let _ = wv.label();
     app.state::<BrowserState>().0.lock().unwrap().insert(id.clone(), e.clone());
+    #[cfg(target_os = "linux")]
+    {
+        let (app3, e3) = (app.clone(), e.clone());
+        blocking(move || crate::webkit::attach(&app3, &e3, x, y, w, h)).await?;
+    }
     subscribe(&app, &e);
     let app2 = app.clone();
     blocking(move || {
-        cdp(&app2, &e, "Runtime.enable", json!({}))?;
-        cdp(&app2, &e, "Runtime.addBinding", json!({ "name": "__alphaterm" }))?;
-        cdp(&app2, &e, "Page.enable", json!({}))?;
+        #[cfg(windows)]
+        {
+            cdp(&app2, &e, "Runtime.enable", json!({}))?;
+            cdp(&app2, &e, "Runtime.addBinding", json!({ "name": "__alphaterm" }))?;
+            cdp(&app2, &e, "Page.enable", json!({}))?;
+        }
         // The first page may have loaded before the function was there: it's asked directly (otherwise,
         // it reports by itself in its `load` event).
         if let Ok(v) = eval(&app2, &e, "window.__alphaOverlay ? { url: location.href, title: document.title, hmr: __alphaOverlay.hmr() } : null") {
@@ -720,12 +836,26 @@ pub async fn browser_open(app: AppHandle, window: tauri::Window, id: String, url
     Ok(u)
 }
 
+/// Places the browser over its pane (logical px of the window). On Linux it's a layer of the overlay (see `webkit.rs`).
+#[allow(clippy::too_many_arguments)]
+fn set_rect(_app: &AppHandle, _e: &Entry, wv: &tauri::Webview, x: f64, y: f64, w: f64, h: f64) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        let _ = wv;
+        crate::webkit::place(_app, _e, x, y, w, h)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        wv.set_bounds(tauri::Rect { position: LogicalPosition::new(x, y).into(), size: LogicalSize::new(w.max(1.0), h.max(1.0)).into() }).map_err(|err| err.to_string())
+    }
+}
+
 #[tauri::command]
 pub fn browser_bounds(app: AppHandle, id: String, x: f64, y: f64, w: f64, h: f64, visible: bool) -> Result<(), String> {
     let e = get(&app, &id)?;
     let wv = webview(&app, &e)?;
     if visible {
-        wv.set_bounds(tauri::Rect { position: LogicalPosition::new(x, y).into(), size: LogicalSize::new(w.max(1.0), h.max(1.0)).into() }).map_err(|err| err.to_string())?;
+        set_rect(&app, &e, &wv, x, y, w, h)?;
         wv.show().map_err(|err| err.to_string())
     } else {
         wv.hide().map_err(|err| err.to_string())
@@ -746,9 +876,9 @@ pub async fn browser_go(app: AppHandle, id: String, action: String) -> Result<()
         match action.as_str() {
             "back" => eval(&app, &e, "history.back()").map(|_| ()),
             "forward" => eval(&app, &e, "history.forward()").map(|_| ()),
-            "reload" => cdp(&app, &e, "Page.reload", json!({})).map(|_| ()),
-            "hard-reload" => cdp(&app, &e, "Page.reload", json!({ "ignoreCache": true })).map(|_| ()),
-            "stop" => cdp(&app, &e, "Page.stopLoading", json!({})).map(|_| ()),
+            "reload" => reload(&app, &e, false),
+            "hard-reload" => reload(&app, &e, true),
+            "stop" => stop_loading(&app, &e),
             other => Err(tr!("Acción desconocida: {other}", "Unknown action: {other}", "Ação desconhecida: {other}")),
         }
     })
@@ -785,6 +915,8 @@ pub fn browser_set_owner(app: AppHandle, id: String, owner: Option<String>) -> R
 pub fn browser_close(app: AppHandle, id: String) -> Result<(), String> {
     let e = app.state::<BrowserState>().0.lock().unwrap().remove(&id);
     if let Some(e) = e {
+        #[cfg(target_os = "linux")]
+        crate::webkit::forget(&e.label);
         if let Some(wv) = app.get_webview(&e.label) {
             let _ = wv.close();
         }
@@ -823,7 +955,7 @@ pub fn control(app: &AppHandle, method: &str, p: &Value, caller: &Option<String>
             Ok(json!({ "browser": id, "url": u, "page": page(&e) }))
         }
         "browser_reload" => {
-            cdp(app, &e, "Page.reload", json!({ "ignoreCache": p.get("hard").and_then(Value::as_bool).unwrap_or(false) }))?;
+            reload(app, &e, p.get("hard").and_then(Value::as_bool).unwrap_or(false))?;
             wait_load(app, &e, 10_000);
             Ok(json!({ "browser": id, "reloaded": true }))
         }
@@ -841,7 +973,7 @@ pub fn control(app: &AppHandle, method: &str, p: &Value, caller: &Option<String>
             } else {
                 screenshot(app, &e, None, p.get("full").and_then(Value::as_bool).unwrap_or(false))?
             };
-            let dir = std::env::temp_dir().join("AlphaTerm").join("navegador").join("capturas");
+            let dir = crate::os::temp_dir().join("navegador").join("capturas");
             std::fs::create_dir_all(&dir).map_err(|err| err.to_string())?;
             let name = format!("captura-{}.png", stamp().trim_start_matches("pedido-"));
             let path = write_png(&dir, &name, &bytes)?;

@@ -193,5 +193,8 @@
   "sin seguimiento": "untracked",
   "{n} días": "{n} days",
   "Agregado a mano": "Added manually",
-  "Carpeta usada hace poco": "Recently used folder"
+  "Carpeta usada hace poco": "Recently used folder",
+  "Abrir con el programa asociado": "Open with the associated program",
+  "Archivos": "Files",
+  "Volúmenes (uno por línea: nombre:/ruta o /carpeta:/ruta)": "Volumes (one per line: name:/path or /folder:/path)"
 }

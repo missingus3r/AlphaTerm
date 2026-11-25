@@ -25,7 +25,7 @@ fn now_ms() -> i64 {
 }
 
 fn home() -> PathBuf {
-    std::env::var_os("USERPROFILE").map(PathBuf::from).unwrap_or_default()
+    crate::os::home()
 }
 
 /// Folder where Claude and Codex are opened to ask (the same one the dashboard uses: so they
@@ -67,6 +67,12 @@ fn clean_env(cmd: &mut CommandBuilder) {
 /// Runs a text-UI program in a pseudo-console without a window. `step` receives the
 /// screen every ~200 ms and decides what to type or whether it's done. At the end `quit` is sent (so it
 /// closes its own stuff) and it's killed if it's still alive. Returns the last screen.
+/// How many times a chunk asks for the cursor position (`ESC[6n`, also `ESC[?6n`).
+#[cfg_attr(windows, allow(dead_code))]
+fn count_cursor_queries(chunk: &[u8]) -> usize {
+    chunk.windows(4).filter(|w| w == b"\x1b[6n").count() + chunk.windows(5).filter(|w| w == b"\x1b[?6n").count()
+}
+
 pub fn run_tui(
     exe: &Path,
     args: &[String],
@@ -115,10 +121,20 @@ pub fn run_tui(
         }
     });
     let mut parser = vt100::Parser::new(NonZeroU16::new(rows.max(10)).unwrap(), NonZeroU16::new(cols.max(40)).unwrap(), 0);
-    // We don't answer when they ask where the cursor is (ESC[6n): with ConPTY's input mode
+    // Windows: we don't answer when they ask where the cursor is (ESC[6n): with ConPTY's input mode
     // the answer reaches the program as typed text (Codex took it as a message).
     // They work fine without an answer, as in the dashboard.
-    let feed = |parser: &mut vt100::Parser, _writer: &mut Box<dyn Write + Send>, chunk: &[u8]| parser.process(chunk);
+    // Linux: a real PTY has no such problem and it's the other way around: Codex (crossterm) waits for the
+    // answer at startup and gives up if it doesn't come. It's answered with the parsed screen's cursor.
+    let feed = |parser: &mut vt100::Parser, _writer: &mut Box<dyn Write + Send>, chunk: &[u8]| {
+        parser.process(chunk);
+        #[cfg(not(windows))]
+        for _ in 0..count_cursor_queries(chunk) {
+            let (row, col) = parser.screen().cursor_position();
+            let _ = _writer.write_all(format!("\x1b[{};{}R", row + 1, col + 1).as_bytes());
+            let _ = _writer.flush();
+        }
+    };
 
     let start = Instant::now();
     let mut last_data = Instant::now();

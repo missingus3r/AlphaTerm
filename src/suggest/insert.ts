@@ -13,9 +13,17 @@ export const DEL = "\x7f";
 const NEEDS_QUOTES: Record<Shell, RegExp> = {
   cmd: /[\s&()[\]{}^=;!'+,`~]/,
   ps: /[\s'"`$&(){};,|<>@#]/,
+  // bash, zsh and fish: globs, expansions, redirections and the rest of the special characters.
+  sh: /[\s'"`$&(){};|<>*?!#\\[\]]/,
 };
 
 function quote(v: string, shell: Shell, q: '"' | "'" | null): string {
+  if (shell === "sh") {
+    // Single quotes take everything literally (in bash, zsh and fish) except a quote; a name with one
+    // goes in double quotes escaping " $ ` \ (valid in the three).
+    if (q === '"' || v.includes("'")) return `"${v.replace(/["$`\\]/g, "\\$&")}"`;
+    return `'${v}'`;
+  }
   // Trailing slash doubled: with a single one, `\"` escapes the quote for git, node and any external program
   // (what reaches them ends up broken); cd, Set-Location and cmdlets accept the double one.
   const body = v.replace(/\\+$/, "\\\\");
@@ -35,7 +43,7 @@ export function insertion(line: string, s: Suggestion, cur: Word, shell: Shell):
   if (s.replace === "line") return DEL.repeat(line.length) + s.insert;
   if (s.from !== undefined) {
     const quoted = /['"]$/.test(s.insert);
-    const suffix = s.dir ? (quoted || /[\\/]$/.test(s.insert) ? "" : "\\") : " ";
+    const suffix = s.dir ? (quoted || /[\\/]$/.test(s.insert) ? "" : shell === "sh" ? "/" : "\\") : " ";
     return DEL.repeat(Math.max(0, line.length - s.from)) + s.insert + suffix;
   }
   const text =

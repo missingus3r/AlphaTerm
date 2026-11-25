@@ -43,14 +43,20 @@ fn build_info() {
 }
 
 fn main() {
-    copy_conpty();
+    // ConPTY is Windows only (on Linux portable-pty uses the system's PTY).
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        copy_conpty();
+    }
     build_info();
     // The Windows manifest (common controls v6) is embedded by the linker and not by the tauri-build
     // resource: that way the test binaries have it too. Without it they don't start
     // (STATUS_ENTRYPOINT_NOT_FOUND: TaskDialogIndirect only exists in controls v6).
     let manifest = Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("windows-app-manifest.xml");
     println!("cargo:rerun-if-changed=windows-app-manifest.xml");
-    let mut attrs = tauri_build::Attributes::new();
+    // The built-in browser's pages (remote content) send their messages to this command (Linux; on Windows
+    // they go through a DevTools binding). An inlined plugin, so it gets its own permission without
+    // making every app command need one.
+    let mut attrs = tauri_build::Attributes::new().plugin("browser-page", tauri_build::InlinedPlugin::new().commands(&["message"]));
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         attrs = attrs.windows_attributes(tauri_build::WindowsAttributes::new_without_app_manifest());
         println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
