@@ -15,7 +15,7 @@
 Switch it live in Settings → Language; a new install starts in your Windows language.<br>
 <sub>The screenshots below show the English interface.</sub></p>
 
-![AlphaTerm with three panes, the command suggestions menu and the agents panel](Documentacion/capturas/principal.png)
+![AlphaTerm with three panes, the command suggestions menu and the agents panel](docs/screenshots/main.png)
 
 ## Features
 
@@ -32,12 +32,12 @@ Switch it live in Settings → Language; a new install starts in your Windows la
 
 | Agent changes | Browser with element marking |
 | :---: | :---: |
-| <img src="Documentacion/capturas/modificaciones.png" width="420" alt="Changes panel with a side-by-side diff"> | <img src="Documentacion/capturas/navegador.png" width="400" alt="Built-in browser with a marked button and a request for the agent"> |
+| <img src="docs/screenshots/changes.png" width="420" alt="Changes panel with a side-by-side diff"> | <img src="docs/screenshots/browser.png" width="400" alt="Built-in browser with a marked button and a request for the agent"> |
 | **Guardian** | **Servers** |
-| <img src="Documentacion/capturas/guardian.png" width="420" alt="The Guardian asking before an rm -rf"> | <img src="Documentacion/capturas/servidores.png" width="260" alt="Servers panel with two servers started from AlphaTerm"> |
+| <img src="docs/screenshots/guardian.png" width="420" alt="The Guardian asking before an rm -rf"> | <img src="docs/screenshots/servers.png" width="260" alt="Servers panel with two servers started from AlphaTerm"> |
 
 <p align="center">
-  <img src="Documentacion/capturas/configuracion.png" width="640" alt="Settings: themes">
+  <img src="docs/screenshots/settings.png" width="640" alt="Settings: themes">
 </p>
 
 ## Libraries
@@ -70,7 +70,7 @@ npx tauri dev                  # development, with hot reload
 npx tauri build --no-bundle    # builds src-tauri\target\release\alphaterm.exe
 ```
 
-To cut a release, double-click `compilar-version.bat`. It bumps the version, commits and tags it, builds, and installs to `%LOCALAPPDATA%\AlphaTerm\versiones\<version>` with a desktop shortcut. It stops first if a commit message has no English or Portuguese translation for "What's new" (`node scripts/changelog.mjs --faltan` lists them).
+To cut a release, double-click `build-release.bat`. It bumps the version, commits and tags it, builds, and installs to `%LOCALAPPDATA%\AlphaTerm\versiones\<version>` with a desktop shortcut. It stops first if a commit message has no English or Portuguese translation for "What's new" (`node scripts/changelog.mjs --faltan` lists them).
 
 Settings and data live in `%APPDATA%\AlphaTerm`.
 
@@ -78,14 +78,14 @@ Tests: `npx vitest run`, `npx tsc --noEmit`, and `cargo test` inside `src-tauri`
 
 ## Translations
 
-The source text is Spanish: each interface text goes through `t("…")` and its translations live in `src/i18n/en/*.json` and `src/i18n/pt/*.json` (Spanish text as the key). The Rust backend picks among three versions of each message (`src-tauri/src/i18n.rs`). Terms and style: [`src/i18n/GLOSARIO.md`](src/i18n/GLOSARIO.md).
+The source text is Spanish: each interface text goes through `t("…")` and its translations live in `src/i18n/en/*.json` and `src/i18n/pt/*.json` (Spanish text as the key). The Rust backend picks among three versions of each message (`src-tauri/src/i18n.rs`). Terms and style: [`src/i18n/GLOSSARY.md`](src/i18n/GLOSSARY.md).
 
 ## More documentation
 
 - [`CLAUDE.en.md`](CLAUDE.en.md): status, how to test, and known gotchas.
-- [`Documentacion/en/Code_Guide.txt`](Documentacion/en/Code_Guide.txt): how the code is organized.
-- [`Documentacion/en/Process_Report.md`](Documentacion/en/Process_Report.md): log of each phase.
-- [`Documentacion/en/Terminal_Plan.txt`](Documentacion/en/Terminal_Plan.txt) and [`Documentacion/en/specs/`](Documentacion/en/specs): the original plan and the feature designs.
+- [`docs/en/Code_Guide.txt`](docs/en/Code_Guide.txt): how the code is organized.
+- [`docs/en/Process_Report.md`](docs/en/Process_Report.md): log of each phase.
+- [`docs/en/Terminal_Plan.txt`](docs/en/Terminal_Plan.txt) and [`docs/en/specs/`](docs/en/specs): the original plan and the feature designs.
 
 ## License
 

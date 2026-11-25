@@ -3,9 +3,9 @@
 > Traduzido do original em espanhol (`CLAUDE.md`). A versão em espanhol é a fonte de verdade.
 
 Terminal própria no estilo Warp, mais leve, voltada a trabalhar com agentes de IA.
-O plano está em `Documentacion/pt/Plano_do_Terminal.txt` (com adendos no final: ambiente de casa e AlphaTerm);
-o guia de código em `Documentacion\pt\Guia_de_Codigo.txt` (e seu PDF); o registro de cada fase em
-`Documentacion\pt\Relatorio_de_Processo.md`.
+O plano está em `docs/pt/Terminal_Plan.txt` (com adendos no final: ambiente de casa e AlphaTerm);
+o guia de código em `docs\pt\Code_Guide.txt` (e seu PDF); o registro de cada fase em
+`docs\pt\Process_Report.md`.
 
 ## Estado
 - F0 a F9 concluídas, mais os extras pedidos (API de controle para agentes + MCP, Docker, Guardião,
@@ -15,20 +15,20 @@ o guia de código em `Documentacion\pt\Guia_de_Codigo.txt` (e seu PDF); o regist
   `Desktop\AlphaTerm` (renomeada em 18/11/2026; antes `Desktop\NovaTerm`).
 - Navegador integrado com marcação (20/11/2026): painel de navegador (folha com `browser` no modelo)
   com modo de edição para marcar elementos e pedir alterações ao agente da aba. Veja Gotchas.
-- Pendente: decidir se, além da instalação por versão (`compilar-version.bat`), é preciso um
+- Pendente: decidir se, além da instalação por versão (`build-release.bat`), é preciso um
   instalador NSIS; testar o Docker com um contêiner real e o Claude Code com uma tarefa real passando pelo
   Guardião; as metas de RAM (<120 MB) e de inicialização (<500 ms) não são cumpridas (~225 MB e 1,2–1,4 s,
   dominados pelo WebView2).
 
 ## Rodar e testar
 - Desenvolvimento: `npx tauri dev`. Release: `npx tauri build --no-bundle` → `src-tauri\target\release\alphaterm.exe`.
-- Versão nova: clique duas vezes em `compilar-version.bat` (ou `npm run release`, que é `scripts/release.mjs`).
+- Versão nova: clique duas vezes em `build-release.bat` (ou `npm run release`, que é `scripts/release.mjs`).
   Sobe a versão sozinho (patch por padrão; `--minor`, `--major`, ou `--misma` para recompilar sem subir)
   em `package.json`, `tauri.conf.json`, `Cargo.toml` e `Cargo.lock`, faz o commit "Versión X" e a tag
   anotada `vX`, compila (em `target\prueba` se `target\release\alphaterm.exe` estiver aberto) e instala com
-  `scripts/instalar.mjs` em `%LOCALAPPDATA%\AlphaTerm\versiones\<v>` (atalho "AlphaTerm <v>" na
+  `scripts/install.mjs` em `%LOCALAPPDATA%\AlphaTerm\versiones\<v>` (atalho "AlphaTerm <v>" na
   área de trabalho, renomeia o anterior, e a fixação na barra de tarefas). Se falhar, desfaz o commit e a
-  tag. Dá para fazer com o AlphaTerm aberto. `npm run instalar -- --desde <pasta>` instala um build já feito.
+  tag. Dá para fazer com o AlphaTerm aberto. `npm run install-version -- --desde <pasta>` instala um build já feito.
   Os .bat, com CRLF. O rodapé mostra a versão (tooltip: commit, "+" se havia alterações sem commit,
   data e caminho do exe) e o botão "Novidades" (changelog por versão).
 - Changelog: `scripts/changelog.mjs` o gera a partir do git (tags `vX.Y.Z`) em `src/generated/changelog.json`
@@ -52,7 +52,7 @@ o guia de código em `Documentacion\pt\Guia_de_Codigo.txt` (e seu PDF); o regist
 - `window.confirm` NÃO pergunta: o plugin de diálogos do Tauri o substitui por uma função async
   (devolve uma promise, que sempre é "sim") e falta a permissão `dialog:allow-confirm`. Use
   `askConfirm` (`src/widgets/confirm.ts`), que pergunta dentro do app (`ConfirmModal`, montado
-  no Workspace e na janela de configurações). O teste `scripts/sin-confirm.test.mjs` falha se
+  no Workspace e na janela de configurações). O teste `scripts/no-confirm.test.mjs` falha se
   voltar a aparecer um `confirm(` solto em `src`.
 - Com `npx tauri dev`/Vite, o hot reload de `Workspace.tsx` deixa viva a instância antiga
   (continua respondendo à API de controle e pode sobrescrever a sessão): recarregue a página antes de testar.
@@ -119,7 +119,7 @@ o guia de código em `Documentacion\pt\Guia_de_Codigo.txt` (e seu PDF); o regist
   `src/i18n/en/*.json` e `src/i18n/pt/*.json` (um arquivo por área; chave = o texto em espanhol
   EXATO). Mudar um texto em espanhol é mudar a chave nos dois idiomas: `node scripts/i18n-check.mjs`
   (e seu teste) falha se faltar, sobrar, as {variáveis} não baterem ou um texto tiver duas traduções.
-  Termos e estilo: `src/i18n/GLOSARIO.md`. Datas e números com `locale()`.
+  Termos e estilo: `src/i18n/GLOSSARY.md`. Datas e números com `locale()`.
 - Rust: `tr("…", "…", "…")` e `tr!(…)` de `src-tauri/src/i18n.rs` (es, en, pt). O idioma chega por
   `set_locale` e é lido do settings.json ao iniciar. Nos testes: `tr_in!`/`Lang::pick`, nunca mudar o
   global (outros testes esperam espanhol).
@@ -132,11 +132,11 @@ o guia de código em `Documentacion\pt\Guia_de_Codigo.txt` (e seu PDF); o regist
 - Novidades: a tradução de cada commit em `src/i18n/changelog/en|pt.json` (chave = assunto em
   espanhol). `node scripts/changelog.mjs --faltan` lista o que falta e o `release.mjs` não sobe a
   versão se algum commit desde a última tag não estiver traduzido.
-- Documentação: as versões em inglês e português ficam em `Documentacion/en|pt`, `CLAUDE.en.md`,
+- Documentação: as versões em inglês e português ficam em `docs/en|pt`, `CLAUDE.en.md`,
   `CLAUDE.pt.md`, `README.md` (inglês), `README.es.md` e `README.pt.md`. Ao mudar um documento,
-  atualize as três (e os PDFs: `python Documentacion/generar_pdfs.py es en pt`, precisa do fpdf2).
+  atualize as três (e os PDFs: `python docs/generate_pdfs.py es en pt`, precisa do fpdf2).
   As capturas do README (as mesmas para os três) mostram a interface em inglês, em
-  `Documentacion/capturas/`.
+  `docs/screenshots/`.
 
 ## Decisões já tomadas (não rediscutir sem motivo)
 - Tauri 2 + Rust; Vite + TypeScript + SolidJS 1.9; xterm.js 6 com WebGL (fallback DOM).

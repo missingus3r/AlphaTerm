@@ -1,0 +1,143 @@
+GUIA DE CÓDIGO — ALPHATERM (antes NovaTerm)
+> Traduzido do original em espanhol (`docs/es/Code_Guide.txt`). A versão em espanhol é a fonte de verdade.
+Salvo em: 18/11/2026 — estado ao fim da F9
+
+====================================================================
+MAPA DO PROJETO
+====================================================================
+
+O AlphaTerm é um app Tauri 2: um backend em Rust (src-tauri) e um frontend em TypeScript + SolidJS
+(src) que roda no WebView2 do Windows. A terminal é o xterm.js 6 com o addon WebGL.
+
+Pastas:
+ - src-tauri\src\: backend. Um módulo por tema; lib.rs registra os comandos e o estado.
+ - src-tauri\shell\: scripts de integração do PowerShell e do Git Bash (OSC 133/633/7).
+ - src-tauri\scripts\: alphaterm-mcp.mjs (servidor MCP + CLI da API) e guardian-hook.mjs.
+ - src-tauri\conpty\: ConPTY da Microsoft (conpty.dll + OpenConsole.exe), é copiada para ao lado do exe.
+ - src\terminal\: a terminal (TerminalView), a PTY, links para caminhos e sua visualização prévia.
+ - src\layout\: abas, painéis, barra, atalhos, títulos, sessão e respostas à API.
+ - src\panels\: painéis laterais (agentes, servidores, projetos, git, histórico, Docker).
+ - src\settings\: esquema e normalização do settings.json, temas, janela de configurações.
+ - src\widgets\: CPU/RAM, rodapé de uso e localização, diálogo do Guardião.
+ - docs\: plano, relatório, este guia e os PDF (python docs\generate_pdfs.py).
+
+Dados do usuário em %APPDATA%\AlphaTerm: settings.json, session.json, history.jsonl, control.json,
+fondos\, claude-statusline.json, scripts da API e do Guardião (são reescritos a cada inicialização).
+
+====================================================================
+BACKEND (RUST)
+====================================================================
+
+ - pty\mod.rs: sessões ConPTY com portable-pty. Três threads por sessão: leitor, batcher e vigia.
+   A saída é agrupada (~4 ms / 64 KB) e viaja por um tauri::ipc::Channel binário. Contrapressão:
+   teto de 2 MB, retoma em 512 KB; o frontend confirma com pty_ack. Cada sessão tem dona
+   (a janela): ao fechar a janela, suas shells morrem.
+ - pty\batcher.rs: a lógica de agrupar e de contrapressão (com testes).
+ - pty\profiles.rs: detecção de shells (PowerShell 5.1, pwsh, cmd, Git Bash, WSL).
+ - pty\integration.rs: como cada shell é iniciada com seu script de integração (PowerShell por
+   -EncodedCommand, bash com --init-file, cmd com PROMPT).
+ - procinfo.rs: processo em primeiro plano de cada shell e branch do git (para o título).
+ - windows.rs: janelas novas (transparentes; podem trazer um layout para restaurar).
+ - settings.rs: settings.json atômico, vigiado, com cópia .bak se estava quebrado; migração a partir de
+   %APPDATA%\NovaTerm; imagens de fundo.
+ - fonts.rs: fontes do registro; font_file entrega ao addon de ligaduras o arquivo da fonte.
+ - agents.rs: onde está cada agente (PATH do processo + do registro + pastas habituais).
+ - sysmon.rs: CPU, RAM, top de processos e uso por árvore de cada shell.
+ - usage.rs: uso do Claude (statusline), do Codex (rollouts, também .zst) e do agy (/quota); cache
+   compartilhado de 30 s; instalação opcional da statusline do AlphaTerm.
+ - ports.rs: portas em escuta (GetExtendedTcpTable), quem as abriu e se nasceu em uma aba.
+ - projects.rs: projetos (cwd do Claude Code e do Codex), árvore com .gitignore (crate ignore), vigia
+   (notify), abrir fora, existência e visualização prévia de caminhos.
+ - git.rs: tudo pela CLI do git (porcelain v2, diff, stage, commit, log com grafo, branches, remoto).
+ - history.rs: histórico de comandos de todas as abas.
+ - session.rs: último estado das janelas para restaurá-lo.
+ - docker.rs: estado do engine, contêineres, ações, logs e receitas (docker run sem shell).
+ - guardian.rs: classificação de comandos perigosos, pedidos ao usuário e registro.
+ - control.rs: API HTTP local (tiny_http, 127.0.0.1 + token), ponte para as janelas por eventos.
+ - llm.rs: resumo da aba com um endpoint compatível com OpenAI.
+
+Comandos: todos vão no invoke_handler de lib.rs. As permissões das janelas estão em
+capabilities\default.json (main, win-* e settings).
+
+====================================================================
+FRONTEND (SOLIDJS)
+====================================================================
+
+ - App.tsx: decide se a janela é de configurações ou de terminal, carrega settings e a sessão.
+ - layout\Workspace.tsx: o coração de uma janela de terminal. Tem o layout (abas e
+   painéis), o estado vivo de cada painel (PaneState), os painéis laterais, o rodapé, os
+   pollers e a resposta à API de controle. Os painéis são desenhados planos, posicionados por
+   retângulos e iterados por id: aninhá-los remonta as terminais e mata suas shells.
+ - layout\model.ts: funções puras sobre o layout (abrir, fechar, dividir, mover, pastas…).
+   Também mover um painel para o lado de outro ou trocá-los (movePane/swapPanes), igualar
+   tamanhos (equalize) e a geometria do arraste (paneAt, dropZone, zoneRect, snapRatio).
+ - layout\PaneBar.tsx: a barrinha de 22 px de cada painel de terminal (nome, dividir, fechar) e
+   o menu do seu clique direito. A terminal fica embaixo, em .pane-body.
+ - layout\paneDrag.ts: o arraste de um painel pela sua barrinha (limiar de 5 px, Esc/blur/
+   pointercancel cancelam). Recebe a janela e o body por parâmetro para poder ser testado.
+ - widgets\confirm.ts e ConfirmModal.tsx: askConfirm(), a pergunta dentro do app.
+   window.confirm NÃO serve no AlphaTerm (veja CLAUDE.pt.md, Gotchas).
+ - layout\title.ts: o nome da aba (manual > título do programa > modelo > heurística).
+ - layout\shortcuts.ts: atalhos configuráveis; nunca Ctrl+Alt (AltGr em teclado espanhol).
+ - layout\session.ts e control.ts: salvar/restaurar e responder aos pedidos da API.
+ - terminal\TerminalView.tsx: uma terminal xterm. Shell integration (OSC 133/633/7/9), blocos de
+   comandos com marcas, WebGL só se estiver visível, ligaduras sob demanda, comando inicial,
+   atividade e sino, e o que expõe à API (send, text, lastOutput).
+ - terminal\writeQueue.ts: serializa as escritas na PTY (se não, as teclas se desordenam).
+ - settings\schema.ts: o esquema do settings.json. normalize() aceita qualquer coisa e conserva
+   chaves desconhecidas. As opções novas são adicionadas aqui e em DEFAULTS.
+
+Reatividade (gotcha importante): uma função que lê um sinal e o altera, chamada dentro de um
+createEffect, reexecuta o efeito em loop. Aconteceu no rodapé (renderer de 180 MB e 60 layouts
+por segundo). Dentro de efeitos, chame com untrack(() => ...) ou use on(...).
+
+====================================================================
+FLUXOS PRINCIPAIS
+====================================================================
+
+Tecla → shell: xterm onData → WriteQueue → pty_write → ConPTY.
+Shell → tela: ConPTY → leitor → batcher → Channel binário → term.write → ack (contrapressão).
+
+Configuração: a janela de configurações chama store.update → settings_save → o backend
+escreve e emite settings-changed para todas as janelas → cada uma normaliza e aplica. Uma mudança
+manual no arquivo é detectada pelo vigia (1 s) e faz o mesmo.
+
+API de controle: um agente (MCP ou CLI) faz POST /v1/<método> com o token → control.rs →
+se for do Docker ou do Guardião, o backend resolve; se for de abas, emite control-request para
+as janelas → a que tem o painel responde com control_respond. "run" espera o fim do comando
+contando os 133;D do painel (patch "ended").
+
+Guardião: o hook do Claude Code (ou a API) → guardian::ask → evento guardian-ask para todas as
+janelas → diálogo → guardian_answer → a decisão volta a quem perguntou. Sem resposta em 10
+minutos: bloqueado.
+
+====================================================================
+COMO SE FAZ…
+====================================================================
+
+Adicionar um painel lateral: um componente em src\panels (lazy), uma entrada em PANELS de
+ActivityBar.tsx, um id em PanelId e na ação togglePanel de shortcuts.ts (com seu atalho), e seu
+<Show when={panel() === "x"}> em Workspace.tsx.
+
+Adicionar uma opção de configuração: o campo em Settings, DEFAULTS e normalize (schema.ts), um
+teste em settings.test.ts e sua linha em SettingsView.tsx.
+
+Adicionar um comando de backend: a função #[tauri::command] no seu módulo, registrá-la em lib.rs e,
+se for chamada por uma janela com um plugin novo, a permissão em capabilities\default.json.
+
+Adicionar um método à API de controle: dispatch() em control.rs (backend) ou handleControl() em
+layout\control.ts (janelas), e a ferramenta em TOOLS de scripts\alphaterm-mcp.mjs.
+
+====================================================================
+TESTES E BUILD
+====================================================================
+
+ - Rust: cargo test em src-tauri (anteponha ~/.cargo/bin ao PATH). Há testes que usam PowerShell,
+   Git Bash e git reais, e dois benchmarks ignorados (cargo test -- --ignored).
+ - Frontend: npx vitest run (lógica pura: modelo, atalhos, esquema, temas, caminhos, diff, sessão…).
+ - Tipos: npx tsc --noEmit.
+ - Desenvolvimento: npx tauri dev. Para inspecionar o WebView: WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=
+   --remote-debugging-port=9333 e falar com ele por CDP (WebSocket) com Runtime.evaluate.
+ - Release: npx tauri build --no-bundle → src-tauri\target\release\alphaterm.exe (com conpty.dll e
+   OpenConsole.exe ao lado). Com bundle: instalador NSIS.
+ - Inicialização: ALPHATERM_BENCH=<arquivo> anota os ms até o primeiro prompt.

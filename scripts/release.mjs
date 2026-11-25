@@ -10,7 +10,7 @@
 // de Novedades (src/i18n/changelog/en.json y pt.json; `node scripts/changelog.mjs --faltan`): si
 // falta alguna, frena sin cambiar nada; 1) sube `version` en package.json, src-tauri/tauri.conf.json,
 // src-tauri/Cargo.toml y Cargo.lock; 2) commit "Versión X" (solo esos archivos) y tag anotado vX;
-// 3) genera el changelog; 4) compila; 5) instala (scripts/instalar.mjs). Si falla la compilación o la
+// 3) genera el changelog; 4) compila; 5) instala (scripts/install.mjs). Si falla la compilación o la
 // instalación, deshace el commit y el tag que creó (son locales y recién hechos) y deja los archivos
 // como estaban.
 //
@@ -127,7 +127,7 @@ try {
   env.PATH = `${path.join(process.env.USERPROFILE ?? "", ".cargo", "bin")}${path.delimiter}${env.PATH ?? env.Path ?? ""}`;
   // `npm run build` (el beforeBuildCommand de Tauri) genera el changelog con los tags al día.
   execSync("npx tauri build --no-bundle", { cwd: repo, env, stdio: "inherit" });
-  execSync(`node "${path.join(repo, "scripts", "instalar.mjs")}" --desde "${path.join(target, "release")}"`, { cwd: repo, stdio: "inherit" });
+  execSync(`node "${path.join(repo, "scripts", "install.mjs")}" --desde "${path.join(target, "release")}"`, { cwd: repo, stdio: "inherit" });
 } catch (e) {
   undo();
   console.error(`\nNo se pudo compilar o instalar: ${e.message ?? e}`);

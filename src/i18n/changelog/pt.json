@@ -217,5 +217,8 @@
   },
   "PDF de la documentación en tres idiomas": {
     "subject": "PDFs da documentação em três idiomas"
+  },
+  "Nombres de archivos y carpetas en inglés (docs/, build-release.bat, GLOSSARY.md…)": {
+    "subject": "Nomes de arquivos e pastas em inglês (docs/, build-release.bat, GLOSSARY.md…)"
   }
 }

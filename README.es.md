@@ -15,7 +15,7 @@
 Se cambia en vivo en Configuración → Idioma; una instalación nueva arranca en el idioma de Windows.<br>
 <sub>Las capturas de abajo muestran la interfaz en inglés.</sub></p>
 
-![AlphaTerm con tres paneles, el menú de predicciones y el panel de agentes](Documentacion/capturas/principal.png)
+![AlphaTerm con tres paneles, el menú de predicciones y el panel de agentes](docs/screenshots/main.png)
 
 ## Qué tiene
 
@@ -32,12 +32,12 @@ Se cambia en vivo en Configuración → Idioma; una instalación nueva arranca e
 
 | Modificaciones de los agentes | Navegador con marcado |
 | :---: | :---: |
-| <img src="Documentacion/capturas/modificaciones.png" width="420" alt="Panel de modificaciones con un diff lado a lado"> | <img src="Documentacion/capturas/navegador.png" width="400" alt="Navegador integrado con un botón marcado y el pedido al agente"> |
+| <img src="docs/screenshots/changes.png" width="420" alt="Panel de modificaciones con un diff lado a lado"> | <img src="docs/screenshots/browser.png" width="400" alt="Navegador integrado con un botón marcado y el pedido al agente"> |
 | **Guardián** | **Servidores** |
-| <img src="Documentacion/capturas/guardian.png" width="420" alt="El guardián pregunta antes de un rm -rf"> | <img src="Documentacion/capturas/servidores.png" width="260" alt="Panel de servidores con dos servidores de AlphaTerm"> |
+| <img src="docs/screenshots/guardian.png" width="420" alt="El guardián pregunta antes de un rm -rf"> | <img src="docs/screenshots/servers.png" width="260" alt="Panel de servidores con dos servidores de AlphaTerm"> |
 
 <p align="center">
-  <img src="Documentacion/capturas/configuracion.png" width="640" alt="Configuración: temas">
+  <img src="docs/screenshots/settings.png" width="640" alt="Configuración: temas">
 </p>
 
 ## Librerías
@@ -70,7 +70,7 @@ npx tauri dev                  # desarrollo, con recarga en caliente
 npx tauri build --no-bundle    # deja el programa en src-tauri\target\release\alphaterm.exe
 ```
 
-Para sacar una versión, doble clic en `compilar-version.bat`. Sube el número de versión, hace el commit y el tag, compila e instala en `%LOCALAPPDATA%\AlphaTerm\versiones\<versión>` con acceso directo en el escritorio. Antes frena si algún commit no tiene su traducción al inglés y al portugués para «Novedades» (`node scripts/changelog.mjs --faltan` los lista).
+Para sacar una versión, doble clic en `build-release.bat`. Sube el número de versión, hace el commit y el tag, compila e instala en `%LOCALAPPDATA%\AlphaTerm\versiones\<versión>` con acceso directo en el escritorio. Antes frena si algún commit no tiene su traducción al inglés y al portugués para «Novedades» (`node scripts/changelog.mjs --faltan` los lista).
 
 La configuración y los datos quedan en `%APPDATA%\AlphaTerm`.
 
@@ -78,14 +78,14 @@ Tests: `npx vitest run`, `npx tsc --noEmit` y `cargo test` dentro de `src-tauri`
 
 ## Traducciones
 
-El texto de origen es el español: cada texto de la interfaz pasa por `t("…")` y sus traducciones viven en `src/i18n/en/*.json` y `src/i18n/pt/*.json` (con el texto en español como clave). El backend en Rust elige entre las tres versiones de cada mensaje (`src-tauri/src/i18n.rs`). Términos y estilo: [`src/i18n/GLOSARIO.md`](src/i18n/GLOSARIO.md).
+El texto de origen es el español: cada texto de la interfaz pasa por `t("…")` y sus traducciones viven en `src/i18n/en/*.json` y `src/i18n/pt/*.json` (con el texto en español como clave). El backend en Rust elige entre las tres versiones de cada mensaje (`src-tauri/src/i18n.rs`). Términos y estilo: [`src/i18n/GLOSSARY.md`](src/i18n/GLOSSARY.md).
 
 ## Más documentación
 
 - [`CLAUDE.md`](CLAUDE.md): estado, cómo probar y trampas conocidas.
-- [`Documentacion/Guia_de_codigo.txt`](Documentacion/Guia_de_codigo.txt): cómo está organizado el código.
-- [`Documentacion/Informe_Proceso_y_Stats.md`](Documentacion/Informe_Proceso_y_Stats.md): registro de cada fase.
-- [`Plan_Terminal_NovaTerm.txt`](Plan_Terminal_NovaTerm.txt) y [`Documentacion/specs/`](Documentacion/specs): el plan original y los diseños de cada función.
+- [`docs/es/Code_Guide.txt`](docs/es/Code_Guide.txt): cómo está organizado el código.
+- [`docs/es/Process_Report.md`](docs/es/Process_Report.md): registro de cada fase.
+- [`docs/es/Terminal_Plan.txt`](docs/es/Terminal_Plan.txt) y [`docs/es/specs/`](docs/es/specs): el plan original y los diseños de cada función.
 
 ## Licencia
 
