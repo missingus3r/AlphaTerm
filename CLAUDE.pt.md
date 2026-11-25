@@ -135,7 +135,8 @@ o guia de código em `Documentacion\pt\Guia_de_Codigo.txt` (e seu PDF); o regist
 - Documentação: as versões em inglês e português ficam em `Documentacion/en|pt`, `CLAUDE.en.md`,
   `CLAUDE.pt.md`, `README.md` (inglês), `README.es.md` e `README.pt.md`. Ao mudar um documento,
   atualize as três (e os PDFs: `python Documentacion/generar_pdfs.py es en pt`, precisa do fpdf2).
-  Capturas do README por idioma em `Documentacion/capturas/<idioma>/`.
+  As capturas do README (as mesmas para os três) mostram a interface em inglês, em
+  `Documentacion/capturas/`.
 
 ## Decisões já tomadas (não rediscutir sem motivo)
 - Tauri 2 + Rust; Vite + TypeScript + SolidJS 1.9; xterm.js 6 com WebGL (fallback DOM).

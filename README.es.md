@@ -11,7 +11,11 @@
 
 <p align="center"><a href="README.md">English</a> · <b>Español</b> · <a href="README.pt.md">Português</a></p>
 
-![AlphaTerm con tres paneles, el menú de predicciones y el panel de agentes](Documentacion/capturas/es/principal.png)
+<p align="center"><b>La app está en tres idiomas: español, inglés y portugués.</b><br>
+Se cambia en vivo en Configuración → Idioma; una instalación nueva arranca en el idioma de Windows.<br>
+<sub>Las capturas de abajo muestran la interfaz en inglés.</sub></p>
+
+![AlphaTerm con tres paneles, el menú de predicciones y el panel de agentes](Documentacion/capturas/principal.png)
 
 ## Qué tiene
 
@@ -28,12 +32,12 @@
 
 | Modificaciones de los agentes | Navegador con marcado |
 | :---: | :---: |
-| <img src="Documentacion/capturas/es/modificaciones.png" width="420" alt="Panel de modificaciones con un diff lado a lado"> | <img src="Documentacion/capturas/es/navegador.png" width="400" alt="Navegador integrado con un botón marcado y el pedido al agente"> |
+| <img src="Documentacion/capturas/modificaciones.png" width="420" alt="Panel de modificaciones con un diff lado a lado"> | <img src="Documentacion/capturas/navegador.png" width="400" alt="Navegador integrado con un botón marcado y el pedido al agente"> |
 | **Guardián** | **Servidores** |
-| <img src="Documentacion/capturas/es/guardian.png" width="420" alt="El guardián pregunta antes de un rm -rf"> | <img src="Documentacion/capturas/es/servidores.png" width="260" alt="Panel de servidores con dos servidores de AlphaTerm"> |
+| <img src="Documentacion/capturas/guardian.png" width="420" alt="El guardián pregunta antes de un rm -rf"> | <img src="Documentacion/capturas/servidores.png" width="260" alt="Panel de servidores con dos servidores de AlphaTerm"> |
 
 <p align="center">
-  <img src="Documentacion/capturas/es/configuracion.png" width="640" alt="Configuración: temas">
+  <img src="Documentacion/capturas/configuracion.png" width="640" alt="Configuración: temas">
 </p>
 
 ## Librerías

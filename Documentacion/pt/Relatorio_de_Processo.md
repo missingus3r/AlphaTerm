@@ -857,7 +857,7 @@ open source.
   `changelog.mjs --faltan`, e o `release.mjs` para se faltar uma tradução.
 - Documentação em inglês e português (`Documentacion/en|pt`, `CLAUDE.en.md`, `CLAUDE.pt.md`, avisos
   do ConPTY) e seus PDFs (`generar_pdfs.py` agora gera por idioma: `python Documentacion/generar_pdfs.py
-  en pt`), README em três idiomas com capturas por idioma, licença MIT e avisos de terceiros.
+  en pt`), README em três idiomas (com capturas da interface em inglês), licença MIT e avisos de terceiros.
 - O trabalho foi feito em paralelo por área (dez agentes, cada um com seus arquivos e dicionários); a
   integração unificou traduções repetidas e corrigiu o que cruzava áreas: o atalho de cada painel é
   buscado pelo id (antes comparava rótulos), e os rótulos de uso, as decisões do Guardião e "Símbolo

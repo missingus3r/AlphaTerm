@@ -136,7 +136,8 @@ the code guide is in `Documentacion\en\Code_Guide.txt` (and its PDF); the log of
 - Documentation: the English and Portuguese versions are in `Documentacion/en|pt`, `CLAUDE.en.md`,
   `CLAUDE.pt.md`, `README.md` (English), `README.es.md` and `README.pt.md`. When a document changes,
   update all three (and their PDFs: `python Documentacion/generar_pdfs.py es en pt`, needs fpdf2).
-  README screenshots per language in `Documentacion/capturas/<language>/`.
+  The README screenshots (the same for all three) show the English interface, in
+  `Documentacion/capturas/`.
 
 ## Decisions already made (don't re-discuss without a reason)
 - Tauri 2 + Rust; Vite + TypeScript + SolidJS 1.9; xterm.js 6 with WebGL (DOM fallback).

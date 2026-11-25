@@ -11,7 +11,11 @@
 
 <p align="center"><b>English</b> · <a href="README.es.md">Español</a> · <a href="README.pt.md">Português</a></p>
 
-![AlphaTerm with three panes, the command suggestions menu and the agents panel](Documentacion/capturas/en/principal.png)
+<p align="center"><b>The app speaks three languages: English, Spanish and Portuguese.</b><br>
+Switch it live in Settings → Language; a new install starts in your Windows language.<br>
+<sub>The screenshots below show the English interface.</sub></p>
+
+![AlphaTerm with three panes, the command suggestions menu and the agents panel](Documentacion/capturas/principal.png)
 
 ## Features
 
@@ -28,12 +32,12 @@
 
 | Agent changes | Browser with element marking |
 | :---: | :---: |
-| <img src="Documentacion/capturas/en/modificaciones.png" width="420" alt="Changes panel with a side-by-side diff"> | <img src="Documentacion/capturas/en/navegador.png" width="400" alt="Built-in browser with a marked button and a request for the agent"> |
+| <img src="Documentacion/capturas/modificaciones.png" width="420" alt="Changes panel with a side-by-side diff"> | <img src="Documentacion/capturas/navegador.png" width="400" alt="Built-in browser with a marked button and a request for the agent"> |
 | **Guardian** | **Servers** |
-| <img src="Documentacion/capturas/en/guardian.png" width="420" alt="The Guardian asking before an rm -rf"> | <img src="Documentacion/capturas/en/servidores.png" width="260" alt="Servers panel with two servers started from AlphaTerm"> |
+| <img src="Documentacion/capturas/guardian.png" width="420" alt="The Guardian asking before an rm -rf"> | <img src="Documentacion/capturas/servidores.png" width="260" alt="Servers panel with two servers started from AlphaTerm"> |
 
 <p align="center">
-  <img src="Documentacion/capturas/en/configuracion.png" width="640" alt="Settings: themes">
+  <img src="Documentacion/capturas/configuracion.png" width="640" alt="Settings: themes">
 </p>
 
 ## Libraries

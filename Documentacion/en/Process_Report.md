@@ -859,8 +859,8 @@ open source.
   `changelog.mjs --faltan`, and `release.mjs` stops if a translation is missing.
 - Documentation in English and Portuguese (`Documentacion/en|pt`, `CLAUDE.en.md`, `CLAUDE.pt.md`,
   ConPTY notices) and their PDFs (`generar_pdfs.py` now generates per language:
-  `python Documentacion/generar_pdfs.py en pt`), README in three languages with screenshots per
-  language, MIT license and third-party notices.
+  `python Documentacion/generar_pdfs.py en pt`), README in three languages (with screenshots of
+  the English interface), MIT license and third-party notices.
 - Work was done in parallel by area (ten agents, each with its own files and dictionaries); the
   integration unified repeated translations and fixed what crossed areas: each panel's shortcut is
   looked up by id (it used to compare labels), and the usage labels, the Guardian decisions and
