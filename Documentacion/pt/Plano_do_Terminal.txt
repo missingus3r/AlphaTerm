@@ -32,7 +32,7 @@ Ambiente detectado:
  - A rede corporativa faz inspeção SSL: o Node precisou de --use-system-ca.
  - O PowerShell bloqueia .ps1, então é preciso usar .cmd.
 
-Primeiro passo ao aprovar: exportar este plano completo paral Escritorio (Plan_Terminal_NovaTerm.txt).  [FEITO 17/11/2026]
+Primeiro passo ao aprovar: exportar este plano completo para a Área de Trabalho (Plan_Terminal_NovaTerm.txt).  [FEITO 17/11/2026]
 
 ====================================================================
 ARQUITETURA

@@ -23,8 +23,8 @@ Regla de honestidad: lo que no esté verificado con datos reales de la máquina 
 
 ## F0 — Preparación (17/11/2026)
 
-**Máquina:** PC de casa (`C:\Users\Br1`), Windows 11 Pro 10.0.26300. El plan se armó en la PC del trabajo
-(`C:\Users\usuario`); las diferencias quedaron en la adenda al final de `Plan_Terminal_NovaTerm.txt`.
+**Máquina:** PC de casa (`C:\Users\Br1`), Windows 11 Pro 10.0.26300. El plan se armó en la PC del
+trabajo; las diferencias quedaron en la adenda al final de `Plan_Terminal_NovaTerm.txt`.
 
 ### Hecho
 - Plan exportado a txt (en la PC del trabajo, 17/11) y copiado a `NovaTerm\Plan_Terminal_NovaTerm.txt`.

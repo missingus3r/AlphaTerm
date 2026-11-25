@@ -25,8 +25,8 @@ Honesty rule: anything not verified with real data from the machine is marked **
 
 ## F0 — Preparation (17/11/2026)
 
-**Machine:** home PC (`C:\Users\Br1`), Windows 11 Pro 10.0.26300. The plan was put together on the work PC
-(`C:\Users\usuario`); the differences were left in the addendum at the end of `Plan_Terminal_NovaTerm.txt`.
+**Machine:** home PC (`C:\Users\Br1`), Windows 11 Pro 10.0.26300. The plan was put together on the work
+PC; the differences were left in the addendum at the end of `Plan_Terminal_NovaTerm.txt`.
 
 ### Done
 - Plan exported to txt (on the work PC, 17/11) and copied to `NovaTerm\Plan_Terminal_NovaTerm.txt`.
