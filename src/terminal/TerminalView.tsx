@@ -100,6 +100,10 @@ interface Block {
 
 export function TerminalView(props: Props) {
   let host!: HTMLDivElement;
+  // xterm opens here, inside the host and without padding: FitAddon measures the height and width of the
+  // terminal's parent with its padding included, so on `.term-host` it gave one row (or column) too many
+  // depending on the size, and the last one was cut off.
+  let fitBox!: HTMLDivElement;
   // Buttons to jump to the start or the end when the output is long.
   const [canTop, setCanTop] = createSignal(false);
   const [canBottom, setCanBottom] = createSignal(false);
@@ -132,7 +136,7 @@ export function TerminalView(props: Props) {
     term.loadAddon(new WebLinksAddon((_e, uri) => void openUrl(uri)));
     term.loadAddon(new Unicode11Addon());
     term.unicode.activeVersion = "11";
-    term.open(host);
+    term.open(fitBox);
     // Paths in the output: links that open the folder or the file, with a preview on mouse hover.
     let cwdNow = props.cwd;
     const pathLinks = registerPathLinks(term, () => cwdNow);
@@ -643,7 +647,9 @@ export function TerminalView(props: Props) {
 
   return (
     <>
-      <div class="term-host" ref={host} />
+      <div class="term-host" ref={host}>
+        <div class="term-fit" ref={fitBox} />
+      </div>
       <div class="jumps">
         <Show when={canTop()}>
           <button class="jump" title={t("Ir al principio de la salida")} onMouseDown={(e) => e.preventDefault()} onClick={() => scrollTo?.("top")}>

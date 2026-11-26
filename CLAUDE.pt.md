@@ -51,6 +51,10 @@ o guia de código em `docs\pt\Code_Guide.txt` (e seu PDF); o registro de cada fa
   painel (`movePane`) é só mudar a árvore: a folha é a mesma e a terminal não é recriada.
   O arraste usa a classe `resizing` do body (esconde o navegador e tira o ponteiro dos
   painéis) mais `pane-dragging`; o Esc é interceptado na captura para não chegar à terminal.
+- O xterm é aberto em `.term-fit`, sem padding, dentro de `.term-host` (que tem a margem): o FitAddon
+  mede a altura e a largura do pai da terminal com o padding incluído. Com o padding no pai, conforme o
+  tamanho sobrava uma linha (a última ficava cortada embaixo, na metade dos tamanhos) e sempre uma
+  coluna.
 - Arrastar e soltar do HTML5 (`draggable`, `onDrop`) não chega à página: no Windows a janela do
   Tauri fica com o arrasto para soltar arquivos (`dragDropEnabled`). Os arrastos vão por ponteiro
   com `startPointerDrag` (`src/layout/paneDrag.ts`): painéis e abas (`tabDrag.ts`; ao lado de uma aba

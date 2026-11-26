@@ -51,6 +51,10 @@ the code guide is in `docs\en\Code_Guide.txt` (and its PDF); the log of each pha
   pane (`movePane`) just changes the tree: the leaf is the same and the terminal is not recreated.
   Dragging uses the body's `resizing` class (hides the browser and removes the pointer from the
   panes) plus `pane-dragging`; Esc is handled in capture so it doesn't reach the terminal.
+- xterm is opened in `.term-fit`, without padding, inside `.term-host` (which has the margin): FitAddon
+  measures the height and width of the terminal's parent with its padding included. With the padding on
+  the parent, depending on the size there was one row too many (the last one was cut off at the bottom,
+  in half of the sizes) and always one column.
 - HTML5 drag and drop (`draggable`, `onDrop`) doesn't reach the page: on Windows the Tauri window
   keeps the drag to drop files (`dragDropEnabled`). Drags go by pointer with `startPointerDrag`
   (`src/layout/paneDrag.ts`): panes and tabs (`tabDrag.ts`; next to a tab it takes that tab's folder,

@@ -979,3 +979,28 @@ events don't reach the page.
 
 ### Stats
 - Tests: Vitest 268 (+12: tab dragging 11, generic drag 1). No Rust changes.
+
+## The terminal's last row is no longer cut off (26/11/2026)
+
+Bruno's report: with AlphaTerm maximized on the vertical monitor, the terminal's last line
+(Claude Code's "auto mode on") was cut in half; on the horizontal one it looked fine.
+
+### What was done
+- Cause: FitAddon computes rows and columns from the height and width of the terminal's parent, with
+  its padding included, and only subtracts the padding of xterm's element. The parent was
+  `.term-host`, with a 6/4/4/12 px margin: depending on the size there was one row too many (the last
+  one was under the footer) and always one or two columns too many (the last one was at the edge or
+  under the scroll ruler).
+- Fix: xterm is opened in an inner box without padding (`.term-fit`) inside `.term-host`, which keeps
+  the margin. xterm wasn't touched.
+
+### Test in the app (separate release with own data and WebView2, CDP on 9333)
+- Maximized on the vertical monitor (1080×1849 usable area), before: the grid measured 1764 px for
+  1755 available (9 px under the footer). After: 1746 of 1755. With 140 lines of output, the prompt is
+  whole as the last row.
+- Sweep of 150 sizes (over CDP, 500 to 1849 px high and 600 to 1080 wide): before, the last row cut
+  in 75 and the grid too wide in all 150; after, in none.
+- Maximized on the horizontal monitor: it fits with 19 px to spare.
+
+### Stats
+- Tests: Vitest 268 (no change: it's about browser measurements, it was tested in the app).

@@ -235,5 +235,9 @@
   "Reordenar pestañas arrastrando, con la barra arriba o a la izquierda": {
     "subject": "Reordenar abas arrastando, com a barra em cima ou à esquerda",
     "body": "- As abas são arrastadas para mudar a ordem, com a barra em cima, à esquerda ou recolhida; uma linha marca onde vão cair e o Esc cancela.\n- Grupos de abas: ao lado de uma aba, ela entra no grupo dessa aba; no cabeçalho de um grupo, fica logo antes do grupo ou dentro dele (também recolhido); depois da última aba, fica solta no final.\n- Com muitas abas, a lista rola sozinha perto de uma borda."
+  },
+  "La última fila de la terminal ya no queda cortada": {
+    "subject": "A última linha da terminal não fica mais cortada",
+    "body": "- Conforme o tamanho da janela, a terminal contava uma linha (e uma coluna) a mais: a última ficava cortada embaixo do rodapé, por exemplo maximizada num monitor vertical."
   }
 }

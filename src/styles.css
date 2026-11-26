@@ -136,6 +136,8 @@ body.pane-dragging, body.pane-dragging * { cursor: grabbing !important; }
 .bp-grip { color: var(--muted); cursor: grab; padding: 0 4px; user-select: none; letter-spacing: -2px; }
 .bp-grip:hover { color: var(--text); }
 .term-host { position: absolute; inset: 0; padding: 6px 4px 4px 12px; }
+/* xterm goes in `.term-fit` (without padding): FitAddon measures its parent with the padding included. */
+.term-fit { height: 100%; }
 .term-host .xterm { height: 100%; }
 /* xterm paints its viewport opaque even if the theme is transparent; the background color is already set
    by the body (with the chosen opacity), so here it is always transparent. */

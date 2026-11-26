@@ -976,3 +976,27 @@ eventos não chegam à página.
 
 ### Stats
 - Testes: Vitest 268 (+12: arrasto de abas 11, arrasto genérico 1). Sem mudanças no Rust.
+
+## A última linha da terminal não fica mais cortada (26/11/2026)
+
+Relato do Bruno: com o AlphaTerm maximizado no monitor vertical, a última linha da terminal
+("auto mode on" do Claude Code) saía cortada pela metade; no horizontal aparecia bem.
+
+### O que foi feito
+- Causa: o FitAddon calcula linhas e colunas com a altura e a largura do pai da terminal, com o
+  padding incluído, e só desconta o padding do elemento do xterm. O pai era `.term-host`, com
+  6/4/4/12 px de margem: conforme o tamanho entrava uma linha a mais (a última ficava embaixo do
+  rodapé) e sempre uma ou duas colunas a mais (a última ficava na borda ou sob a régua de rolagem).
+- Correção: o xterm é aberto numa caixa interna sem padding (`.term-fit`) dentro de `.term-host`, que
+  mantém a margem. O xterm não foi mexido.
+
+### Teste no app (release à parte com dados e WebView2 próprios, CDP na 9333)
+- Maximizado no monitor vertical (1080×1849 de área útil), antes: a grade media 1764 px para 1755
+  disponíveis (9 px embaixo do rodapé). Depois: 1746 de 1755. Com 140 linhas de saída, o prompt fica
+  inteiro como última linha.
+- Varredura de 150 tamanhos (por CDP, de 500 a 1849 px de altura e 600 a 1080 de largura): antes, a
+  última linha cortada em 75 e a grade larga demais nos 150; depois, em nenhum.
+- Maximizado no monitor horizontal: cabe com 19 px de folga.
+
+### Stats
+- Testes: Vitest 268 (sem mudança: é de medidas do navegador, foi testado no app).

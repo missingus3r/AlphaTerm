@@ -979,3 +979,27 @@ funcionaba: en Windows la ventana de Tauri se queda con el arrastre para soltar 
 
 ### Stats
 - Tests: Vitest 268 (+12: arrastre de pestañas 11, arrastre genérico 1). Sin cambios de Rust.
+
+## La última fila de la terminal ya no queda cortada (26/11/2026)
+
+Pedido de Bruno: con AlphaTerm maximizada en el monitor vertical, la última línea de la terminal
+(«auto mode on» de Claude Code) salía cortada por la mitad; en el horizontal se veía bien.
+
+### Qué se hizo
+- Causa: FitAddon calcula filas y columnas con el alto y el ancho del padre de la terminal, con su
+  padding incluido, y solo descuenta el padding del elemento de xterm. El padre era `.term-host`, con
+  6/4/4/12 px de margen: según el tamaño entraba una fila de más (la última quedaba debajo del pie) y
+  siempre una o dos columnas de más (la última quedaba en el borde o bajo la regla de desplazamiento).
+- Arreglo: xterm se abre en una caja interna sin padding (`.term-fit`) dentro de `.term-host`, que
+  conserva el margen. No se tocó xterm.
+
+### Prueba en la app (release aparte con datos y WebView2 propios, CDP en 9333)
+- Maximizada en el monitor vertical (1080×1849 de área útil), antes: la grilla medía 1764 px para
+  1755 disponibles (9 px debajo del pie). Después: 1746 de 1755. Con 140 líneas de salida, el prompt
+  queda entero como última fila.
+- Barrido de 150 tamaños (por CDP, de 500 a 1849 px de alto y 600 a 1080 de ancho): antes, la última
+  fila cortada en 75 y la grilla pasada de ancho en los 150; después, en ninguno.
+- Maximizada en el monitor horizontal: entra con 19 px de sobra.
+
+### Stats
+- Tests: Vitest 268 (sin cambios: es de medidas del navegador, se probó en la app).
