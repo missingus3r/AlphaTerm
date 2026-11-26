@@ -939,3 +939,43 @@ works before publishing it. Done on Ubuntu 26.04 (GNOME), with Rust 1.100 and No
 - Release on Linux: 17 MB binary; startup to the first prompt ~1.2 s and ~265 MB of memory (PSS of
   AlphaTerm and the WebKit processes), on Xvfb with software rendering. The <120 MB and <500 ms goals
   aren't met on Linux either.
+
+## Reordering tabs by dragging (26/11/2026)
+
+Bruno's request: "I also want to be able to change the order of the tabs, horizontal or
+vertical, by dragging them". The bar already had a drag with HTML5 drag and drop, but it didn't
+work: on Windows the Tauri window keeps the drag to drop files (`dragDropEnabled`) and those
+events don't reach the page.
+
+### What was done
+- Dragging tabs now goes by pointer, like the panes: `startPointerDrag` (generic, taken out of
+  `paneDrag.ts`: 5 px threshold; Esc, losing focus or pointercancel cancel; `resizing` on the
+  body), which `startPaneDrag` now uses too.
+- It works the same with the bar on top, on the left and collapsed. An accent-colored line marks
+  where it will land (before or after a tab, before a folder, or at the end); places that change
+  nothing aren't marked. With many tabs, the list scrolls by itself near an edge.
+- Folders: next to a tab, the dragged one takes that tab's folder (or none); on a folder's header,
+  the first half leaves it loose just before it and the second one puts it inside, first (the
+  header is highlighted), also when collapsed; past the last one it's loose at the end. A folder
+  left empty disappears.
+- Model with tests: `TabDrop`, `placeInOrder`, `dropChanges`, `dropTab`; `tabDrag.ts`
+  (`tabDropAt`, `autoScrollStep`) with its own tests.
+
+### Test in the app (separate release with own data and WebView2, CDP on 9333)
+- Bar on top: the first tab dropped on the right half of the third one ends up third; the last
+  one, on the left edge of the first, ends up first. While dragging the body has
+  `resizing tab-dragging` and the target tab shows the mark; on release, the body is clean.
+- Esc mid-drag moves nothing; a click without moving still selects the tab.
+- Bar on the left: the first one to the end and the last one before the second, with the mark
+  below or above the target tab.
+- Folders (created from the tab's menu): dropping on the second half of the header puts it in; on
+  the first half it takes it out and leaves it before; after the folder's last tab it enters at the
+  end; on the collapsed header it enters; on the + button it's loose at the end.
+
+### Pending / not verified
+- With a real mouse: tested with mouse events over CDP (they produce the same pointer events).
+- The tiled side panels (`dock-drop` in `Workspace.tsx`) still use HTML5 drag and drop: for the
+  same reason, they probably don't work. Not touched.
+
+### Stats
+- Tests: Vitest 268 (+12: tab dragging 11, generic drag 1). No Rust changes.

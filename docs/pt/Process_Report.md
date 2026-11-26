@@ -935,3 +935,44 @@ funciona antes de publicá-la. Feito no Ubuntu 26.04 (GNOME), com Rust 1.100 e N
 - Release no Linux: binário de 17 MB; inicialização até o primeiro prompt ~1,2 s e ~265 MB de memória (PSS do
   AlphaTerm e dos processos do WebKit), no Xvfb com renderização por software. As metas de <120 MB e <500 ms
   também não são cumpridas no Linux.
+
+## Reordenar abas arrastando (26/11/2026)
+
+Pedido do Bruno: "quero também poder mudar a ordem das abas, na horizontal ou na vertical,
+arrastando". A barra já tinha um arrasto com drag and drop do HTML5, mas não funcionava: no
+Windows a janela do Tauri fica com o arrasto para soltar arquivos (`dragDropEnabled`) e esses
+eventos não chegam à página.
+
+### O que foi feito
+- O arrasto de abas passa a ser por ponteiro, como o dos painéis: `startPointerDrag` (genérico,
+  tirado de `paneDrag.ts`: limiar de 5 px; Esc, perder o foco ou pointercancel cancelam;
+  `resizing` no body), que agora também é usado por `startPaneDrag`.
+- Funciona igual com a barra em cima, à esquerda e recolhida. Uma linha da cor de destaque marca
+  onde vai cair (antes ou depois de uma aba, antes de uma pasta, ou no final); os lugares que não
+  mudam nada não são marcados. Com muitas abas, a lista rola sozinha perto de uma borda.
+- Pastas: ao lado de uma aba, a arrastada fica na pasta dessa aba (ou em nenhuma); no cabeçalho de
+  uma pasta, a primeira metade a deixa solta logo antes e a segunda a coloca dentro, como primeira
+  (o cabeçalho fica destacado), também se estiver recolhida; depois da última fica solta no final.
+  A pasta que fica vazia desaparece.
+- Modelo com testes: `TabDrop`, `placeInOrder`, `dropChanges`, `dropTab`; `tabDrag.ts`
+  (`tabDropAt`, `autoScrollStep`) com testes próprios.
+
+### Teste no app (release à parte com dados e WebView2 próprios, CDP na 9333)
+- Barra em cima: a primeira aba solta na metade direita da terceira fica em terceiro; a última, na
+  borda esquerda da primeira, fica em primeiro. Durante o arrasto o body tem
+  `resizing tab-dragging` e a aba de destino mostra a marca; ao soltar, o body fica limpo.
+- Esc no meio do arrasto não move nada; um clique sem mover continua selecionando a aba.
+- Barra à esquerda: a primeira para o final e a última antes da segunda, com a marca embaixo ou em
+  cima da aba de destino.
+- Pastas (criada pelo menu da aba): soltar na segunda metade do cabeçalho a coloca dentro; na
+  primeira metade a tira e a deixa antes; depois da última da pasta entra no final; sobre o
+  cabeçalho recolhido entra; sobre o botão + fica solta no final.
+
+### Pendente / não verificado
+- Com o mouse de verdade: testado com eventos de mouse por CDP (geram os mesmos eventos de
+  ponteiro).
+- Os painéis laterais do mosaico (`dock-drop` em `Workspace.tsx`) continuam com drag and drop do
+  HTML5: pelo mesmo motivo, provavelmente não funcionam. Não foram mexidos.
+
+### Stats
+- Testes: Vitest 268 (+12: arrasto de abas 11, arrasto genérico 1). Sem mudanças no Rust.

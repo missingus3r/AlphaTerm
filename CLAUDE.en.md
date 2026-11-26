@@ -51,6 +51,10 @@ the code guide is in `docs\en\Code_Guide.txt` (and its PDF); the log of each pha
   pane (`movePane`) just changes the tree: the leaf is the same and the terminal is not recreated.
   Dragging uses the body's `resizing` class (hides the browser and removes the pointer from the
   panes) plus `pane-dragging`; Esc is handled in capture so it doesn't reach the terminal.
+- HTML5 drag and drop (`draggable`, `onDrop`) doesn't reach the page: on Windows the Tauri window
+  keeps the drag to drop files (`dragDropEnabled`). Drags go by pointer with `startPointerDrag`
+  (`src/layout/paneDrag.ts`): panes and tabs (`tabDrag.ts`; next to a tab it takes that tab's folder,
+  on a folder's header: before it or into it).
 - `window.confirm` does NOT ask: Tauri's dialog plugin replaces it with an async function
   (it returns a promise, which is always "yes") and the `dialog:allow-confirm` permission is missing. Use
   `askConfirm` (`src/widgets/confirm.ts`), which asks inside the app (`ConfirmModal`, mounted

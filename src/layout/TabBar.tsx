@@ -2,7 +2,9 @@ import { profileLabel } from "../terminal/pty";
 import { createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js";
 import { Marquee } from "./Marquee";
 import type { Profile } from "../terminal/pty";
-import type { Group } from "./model";
+import { dropChanges, type Group, type TabDrop } from "./model";
+import { startPointerDrag, type DragPoint } from "./paneDrag";
+import { autoScrollStep, tabDropAt, type TabSlot } from "./tabDrag";
 import { DEFAULTS, LIMITS } from "../settings/schema";
 import { k, t } from "../i18n";
 
@@ -44,7 +46,8 @@ interface Props {
   onNewTabProfile: (profileId: string) => void;
   onStartRename: (id: string) => void;
   onRename: (id: string, title: string | null) => void;
-  onMove: (id: string, toIndex: number) => void;
+  /** A dragged tab was dropped somewhere that changes the order or its folder. */
+  onDrop: (id: string, drop: TabDrop) => void;
   onToggleBar: () => void;
   onNewWindow: () => void;
   onSettings: () => void;
@@ -75,7 +78,60 @@ const STATUS_LABEL: Record<TabStatus, string> = {
 export const tabInitial = (title: string) => (title.match(/[\p{L}\p{N}]/u)?.[0] ?? "·").toUpperCase();
 
 export function TabBar(props: Props) {
+  // Dragging a tab to reorder it: by pointer, like the panes (HTML5 drag and drop doesn't reach the page).
   const [dragId, setDragId] = createSignal<string | null>(null);
+  const [hover, setHover] = createSignal<TabDrop | null>(null);
+  let tabsEl!: HTMLDivElement;
+  const slots = (): TabSlot[] =>
+    [...tabsEl.querySelectorAll<HTMLElement>(":scope > [data-slot]")].map((el) => {
+      const r = el.getBoundingClientRect();
+      return { kind: el.dataset.slot as TabSlot["kind"], id: el.dataset.id!, start: props.vertical ? r.top : r.left, end: props.vertical ? r.bottom : r.right };
+    });
+  /** Which half of this tab or header the drop would go to (to draw the mark). */
+  const hoverOn = (kind: "tab" | "group", id: string) => {
+    const h = hover();
+    return h && h.kind !== "end" && h.kind === kind && h.id === id ? h.side : null;
+  };
+  const startTabDrag = (e: PointerEvent, id: string) => {
+    let last: DragPoint | null = null;
+    let raf = 0;
+    const dropAt = (p: DragPoint) => {
+      const d = tabDropAt(slots(), props.vertical ? p.clientY : p.clientX);
+      return d && dropChanges(props.tabs, id, d) ? d : null;
+    };
+    // With the pointer near an edge of the list, it scrolls (many tabs don't fit in the bar).
+    const scroll = () => {
+      raf = 0;
+      if (!last) return;
+      const r = tabsEl.getBoundingClientRect();
+      const step = props.vertical ? autoScrollStep(last.clientY, r.top, r.bottom) : autoScrollStep(last.clientX, r.left, r.right);
+      const before = props.vertical ? tabsEl.scrollTop : tabsEl.scrollLeft;
+      if (props.vertical) tabsEl.scrollTop += step;
+      else tabsEl.scrollLeft += step;
+      if ((props.vertical ? tabsEl.scrollTop : tabsEl.scrollLeft) === before) return;
+      setHover(dropAt(last));
+      raf = requestAnimationFrame(scroll);
+    };
+    startPointerDrag({
+      e: { button: e.button, clientX: e.clientX, clientY: e.clientY, pointerId: e.pointerId, target: e.currentTarget },
+      bodyClass: "tab-dragging",
+      onMove: (p) => {
+        setDragId(id);
+        last = p;
+        setHover(dropAt(p));
+        if (!raf) raf = requestAnimationFrame(scroll);
+      },
+      onEnd: (p) => {
+        cancelAnimationFrame(raf);
+        last = null;
+        const d = p && dropAt(p);
+        setHover(null);
+        setDragId(null);
+        if (d) props.onDrop(id, d);
+      },
+      onClick: () => {},
+    });
+  };
   const compact = () => props.vertical && !!props.collapsed;
   // Width of the vertical bar: while the edge is dragged it lives here; on release it's saved.
   const [dragW, setDragW] = createSignal<number | null>(null);
@@ -162,7 +218,7 @@ export function TabBar(props: Props) {
           </svg>
         </button>
       </Show>
-      <div class="tabs" role="tablist" aria-orientation={props.vertical ? "vertical" : "horizontal"}>
+      <div class="tabs" ref={tabsEl} role="tablist" aria-orientation={props.vertical ? "vertical" : "horizontal"}>
         <For each={props.tabs}>
           {(tab, i) => (
             <>
@@ -174,18 +230,18 @@ export function TabBar(props: Props) {
                 return (
                   <div
                     class="tab-group"
-                    classList={{ collapsed: g()?.collapsed, "has-active": hasActive() }}
+                    data-slot="group"
+                    data-id={tab.groupId}
+                    classList={{
+                      collapsed: g()?.collapsed,
+                      "has-active": hasActive(),
+                      "drop-before": hoverOn("group", tab.groupId!) === "before",
+                      "drop-into": hoverOn("group", tab.groupId!) === "into",
+                    }}
                     style={{ "--gcolor": g()?.color ?? "var(--muted)" }}
                     title={t("{name} · {n} pestañas (clic: plegar/desplegar; clic derecho: opciones)", { name: g()?.name ?? t("Carpeta"), n: count() })}
                     onClick={() => g() && props.onGroupUpdate(g()!.id, { collapsed: !g()!.collapsed })}
                     onContextMenu={(e) => g() && openMenu(e, "group", g()!.id)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const id = dragId();
-                      if (id && g()) props.onGroupMove(id, g()!.id);
-                      setDragId(null);
-                    }}
                   >
                     <span class="caret">{g()?.collapsed ? "▸" : "▾"}</span>
                     <span class="group-name">{compact() ? tabInitial(g()?.name ?? t("Carpeta")) : (g()?.name ?? t("Carpeta"))}</span>
@@ -197,24 +253,24 @@ export function TabBar(props: Props) {
             <Show when={!groupOf(tab.groupId)?.collapsed}>
             <div
               class="tab"
+              data-slot="tab"
+              data-id={tab.id}
               style={{ "--tcolor": tab.color ?? groupOf(tab.groupId)?.color ?? "transparent" }}
               onContextMenu={(e) => openMenu(e, "tab", tab.id)}
               role="tab"
               aria-selected={tab.id === props.activeId}
-              classList={{ active: tab.id === props.activeId, dragging: dragId() === tab.id, grouped: !!tab.groupId }}
-              title={`${tab.tooltip}\n${t(STATUS_LABEL[tab.status])}`}
-              draggable={props.editingId !== tab.id}
-              onDragStart={(e) => {
-                setDragId(tab.id);
-                e.dataTransfer?.setData("text/plain", tab.id);
+              classList={{
+                active: tab.id === props.activeId,
+                dragging: dragId() === tab.id,
+                grouped: !!tab.groupId,
+                "drop-before": hoverOn("tab", tab.id) === "before",
+                "drop-after": hoverOn("tab", tab.id) === "after",
               }}
-              onDragEnd={() => setDragId(null)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                const id = dragId();
-                if (id && id !== tab.id) props.onMove(id, i());
-                setDragId(null);
+              title={`${tab.tooltip}\n${t(STATUS_LABEL[tab.status])}`}
+              onPointerDown={(e) => {
+                // Not from the close button or while renaming (there the pointer selects text).
+                if (props.editingId === tab.id || (e.target as HTMLElement).closest?.(".close, input")) return;
+                startTabDrag(e, tab.id);
               }}
               onMouseDown={(e) => {
                 if (e.button === 1) {
@@ -275,7 +331,7 @@ export function TabBar(props: Props) {
             </>
           )}
         </For>
-        <div class="new-tab">
+        <div class="new-tab" classList={{ "drop-end": hover()?.kind === "end" }}>
           <button class="btn add" title={t("Pestaña nueva (Ctrl+Shift+T)")} onClick={() => props.onNew()}>
             {/* Drawn: the "+" character isn't centered in every font. */}
             <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">

@@ -49,6 +49,10 @@ la guía de código en `docs\es\Code_Guide.txt` (y su PDF); el registro de cada 
   panel (`movePane`) es solo cambiar el árbol: la hoja es la misma y la terminal no se recrea.
   El arrastre usa la clase `resizing` del body (esconde el navegador y quita el puntero a los
   paneles) más `pane-dragging`; Esc se ataja en captura para que no le llegue a la terminal.
+- Arrastrar y soltar de HTML5 (`draggable`, `onDrop`) no le llega a la página: en Windows la ventana
+  de Tauri se queda con el arrastre para soltar archivos (`dragDropEnabled`). Los arrastres van por
+  puntero con `startPointerDrag` (`src/layout/paneDrag.ts`): paneles y pestañas (`tabDrag.ts`; junto
+  a una pestaña toma su carpeta, en la cabecera de una carpeta: antes de ella o adentro).
 - `window.confirm` NO pregunta: el plugin de diálogos de Tauri lo reemplaza por una función async
   (devuelve una promesa, que siempre es "sí") y falta el permiso `dialog:allow-confirm`. Usar
   `askConfirm` (`src/widgets/confirm.ts`), que pregunta dentro de la app (`ConfirmModal`, montado

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { startPaneDrag, type DragEnv } from "./paneDrag";
+import { startPaneDrag, startPointerDrag, type DragEnv } from "./paneDrag";
 import type { Rect } from "./model";
 
 /** Fake window and body: the controller only listens to events and sets classes. */
@@ -74,6 +74,24 @@ describe("arrastrar paneles", () => {
       expect(d.onDrop).not.toHaveBeenCalled();
     });
   }
+
+  it("el arrastre genérico (el de las pestañas) usa su clase y avisa el punto o la cancelación", () => {
+    const f = fakeEnv();
+    const cb = { onMove: vi.fn(), onEnd: vi.fn(), onClick: vi.fn() };
+    startPointerDrag({ e: { button: 0, clientX: 10, clientY: 10 }, bodyClass: "tab-dragging", ...cb }, f.env);
+    f.fire("pointermove", { clientX: 40, clientY: 12 });
+    expect([...f.classes].sort()).toEqual(["resizing", "tab-dragging"]);
+    expect(cb.onMove).toHaveBeenLastCalledWith(expect.objectContaining({ clientX: 40 }));
+    f.fire("pointerup", { clientX: 60, clientY: 12 });
+    expect(cb.onEnd).toHaveBeenLastCalledWith(expect.objectContaining({ clientX: 60 }));
+    expect(f.classes.size).toBe(0);
+
+    startPointerDrag({ e: { button: 0, clientX: 10, clientY: 10 }, bodyClass: "tab-dragging", ...cb }, f.env);
+    f.fire("pointermove", { clientX: 40, clientY: 12 });
+    f.fire("keydown", { key: "Escape" });
+    expect(cb.onEnd).toHaveBeenLastCalledWith(null);
+    expect(cb.onClick).not.toHaveBeenCalled();
+  });
 
   it("solo con el botón izquierdo", () => {
     const d = begin(2);

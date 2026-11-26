@@ -907,7 +907,7 @@ export function Workspace(props: { info: TermInfo; store: SettingsStore; look: T
           const pid = activePaneId();
           if (pid) setTimeout(() => handles.get(pid)?.focus(), 0);
         }}
-        onMove={(id, to) => update((x) => M.moveTab(x, id, to))}
+        onDrop={(id, drop) => update((x) => M.dropTab(x, id, drop))}
         groups={layout().groups ?? []}
         onColor={(id, c) => update((x) => M.setTabColor(x, id, c))}
         onGroupNew={(id) => {

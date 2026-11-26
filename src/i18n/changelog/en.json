@@ -231,5 +231,9 @@
   "Linux: documentación en tres idiomas": {
     "subject": "Linux: documentation in three languages",
     "body": "- README, CLAUDE.md, code guide and process report: how to build and install on Linux, what changes there and how it was tested."
+  },
+  "Reordenar pestañas arrastrando, con la barra arriba o a la izquierda": {
+    "subject": "Reorder tabs by dragging, with the bar on top or on the left",
+    "body": "- Tabs are dragged to change their order, with the bar on top, on the left or collapsed; a line marks where they will land and Esc cancels.\n- Tab groups: next to a tab, it joins that tab's group; on a group's header, it goes just before the group or into it (also when collapsed); past the last tab, it's loose at the end.\n- With many tabs, the list scrolls by itself near an edge."
   }
 }

@@ -937,3 +937,45 @@ todo funcione antes de publicarla. Se hizo en Ubuntu 26.04 (GNOME), con Rust 1.1
 - Release en Linux: binario de 17 MB; arranque hasta el primer prompt ~1,2 s y ~265 MB de memoria (PSS de
   AlphaTerm y los procesos de WebKit), en Xvfb con render por software. Las metas de <120 MB y <500 ms
   tampoco se cumplen en Linux.
+
+## Reordenar pestañas arrastrando (26/11/2026)
+
+Pedido de Bruno: "quiero que también el poder cambiar el orden de las tabs, en horizontal o
+vertical, arrastrándolas". La barra ya tenía un arrastre con drag and drop de HTML5, pero no
+funcionaba: en Windows la ventana de Tauri se queda con el arrastre para soltar archivos
+(`dragDropEnabled`) y esos eventos no le llegan a la página.
+
+### Qué se hizo
+- El arrastre de pestañas pasa a ser por puntero, como el de los paneles: `startPointerDrag`
+  (genérico, sacado de `paneDrag.ts`: umbral de 5 px; Esc, perder el foco o pointercancel cancelan;
+  `resizing` en el body), que ahora usa también `startPaneDrag`.
+- Anda igual con la barra arriba, a la izquierda y plegada. Una línea del color de acento marca
+  dónde va a caer (antes o después de una pestaña, antes de una carpeta, o al final); los lugares
+  que no cambian nada no se marcan. Con muchas pestañas, la lista se desplaza sola al acercarse a
+  un borde.
+- Carpetas: junto a una pestaña, la arrastrada toma su carpeta (o ninguna); en la cabecera de una
+  carpeta, la primera mitad la deja suelta justo antes y la segunda la mete adentro, primera (se
+  resalta la cabecera), también si está plegada; más allá de la última queda suelta al final. La
+  carpeta que queda vacía desaparece.
+- Modelo con tests: `TabDrop`, `placeInOrder`, `dropChanges`, `dropTab`; `tabDrag.ts`
+  (`tabDropAt`, `autoScrollStep`) con tests propios.
+
+### Prueba en la app (release aparte con datos y WebView2 propios, CDP en 9333)
+- Barra arriba: la primera pestaña soltada en la mitad derecha de la tercera queda tercera; la
+  última, en el borde izquierdo de la primera, queda primera. Durante el arrastre el body tiene
+  `resizing tab-dragging` y la pestaña destino la marca; al soltar, el body queda limpio.
+- Esc a mitad de arrastre no mueve nada; un clic sin mover sigue seleccionando la pestaña.
+- Barra a la izquierda: la primera al final y la última antes de la segunda, con la marca abajo o
+  arriba de la pestaña destino.
+- Carpetas (creada desde el menú de la pestaña): soltar en la segunda mitad de la cabecera la mete;
+  en la primera mitad la saca y la deja antes; después de la última de la carpeta entra al final;
+  sobre la cabecera plegada entra; sobre el botón + queda suelta al final.
+
+### Pendiente / no verificado
+- Con el mouse de verdad: se probó con eventos de mouse por CDP (generan los mismos eventos de
+  puntero).
+- Los paneles laterales del mosaico (`dock-drop` en `Workspace.tsx`) siguen con drag and drop de
+  HTML5: por lo mismo, probablemente no anden. No se tocaron.
+
+### Stats
+- Tests: Vitest 268 (+12: arrastre de pestañas 11, arrastre genérico 1). Sin cambios de Rust.

@@ -233,6 +233,53 @@ export function moveTab(l: Layout, tabId: string, toIndex: number): Layout {
   return { ...l, tabs };
 }
 
+/**
+ * Where a dragged tab is dropped: next to a tab (it takes that tab's folder), on a folder's
+ * header (its first half: just before the folder, loose; the second one: into it, first), or
+ * past the last one (loose, at the end).
+ */
+export type TabDrop =
+  | { kind: "tab"; id: string; side: "before" | "after" }
+  | { kind: "group"; id: string; side: "before" | "into" }
+  | { kind: "end" };
+
+/** The new order (and folder) of the tabs after dropping `tabId`; the same array if it doesn't apply. */
+export function placeInOrder<T extends { id: string; groupId?: string }>(tabs: T[], tabId: string, drop: TabDrop): T[] {
+  const from = tabs.findIndex((t) => t.id === tabId);
+  if (from < 0) return tabs;
+  const rest = tabs.filter((_, i) => i !== from);
+  let at: number;
+  let groupId: string | undefined;
+  if (drop.kind === "tab") {
+    const i = rest.findIndex((t) => t.id === drop.id);
+    if (i < 0) return tabs; // includes dropping it on itself
+    at = drop.side === "before" ? i : i + 1;
+    groupId = rest[i].groupId;
+  } else if (drop.kind === "group") {
+    const i = rest.findIndex((t) => t.groupId === drop.id);
+    if (i < 0 && tabs[from].groupId !== drop.id) return tabs;
+    at = i < 0 ? from : i; // it was the folder's only tab: it stays in its place
+    groupId = drop.side === "into" ? drop.id : undefined;
+  } else {
+    at = rest.length;
+    groupId = undefined;
+  }
+  rest.splice(at, 0, { ...tabs[from], groupId });
+  return rest;
+}
+
+/** True if dropping there changes the order or the folder of some tab. */
+export function dropChanges(tabs: { id: string; groupId?: string }[], tabId: string, drop: TabDrop): boolean {
+  const out = placeInOrder(tabs, tabId, drop);
+  return out.some((t, i) => t.id !== tabs[i].id || t.groupId !== tabs[i].groupId);
+}
+
+/** Drops a dragged tab (see `TabDrop`); a folder left empty disappears. */
+export function dropTab(l: Layout, tabId: string, drop: TabDrop): Layout {
+  const tabs = placeInOrder(l.tabs, tabId, drop);
+  return tabs === l.tabs ? l : pruneGroups(compact({ ...l, tabs }));
+}
+
 export function renameTab(l: Layout, tabId: string, title: string): Layout {
   const clean = title.trim();
   return mapTab(l, tabId, (t) => ({ ...t, manualTitle: clean || undefined }));
