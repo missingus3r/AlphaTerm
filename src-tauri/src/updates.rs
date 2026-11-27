@@ -37,6 +37,12 @@ pub fn home_dir_from(get: impl Fn(&str) -> Option<OsString>, windows: bool) -> O
     Some(base.join("app-versions"))
 }
 
+/// Dev builds (`tauri dev`, usually an older version than the published one) would otherwise move and rebuild
+/// the real clone in the background; they only check when APP_VERSIONS_HOME points at a test folder.
+pub fn should_check(debug_build: bool, has_override: bool) -> bool {
+    !debug_build || has_override
+}
+
 fn home_dir() -> Option<PathBuf> {
     home_dir_from(|k| std::env::var_os(k), cfg!(windows))
 }
@@ -74,6 +80,9 @@ fn run_script(repo: &Path, script: &str, args: Vec<String>) -> Result<(), String
 /// Without app-versions on this computer (or without node), nothing happens and nothing is shown.
 pub fn start(app: AppHandle) {
     let version = app.package_info().version.to_string();
+    if !should_check(cfg!(debug_assertions), std::env::var_os("APP_VERSIONS_HOME").is_some()) {
+        return;
+    }
     std::thread::spawn(move || {
         std::thread::sleep(START_DELAY);
         let Some(repo) = home_dir().and_then(|h| versions_repo(&h)) else { return };
@@ -152,6 +161,13 @@ mod tests {
         assert!(read_status(&home).is_none(), "half-written file");
         std::fs::write(home.join("status").join("alphaterm.json"), "{\"state\":\"building\",\"version\":\"0.8.3\"}").unwrap();
         assert_eq!(read_status(&home).unwrap()["version"], "0.8.3");
+    }
+
+    #[test]
+    fn dev_builds_only_check_against_a_test_folder() {
+        assert!(should_check(false, false), "release builds always check");
+        assert!(!should_check(true, false), "tauri dev of an old version must not rebuild the real clone");
+        assert!(should_check(true, true), "with APP_VERSIONS_HOME (a test folder) dev builds check too");
     }
 
     #[test]

@@ -251,5 +251,9 @@
   "Aviso de actualización en el pie": {
     "subject": "Aviso de atualização no rodapé",
     "body": "- Ao lado da versão: atualizando (com a etapa), instalada, por que este PC não consegue se atualizar sozinho, ou que falhou, com Ver mudanças, Ver registro e Tentar de novo."
+  },
+  "La versión de desarrollo no dispara actualizaciones": {
+    "subject": "A versão de desenvolvimento não dispara atualizações",
+    "body": "- tauri dev (geralmente uma versão mais antiga que a publicada) não move nem recompila mais o clone real; só verifica contra uma pasta de teste (APP_VERSIONS_HOME)."
   }
 }
