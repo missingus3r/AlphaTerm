@@ -21,6 +21,7 @@ pub mod session;
 pub mod settings;
 pub mod suggest;
 pub mod sysmon;
+pub mod updates;
 pub mod usage;
 pub mod usage_live;
 #[cfg(target_os = "linux")]
@@ -100,6 +101,7 @@ pub fn run() {
             settings::SettingsState::watch(app.handle().clone());
             control::start(app.handle().clone());
             app.state::<changes::ChangesState>().start(app.handle().clone());
+            updates::start(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -183,6 +185,9 @@ pub fn run() {
             llm::llm_summarize,
             bench_mark,
             app_info,
+            updates::update_status,
+            updates::update_retry,
+            updates::update_open_log,
             clip::clipboard_image_to_file,
             guardian::guardian_open,
             guardian::guardian_log,

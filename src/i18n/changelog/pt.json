@@ -243,5 +243,9 @@
   "Publicar las versiones en el repo de versiones": {
     "subject": "Publicar as versões no repositório de versões",
     "body": "- Gerar uma versão agora a publica: antes de mudar qualquer coisa verifica se é possível (em main, em dia com o GitHub, tag livre) e, depois de instalar, sobe main e a tag e registra a versão no app-versions.\n- A instalação registra onde está o código neste PC, para que o outro PC possa se atualizar sozinho."
+  },
+  "Chequeo de versión nueva al arrancar": {
+    "subject": "Verificação de versão nova ao iniciar",
+    "body": "- Ao abrir, o AlphaTerm pergunta ao app-versions se há uma versão mais nova; se o código deste PC estiver limpo, ele se atualiza sozinho em segundo plano."
   }
 }
