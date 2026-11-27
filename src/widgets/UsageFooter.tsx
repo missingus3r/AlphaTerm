@@ -8,6 +8,7 @@ import { headline, PROVIDER_NAMES, type ProviderId } from "./usage";
 import { listenUsage, loadUsage, usageBusy, usageError, usageOf } from "./usageStore";
 import { UsageDetail, windowName } from "./UsageDetail";
 import { appInfo, versionTooltip } from "./appInfo";
+import { UpdateNotice } from "./UpdateNotice";
 import { ChangelogModal } from "./ChangelogModal";
 import { t } from "../i18n";
 import { pathSegments } from "./pathSegments";
@@ -169,6 +170,7 @@ export function UsageFooter(props: { usage: Settings["usage"]; onSettings: () =>
         <button class="usage-gear" title={t("Configurar el consumo")} onClick={props.onSettings}>
           ⚙
         </button>
+        <UpdateNotice />
         <Version onClick={props.onSettings} />
         <Novedades />
       </div>

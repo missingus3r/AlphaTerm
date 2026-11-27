@@ -1,0 +1,16 @@
+{
+  "Actualizando a {version}…": "Updating to {version}…",
+  "bajando": "downloading",
+  "dependencias": "dependencies",
+  "compilando": "building",
+  "AlphaTerm {version} instalada: se usa la próxima vez que la abras": "AlphaTerm {version} installed: it's used the next time you open it",
+  "Hay {version}, pero en esta PC tenés cambios sin subir": "{version} is out, but this computer has changes not pushed yet",
+  "Hay {version}, pero esta PC está en la rama {branch}": "{version} is out, but this computer is on the {branch} branch",
+  "Hay {version}, pero el código de esta PC está más adelante": "{version} is out, but this computer's code is ahead of it",
+  "Hay {version}, pero esta PC no puede actualizarse sola": "{version} is out, but this computer can't update itself",
+  "No se pudo actualizar a {version}": "Couldn't update to {version}",
+  "Ver cambios": "See changes",
+  "Ver registro": "See log",
+  "Reintentar": "Retry",
+  "Qué trae {version}": "What {version} brings"
+}

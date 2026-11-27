@@ -1,0 +1,16 @@
+{
+  "Actualizando a {version}…": "Atualizando para {version}…",
+  "bajando": "baixando",
+  "dependencias": "dependências",
+  "compilando": "compilando",
+  "AlphaTerm {version} instalada: se usa la próxima vez que la abras": "AlphaTerm {version} instalado: é usado na próxima vez que você abrir",
+  "Hay {version}, pero en esta PC tenés cambios sin subir": "Saiu a {version}, mas este PC tem mudanças não enviadas",
+  "Hay {version}, pero esta PC está en la rama {branch}": "Saiu a {version}, mas este PC está na branch {branch}",
+  "Hay {version}, pero el código de esta PC está más adelante": "Saiu a {version}, mas o código deste PC está mais adiante",
+  "Hay {version}, pero esta PC no puede actualizarse sola": "Saiu a {version}, mas este PC não consegue se atualizar sozinho",
+  "No se pudo actualizar a {version}": "Não foi possível atualizar para {version}",
+  "Ver cambios": "Ver mudanças",
+  "Ver registro": "Ver registro",
+  "Reintentar": "Tentar de novo",
+  "Qué trae {version}": "O que a {version} traz"
+}

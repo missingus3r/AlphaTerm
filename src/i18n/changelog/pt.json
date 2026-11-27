@@ -247,5 +247,9 @@
   "Chequeo de versión nueva al arrancar": {
     "subject": "Verificação de versão nova ao iniciar",
     "body": "- Ao abrir, o AlphaTerm pergunta ao app-versions se há uma versão mais nova; se o código deste PC estiver limpo, ele se atualiza sozinho em segundo plano."
+  },
+  "Aviso de actualización en el pie": {
+    "subject": "Aviso de atualização no rodapé",
+    "body": "- Ao lado da versão: atualizando (com a etapa), instalada, por que este PC não consegue se atualizar sozinho, ou que falhou, com Ver mudanças, Ver registro e Tentar de novo."
   }
 }

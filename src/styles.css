@@ -641,6 +641,23 @@ body.tab-dragging, body.tab-dragging * { cursor: grabbing !important; }
 .app-version:hover { color: var(--text); background: var(--tab-hover); }
 .app-version .dirty { color: #e5b44f; }
 
+/* Update notice (app-versions), left of the version: one line, flat; the changes open above it. */
+.update-notice { position: relative; display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 46ch; font-size: 11px; color: var(--muted); padding: 1px 2px 1px 6px; border-radius: 4px; }
+.update-notice .un-dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.update-notice.updating .un-dot { animation: un-pulse 1.4s ease-in-out infinite; }
+.update-notice.installed .un-dot { background: var(--ok); }
+.update-notice.blocked .un-dot { background: #e5b44f; }
+.update-notice.failed .un-dot { background: var(--err); }
+.update-notice .un-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.update-notice .un-step { color: var(--muted); }
+.update-notice .un-btn { flex: none; background: none; border: 0; padding: 1px 4px; border-radius: 4px; font: inherit; color: var(--accent); cursor: pointer; white-space: nowrap; }
+.update-notice .un-btn:hover, .update-notice .un-close:hover { background: var(--tab-hover); }
+.update-notice .un-close { flex: none; background: none; border: 0; padding: 0 4px; border-radius: 4px; font: inherit; font-size: 13px; line-height: 1; color: var(--muted); cursor: pointer; }
+.update-notice .un-changes { position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 30; width: 360px; max-height: 260px; overflow: auto; padding: 10px 12px; border-radius: 8px; background: var(--bar); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); color: var(--text); white-space: normal; }
+.update-notice .un-changes-title { font-weight: 600; margin-bottom: 6px; }
+.update-notice .un-changes ul { margin: 0; padding-left: 16px; display: grid; gap: 3px; }
+@keyframes un-pulse { 50% { opacity: 0.35; } }
+
 /* --- Agent launch options (agents panel) --- */
 .icon-btn.on { color: var(--accent); }
 .agent-options { gap: 10px; }

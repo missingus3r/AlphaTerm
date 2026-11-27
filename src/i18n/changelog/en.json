@@ -247,5 +247,9 @@
   "Chequeo de versión nueva al arrancar": {
     "subject": "Check for a new version on startup",
     "body": "- On opening, AlphaTerm asks app-versions whether a newer version is out; if this computer's code is clean, it updates itself in the background."
+  },
+  "Aviso de actualización en el pie": {
+    "subject": "Update notice in the footer",
+    "body": "- Next to the version: updating (with its step), installed, why this computer can't update by itself, or that it failed, with See changes, See log and Retry."
   }
 }
