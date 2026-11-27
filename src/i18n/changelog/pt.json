@@ -255,5 +255,9 @@
   "La versión de desarrollo no dispara actualizaciones": {
     "subject": "A versão de desenvolvimento não dispara atualizações",
     "body": "- tauri dev (geralmente uma versão mais antiga que a publicada) não move nem recompila mais o clone real; só verifica contra uma pasta de teste (APP_VERSIONS_HOME)."
+  },
+  "Aviso de actualización como cartel flotante sobre el pie": {
+    "subject": "Aviso de atualização como cartão flutuante sobre o rodapé",
+    "body": "- O rodapé já estava cheio em ~1100 px: o aviso ficava cortado e empurrava Novidades para fora. Agora flutua sobre o canto direito do rodapé, com o texto inteiro e as mudanças abrindo acima."
   }
 }

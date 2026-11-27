@@ -255,5 +255,9 @@
   "La versión de desarrollo no dispara actualizaciones": {
     "subject": "The development build doesn't trigger updates",
     "body": "- tauri dev (usually an older version than the published one) no longer moves and rebuilds the real clone; it only checks against a test folder (APP_VERSIONS_HOME)."
+  },
+  "Aviso de actualización como cartel flotante sobre el pie": {
+    "subject": "Update notice as a floating card above the footer",
+    "body": "- The footer was already full at ~1100 px: the notice got cut off and pushed What's new out. It now floats above the footer's right end, with the whole text and the changes opening above it."
   }
 }
