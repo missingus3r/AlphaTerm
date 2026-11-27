@@ -20,6 +20,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { registerHere } from "./app-versions.mjs";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (name) => {
@@ -63,6 +64,8 @@ function install() {
 }
 
 const dir = install();
+// app-versions: this computer's copy of the code is here (the updater rebuilds from it).
+registerHere(repo);
 const old = fs.existsSync(base) ? fs.readdirSync(base).filter((d) => path.join(base, d) !== dir) : [];
 const done = () => {
   console.log(`\nAlphaTerm ${version} instalada en ${dir}.`);

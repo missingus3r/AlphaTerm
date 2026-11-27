@@ -122,6 +122,21 @@ o guia de código em `docs\pt\Code_Guide.txt` (e seu PDF); o registro de cada fa
   pelo silêncio da terminal depois de terem trabalhado. Com `--remote-debugging-port`, o
   navegador filho aparece como outro target em `/json` (serve para testar).
 
+## Atualizações entre PCs (app-versions, desde 0.8.3)
+- Gerar uma versão a publica. Antes de mudar qualquer coisa, `release.mjs` roda
+  `<app-versions>/bin/publish.mjs alphaterm --preflight`: precisa estar em `main`, não atrás do GitHub e com a
+  tag livre; senão, para sem mudar nada. Depois de instalar roda `publish.mjs alphaterm --version X` (push de
+  `main` e da tag pelo nome, e a ficha em github.com/missingus3r/app-versions). Se a publicação falhar, a
+  versão fica instalada e a mensagem diz como tentar de novo. `--misma` não publica.
+- Sem app-versions no PC (`%LOCALAPPDATA%\app-versions\config.json` ou `~/.local/share/app-versions/config.json`)
+  não dá para gerar versão: clonar app-versions e rodar `node bin/setup.mjs`.
+- `install.mjs` registra nesse config onde está este repo (`scripts/app-versions.mjs`, o mesmo arquivo em
+  cada app, exceto `APP_ID`).
+- Ao iniciar, `src-tauri/src/updates.rs` lança `check.mjs alphaterm --current <v>` (uma vez por processo, sem
+  janela). Se houver versão nova e o repo deste PC estiver limpo, `update.mjs` o leva à tag exata e roda
+  `release.mjs --misma`. O aviso do rodapé (`src/widgets/UpdateNotice.tsx`) lê `status/alphaterm.json` dessa
+  pasta. Para testar o aviso: `APP_VERSIONS_HOME=<pasta>` com um `status/alphaterm.json` feito à mão.
+
 ## Linux (desde 0.8.0)
 - O que depende do sistema passa por `src-tauri/src/os.rs` (pasta do usuário, dados em
   `~/.config/AlphaTerm`, temporários, abrir e mostrar arquivos) e, no frontend, por `src/platform.ts`

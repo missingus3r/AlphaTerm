@@ -22,6 +22,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { APP_ID, runVersionsTool, versionsTool } from "./app-versions.mjs";
 import { bumpVersion } from "./changelog-lib.mjs";
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -87,6 +88,16 @@ if (kind) {
   } catch {
     /* doesn't exist: fine */
   }
+  // Making a version publishes it (app-versions): before touching anything, may this version be made here?
+  // (on main, not behind GitHub, the tag free there too). Without app-versions set up, no version.
+  if (!versionsTool("publish.mjs")) {
+    console.error("Falta el repo de versiones en esta PC (app-versions): clonarlo y correr `node bin/setup.mjs`. No se cambió nada.");
+    process.exit(1);
+  }
+  if (runVersionsTool("publish.mjs", [APP_ID, "--preflight", "--version", version, "--repo", repo]) !== 0) {
+    console.error("\nNo se subió la versión. No se cambió nada.");
+    process.exit(1);
+  }
   // What's new in the three languages: the commits that go into this version must be translated.
   let since = null;
   try {
@@ -135,5 +146,15 @@ try {
 } catch (e) {
   undo();
   console.error(`\nNo se pudo compilar o instalar: ${e.message ?? e}`);
+  process.exit(1);
+}
+
+// --- 3) Publish: push main and the tag, and write the version in app-versions ---
+// Already installed here: if publishing fails, the version stays (no undo) and can be published again.
+if (kind && runVersionsTool("publish.mjs", [APP_ID, "--version", version, "--repo", repo]) !== 0) {
+  console.error(
+    `\nAlphaTerm ${version} quedó instalada en esta PC pero no se publicó. Para reintentar:\n` +
+      `  node "${versionsTool("publish.mjs")}" ${APP_ID} --version ${version} --repo "${repo}"`,
+  );
   process.exit(1);
 }

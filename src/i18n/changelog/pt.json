@@ -239,5 +239,9 @@
   "La última fila de la terminal ya no queda cortada": {
     "subject": "A última linha da terminal não fica mais cortada",
     "body": "- Conforme o tamanho da janela, a terminal contava uma linha (e uma coluna) a mais: a última ficava cortada embaixo do rodapé, por exemplo maximizada num monitor vertical."
+  },
+  "Publicar las versiones en el repo de versiones": {
+    "subject": "Publicar as versões no repositório de versões",
+    "body": "- Gerar uma versão agora a publica: antes de mudar qualquer coisa verifica se é possível (em main, em dia com o GitHub, tag livre) e, depois de instalar, sobe main e a tag e registra a versão no app-versions.\n- A instalação registra onde está o código neste PC, para que o outro PC possa se atualizar sozinho."
   }
 }
